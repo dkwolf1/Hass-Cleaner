@@ -4,7 +4,7 @@ Git-installatieklare Home Assistant App-repository voor een veilige opslag-audit
 
 ## Huidige veiligheidsstatus
 
-Versie 0.2.0 is technisch afgedwongen **audit-only**:
+Versie 0.2.1 is technisch afgedwongen **audit-only**:
 
 - `/homeassistant` wordt door Supervisor read-only gemount;
 - er bestaat geen verwijder-, verplaats- of purge-endpoint;

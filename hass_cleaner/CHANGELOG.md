@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Ongeldige Python-basisimage vervangen door de officiële multi-architecture
+  `ghcr.io/home-assistant/base-python:3.13-alpine3.24` image.
+
 ## 0.2.0
 
 - Home Assistant-configuratiemount gewijzigd naar read-only.

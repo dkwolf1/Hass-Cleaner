@@ -39,6 +39,16 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("read_only: true", manifest)
         self.assertNotIn("read_only: false", manifest)
 
+    def test_build_uses_published_multi_arch_python_tag(self) -> None:
+        app_root = Path(__file__).resolve().parents[1]
+        expected = "ghcr.io/home-assistant/base-python:3.13-alpine3.24"
+        build_manifest = (app_root / "build.yaml").read_text(encoding="utf-8")
+        dockerfile = (app_root / "Dockerfile").read_text(encoding="utf-8")
+
+        self.assertEqual(2, build_manifest.count(expected))
+        self.assertIn(f"ARG BUILD_FROM={expected}", dockerfile)
+        self.assertNotIn("amd64-base-python:3.13\n", build_manifest)
+
 
 if __name__ == "__main__":
     unittest.main()
