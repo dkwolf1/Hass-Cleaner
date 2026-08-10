@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .policy import Classification, RISK_PROTECTED, RISK_REVIEW, RISK_SAFE, classify
+from .impact import analyze_file
 from .registry_audit import RegistryAudit, scan_home_assistant_registries
 from .settings import Settings
 
@@ -22,6 +23,7 @@ class ScanItem:
     recommended_action: str
     size_bytes: int
     modified_at: str
+    advice: dict[str, object]
 
 
 @dataclass
@@ -125,6 +127,7 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                         recommended_action=decision.recommended_action,
                         size_bytes=size,
                         modified_at=datetime.fromtimestamp(metadata.st_mtime, tz=timezone.utc).isoformat(),
+                        advice=analyze_file(path, decision.category, decision.risk, decision.reason),
                     )
                 )
         result.status = "completed"

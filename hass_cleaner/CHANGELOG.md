@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Inhoudsbewuste impactanalyse aan ieder gevonden bestand en iedere integratiebundel toegevoegd.
+- Bewijsniveaus toegevoegd: sterk bewijs, waarschijnlijk veilig, meer bewijs nodig, hoog risico en geblokkeerd.
+- Veilige structuurpreviews voor JSON, YAML, code en tekst toegevoegd; gevoelige waarden worden nooit opgenomen.
+- Gevolgadvies, aanbevolen eerste stap en concrete herstelroutes in UI en rapporten opgenomen.
+- Geavanceerde beoordelingsmodus toegevoegd waarmee review-items aan een dry-runplan kunnen worden toegevoegd zonder ze uitvoerbaar te maken.
+- Persistente JSON- en Markdown-impactplannen met voor/na-snapshot en hersteladvies toegevoegd.
+- Bestands-, entity- en apparaatuitvoering blijft technisch vergrendeld.
+
 ## 0.4.0
 
 - Apparaten en entities per configuratie-entry/integratie gebundeld.

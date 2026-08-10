@@ -251,6 +251,12 @@
             </section>
 
             <section class="panel settings-card full-width">
+              <div class="panel-heading"><div><div class="eyebrow">GEAVANCEERDE BEOORDELING</div><h3>Ook buiten de veilige marges onderzoeken</h3></div><span class="soft-pill">Uitvoering blijft vergrendeld</span></div>
+              <label class="toggle-row"><span><strong>Review-items selecteerbaar maken voor het adviesplan</strong><small>Toont gevolgen, bewijs en herstel voor twijfelgevallen. Beschermde bestanden blijven altijd geblokkeerd en er wordt niets verwijderd.</small></span><input type="checkbox" id="advanced-mode"></label>
+              <div class="notice notice-warning advanced-notice"><div class="notice-icon">!</div><div><strong>Geen algemene waarschuwingen omzeilen</strong><p>Ieder geselecteerd review-item blijft afzonderlijk herkenbaar in het voor/na-plan. Een groen label wordt hierdoor nooit afgedwongen.</p></div></div>
+            </section>
+
+            <section class="panel settings-card full-width">
               <div class="panel-heading"><div><div class="eyebrow">HOME ASSISTANT-BACK-UP</div><h3>Verplichte vraag vóór cleanup</h3></div><span class="soft-pill success">Altijd actief</span></div>
               <p class="settings-intro">Voor elke destructieve uitvoering moet de gebruiker kiezen:</p>
               <div class="backup-options">
@@ -267,18 +273,25 @@
     <dialog id="cleanup-dialog">
       <form method="dialog" class="dialog-card" id="cleanup-form">
         <button class="dialog-close" value="cancel" aria-label="Sluiten">×</button>
-        <div class="dialog-icon">▣</div>
-        <div class="eyebrow">VEILIGHEIDSCONTROLE</div>
-        <h2>Maak eerst een back-up</h2>
-        <p>Voordat het cleanup-plan wordt gemaakt, kies je hoe Home Assistant beschermd moet worden.</p>
-        <div class="dialog-options">
-          <label><input type="radio" name="backup-choice" value="create" checked><span><strong>Nu een volledige Home Assistant-back-up maken</strong><small>Aanbevolen. Wordt via Supervisor gestart.</small></span></label>
-          <label><input type="radio" name="backup-choice" value="existing"><span><strong>Ik heb een recente, bruikbare back-up</strong><small>Controleer datum en opslaglocatie voordat je doorgaat.</small></span></label>
-          <label class="danger-option"><input type="radio" name="backup-choice" value="skip"><span><strong>Zonder back-up doorgaan</strong><small>Niet aanbevolen; permanent verlies kan niet worden hersteld.</small></span></label>
-        </div>
+        <div class="dialog-icon">i</div>
+        <div class="eyebrow">IMPACTANALYSE</div>
+        <h2>Maak een niet-uitvoerbaar dry-runplan</h2>
+        <p>Het plan legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering blijft vergrendeld</strong><p>Vóór een toekomstige echte cleanup wordt opnieuw gecontroleerd en is een voltooide back-up verplicht.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
-        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Back-up en dry-run starten</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Dry-runplan maken</button></div>
       </form>
+    </dialog>
+
+    <dialog id="file-advice-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="file-advice-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">INHOUD, IMPACT EN HERSTEL</div>
+        <h2 id="file-advice-title">Bestandsadvies</h2>
+        <p id="file-advice-path"></p>
+        <div id="file-advice-content" class="advice-content"></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="file-advice-dialog">Sluiten</button></div>
+      </div>
     </dialog>
 
     <dialog id="bundle-dialog">
@@ -287,9 +300,21 @@
         <div class="eyebrow">BUNDELBEOORDELING</div>
         <h2 id="bundle-dialog-title">Bundel</h2>
         <p id="bundle-dialog-summary"></p>
+        <div id="bundle-advice" class="advice-content"></div>
         <div id="bundle-related" class="related-list"></div>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Verwijderen vergrendeld</strong><p>Je kunt de volledige bundel in één keer beoordelen. Uitvoering wordt pas toegevoegd nadat de relaties in echte rapporten zijn gecontroleerd.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan dry-run toevoegen</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="plan-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="plan-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">OPGESLAGEN DRY-RUN</div>
+        <h2>Impact- en herstelplan gereed</h2>
+        <p id="plan-dialog-summary"></p>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is vergrendeld</strong><p>Het plan beschrijft de verwachte voor- en nasituatie, gevolgen en herstelstappen. Er is niets gewijzigd.</p></div></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-primary plan-download" data-format="md">Markdown downloaden</button></div>
       </div>
     </dialog>
 

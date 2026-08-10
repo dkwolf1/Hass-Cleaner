@@ -15,6 +15,7 @@ from .scanner import ScanManager
 from .reporting import report_path
 from .recorder import PurgeManager
 from .registry_audit import HomeAssistantApiError, fetch_related
+from .plans import PlanError, PlanManager
 from .settings import Settings, environment, load_effective_settings, save_local_settings
 from .supervisor import SupervisorError, create_full_backup, supervisor_available
 
@@ -31,10 +32,11 @@ class AppState:
             self.report_root,
         )
         self.purge_manager = PurgeManager(data_root)
+        self.plan_manager = PlanManager(data_root)
 
 
 class CleanupHandler(BaseHTTPRequestHandler):
-    server_version = "HassCleaner/0.4"
+    server_version = "HassCleaner/0.5"
 
     @property
     def state(self) -> AppState:
@@ -59,6 +61,9 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "config_mount_expected_read_only": True,
                     "backup_available": supervisor_available(),
                     "registry_scan_available": supervisor_available(),
+                    "impact_advice_available": True,
+                    "advanced_review_available": True,
+                    "plan_download_available": True,
                 }
             )
         elif path == "/api/settings":
@@ -80,6 +85,13 @@ class CleanupHandler(BaseHTTPRequestHandler):
             file_path = report_path(self.state.report_root, match.group(1), match.group(2)) if match else None
             if file_path is None:
                 self._json({"error": "Rapport niet gevonden"}, HTTPStatus.NOT_FOUND)
+            else:
+                self._download(file_path)
+        elif path.startswith("/api/plans/"):
+            match = re.fullmatch(r"/api/plans/([a-zA-Z0-9]+)\.(json|md)", path)
+            file_path = self.state.plan_manager.path(match.group(1), match.group(2)) if match else None
+            if file_path is None:
+                self._json({"error": "Plan niet gevonden"}, HTTPStatus.NOT_FOUND)
             else:
                 self._download(file_path)
         elif path == "/" or path.endswith("/index.html"):
@@ -112,6 +124,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     min_log_age_days=int(body.get("min_log_age_days", 14)),
                     deletion_mode=str(body.get("deletion_mode", "quarantine")),
                     retention_days=int(body.get("retention_days", 7)),
+                    advanced_mode=_optional_bool(body, "advanced_mode", False),
                 ).validated()
                 save_local_settings(self.state.data_root, settings)
             except (TypeError, ValueError) as exc:
@@ -164,17 +177,28 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json({"status": "accepted", "record": asdict(record)}, HTTPStatus.ACCEPTED)
         elif path == "/api/plans/preview":
             body = self._read_json()
+            try:
+                plan = self.state.plan_manager.create(
+                    self.state.scan_manager.latest(),
+                    load_effective_settings(self.state.data_root),
+                    selected_ids=_string_list(body, "selected_ids"),
+                    selected_bundle_ids=_string_list(body, "selected_bundle_ids"),
+                    backup_choice=str(body.get("backup_choice", "not_required_for_dry_run")),
+                )
+            except PlanError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
             self._json(
                 {
                     "status": "dry_run_only",
-                    "message": "Destructieve uitvoering is in deze audit-only versie vergrendeld.",
-                    "backup_choice": body.get("backup_choice"),
-                    "deletion_mode": body.get("deletion_mode"),
-                    "retention_days": body.get("retention_days"),
-                    "selected_ids": body.get("selected_ids", []),
-                    "selected_bundle_ids": body.get("selected_bundle_ids", []),
+                    "message": "Impact- en herstelplan opgeslagen; destructieve uitvoering blijft vergrendeld.",
+                    "plan": plan,
+                    "downloads": {
+                        "json": f"api/plans/{plan['id']}.json",
+                        "md": f"api/plans/{plan['id']}.md",
+                    },
                 },
-                HTTPStatus.ACCEPTED,
+                HTTPStatus.CREATED,
             )
         else:
             self._json({"error": "Endpoint niet gevonden"}, HTTPStatus.NOT_FOUND)
@@ -244,6 +268,19 @@ def _required_bool(body: dict[str, object], key: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{key} moet true of false zijn")
     return value
+
+
+def _optional_bool(body: dict[str, object], key: str, default: bool) -> bool:
+    if key not in body:
+        return default
+    return _required_bool(body, key)
+
+
+def _string_list(body: dict[str, object], key: str) -> list[str]:
+    value = body.get(key, [])
+    if not isinstance(value, list) or any(not isinstance(item, str) or len(item) > 255 for item in value):
+        raise PlanError(f"{key} is ongeldig")
+    return list(dict.fromkeys(value))
 
 
 def run() -> None:

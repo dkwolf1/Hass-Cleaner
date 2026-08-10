@@ -20,6 +20,7 @@ class ReportingTests(unittest.TestCase):
             cache.parent.mkdir(parents=True)
             cache.write_bytes(b"cache")
             (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
+            (source / "secrets.yaml").write_text("api_token: ultra-private-report-value", encoding="utf-8")
             result = scan_tree(source, Settings())
             result.registry_audit = RegistryAudit(
                 status="completed",
@@ -54,11 +55,13 @@ class ReportingTests(unittest.TestCase):
 
             self.assertEqual({"json", "csv", "md"}, set(paths))
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+            self.assertNotIn("ultra-private-report-value", paths["json"].read_text(encoding="utf-8"))
             self.assertTrue(payload["audit_only"])
             self.assertTrue(payload["execution_locked"])
             self.assertEqual("sensor.helper", payload["scan"]["registry_audit"]["findings"][0]["subject_id"])
             self.assertEqual(1, payload["review_summary"]["proposed_for_cleanup_count"])
             markdown = paths["md"].read_text(encoding="utf-8")
+            self.assertNotIn("ultra-private-report-value", markdown)
             self.assertIn("AUDIT-ONLY", markdown)
             self.assertIn("/homeassistant/custom_components/demo/__pycache__/demo.cpython-313.pyc", markdown)
             self.assertIn("Home Assistant-registercontrole", markdown)
@@ -67,8 +70,11 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("Demo integration", markdown)
             with paths["csv"].open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream, delimiter=";"))
+            self.assertTrue(all(None not in row for row in rows))
+            self.assertNotIn("ultra-private-report-value", paths["csv"].read_text(encoding="utf-8-sig"))
             cache_row = next(row for row in rows if row["path"].endswith("demo.cpython-313.pyc"))
             self.assertEqual("yes", cache_row["proposed_for_cleanup"])
+            self.assertEqual("strong", cache_row["evidence_level"])
             registry_row = next(row for row in rows if row["record_type"] == "registry")
             self.assertEqual("no", registry_row["proposed_for_cleanup"])
             self.assertNotEqual("delete", registry_row["recommended_action"])

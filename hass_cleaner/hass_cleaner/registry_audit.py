@@ -6,6 +6,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+from .impact import analyze_bundle
+
 
 WEBSOCKET_URL = "ws://supervisor/core/websocket"
 
@@ -38,6 +40,7 @@ class RegistryBundle:
     entities: list[dict[str, Any]]
     review_count: int
     informational_count: int
+    advice: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -349,6 +352,11 @@ def _build_bundles(
                 entities=sorted(entity_summaries, key=lambda item: item["entity_id"]),
                 review_count=sum(1 for item in bundle_findings if item.severity == "review"),
                 informational_count=sum(1 for item in bundle_findings if item.severity == "info"),
+                advice=analyze_bundle(
+                    devices=device_summaries,
+                    entities=entity_summaries,
+                    review_count=sum(1 for item in bundle_findings if item.severity == "review"),
+                ),
             )
         )
     return sorted(bundles, key=lambda item: (item.review_count == 0, item.domain.lower(), item.title.lower()))

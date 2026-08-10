@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 3
+REPORT_SCHEMA_VERSION = 4
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -80,6 +80,10 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                 "size_bytes",
                 "modified_at",
                 "reason",
+                "evidence_level",
+                "possible_consequences",
+                "recovery_steps",
+                "content_preview",
             ]
         )
         for item in scan.items:
@@ -98,6 +102,10 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     item.size_bytes,
                     item.modified_at,
                     item.reason,
+                    item.advice.get("evidence_level", ""),
+                    " | ".join(str(value) for value in item.advice.get("possible_consequences", [])),
+                    " | ".join(str(value) for value in item.advice.get("recovery_steps", [])),
+                    json.dumps(item.advice.get("content_preview", {}), ensure_ascii=False),
                 ]
             )
         for item in scan.registry_audit.findings:
@@ -116,6 +124,10 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     0,
                     "",
                     item.reason,
+                    "",
+                    "",
+                    "",
+                    "",
                 ]
             )
         for bundle in scan.registry_audit.bundles:
@@ -134,6 +146,10 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     0,
                     "",
                     f"{len(bundle.devices)} apparaten; {len(bundle.entities)} entities; {bundle.review_count} waarschuwingen",
+                    bundle.advice.get("evidence_level", ""),
+                    " | ".join(str(value) for value in bundle.advice.get("possible_consequences", [])),
+                    " | ".join(str(value) for value in bundle.advice.get("recovery_steps", [])),
+                    json.dumps(bundle.advice.get("content_preview", {}), ensure_ascii=False),
                 ]
             )
 
@@ -219,17 +235,20 @@ def _markdown_table(items: list[dict[str, object]]) -> list[str]:
     if not items:
         return ["Geen bestanden gevonden."]
     lines = [
-        "| Pad | Categorie | Grootte | Gewijzigd | Reden |",
-        "|---|---:|---:|---:|---|",
+        "| Pad | Categorie | Bewijs | Grootte | Reden | Mogelijk gevolg | Herstel |",
+        "|---|---:|---|---:|---|---|---|",
     ]
     for item in items:
         lines.append(
-            "| `{path}` | {category} | {size} B | {modified} | {reason} |".format(
+            "| `{path}` | {category} | {evidence} | {size} B | {reason} | {consequence} | {recovery} |".format(
                 path=str(item.get("path", "")).replace("|", "\\|"),
                 category=str(item.get("category", "")).replace("|", "\\|"),
                 size=item.get("size_bytes", 0),
                 modified=str(item.get("modified_at", "")),
                 reason=str(item.get("reason", "")).replace("|", "\\|"),
+                evidence=str(item.get("advice", {}).get("evidence_label", "")) if isinstance(item.get("advice"), dict) else "",
+                consequence=_advice_join(item, "possible_consequences"),
+                recovery=_advice_join(item, "recovery_steps"),
             )
         )
     return lines
@@ -257,20 +276,32 @@ def _markdown_bundle_table(items: list[dict[str, object]]) -> list[str]:
     if not items:
         return ["Geen bundels gevonden."]
     lines = [
-        "| Integratie | Domein | Apparaten | Entities | Waarschuwingen | Config-entry |",
-        "|---|---|---:|---:|---:|---|",
+        "| Integratie | Domein | Apparaten | Entities | Waarschuwingen | Bewijs | Advies | Config-entry |",
+        "|---|---|---:|---:|---:|---|---|---|",
     ]
     for item in items:
         devices = item.get("devices", [])
         entities = item.get("entities", [])
         lines.append(
-            "| {title} | `{domain}` | {devices} | {entities} | {review} | `{entry}` |".format(
+            "| {title} | `{domain}` | {devices} | {entities} | {review} | {evidence} | {advice} | `{entry}` |".format(
                 title=str(item.get("title", "")).replace("|", "\\|"),
                 domain=str(item.get("domain", "")).replace("|", "\\|"),
                 devices=len(devices) if isinstance(devices, list) else 0,
                 entities=len(entities) if isinstance(entities, list) else 0,
                 review=item.get("review_count", 0),
                 entry=str(item.get("config_entry_id", "")).replace("|", "\\|"),
+                evidence=str(item.get("advice", {}).get("evidence_label", "")) if isinstance(item.get("advice"), dict) else "",
+                advice=str(item.get("advice", {}).get("recommended_first_step", "")).replace("|", "\\|") if isinstance(item.get("advice"), dict) else "",
             )
         )
     return lines
+
+
+def _advice_join(item: dict[str, object], key: str) -> str:
+    advice = item.get("advice", {})
+    if not isinstance(advice, dict):
+        return ""
+    values = advice.get(key, [])
+    if not isinstance(values, list):
+        return ""
+    return "; ".join(str(value).replace("|", "\\|") for value in values)

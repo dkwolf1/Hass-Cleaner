@@ -4,7 +4,7 @@ Git-installatieklare Home Assistant App-repository voor een veilige opslag-audit
 
 ## Huidige veiligheidsstatus
 
-Versie 0.4.0 houdt bestands- en registeropschoning technisch **audit-only**:
+Versie 0.5.0 houdt bestands- en registeropschoning technisch **audit-only**:
 
 - `/homeassistant` wordt door Supervisor read-only gemount;
 - er bestaat geen verwijder- of verplaatsendpoint voor bestanden, entities of apparaten;
@@ -16,6 +16,10 @@ Versie 0.4.0 houdt bestands- en registeropschoning technisch **audit-only**:
 - apparaten en entities worden per integratie gebundeld en via `search/related` op afhankelijkheden gecontroleerd;
 - alleen de aparte, expliciet bevestigde officiële `recorder.purge`-actie kan historische Recorder-gegevens verwijderen;
 - een Recorder-purge vereist back-upbevestiging, het woord `PURGE` en wordt in een lokaal auditlog opgenomen.
+- ieder bestand en iedere bundel bevat bewijsniveau, mogelijke gevolgen en herstelstappen;
+- inhoudspreviews tonen alleen structuur en sleutelnamen; gevoelige waarden worden gemaskeerd of geheel weggelaten;
+- geavanceerde beoordeling maakt twijfelgevallen alleen selecteerbaar voor een niet-uitvoerbaar dry-runplan;
+- ieder impactplan wordt als JSON en Markdown opgeslagen met een expliciete voor/na-snapshot.
 
 ## Repositorystructuur
 

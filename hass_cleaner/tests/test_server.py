@@ -70,13 +70,30 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(400, raised.exception.code)
 
     def test_plan_endpoint_is_dry_run_only(self) -> None:
+        cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
+        cache.parent.mkdir(parents=True)
+        cache.write_bytes(b"cache")
+        (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
+        _, started = self.request("/api/scans", "POST", {})
+        for _ in range(50):
+            _, scan = self.request(f"/api/scans/{started['id']}")
+            if scan["status"] == "completed":
+                break
+            time.sleep(0.02)
+        selected_id = next(item["id"] for item in scan["items"] if item["risk"] == "safe")
         status, payload = self.request(
             "/api/plans/preview",
             "POST",
-            {"backup_choice": "existing", "deletion_mode": "quarantine", "retention_days": 4, "selected_ids": ["abc"]},
+            {"backup_choice": "existing", "selected_ids": [selected_id]},
         )
-        self.assertEqual(202, status)
+        self.assertEqual(201, status)
         self.assertEqual("dry_run_only", payload["status"])
+        self.assertTrue(payload["plan"]["execution_locked"])
+        self.assertEqual(0, payload["plan"]["summary"]["executable_actions"])
+        plan_id = payload["plan"]["id"]
+        with urllib.request.urlopen(f"{self.base}/api/plans/{plan_id}.md", timeout=5) as response:
+            markdown = response.read().decode("utf-8")
+        self.assertIn("impact- en herstelplan", markdown)
 
     def test_recorder_purge_requires_backup_and_exact_confirmation(self) -> None:
         calls = []

@@ -12,6 +12,8 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 - Registergegevens worden alleen via de officiële read-only WebSocket-commando's opgevraagd.
 - Entities, apparaten, gebieden en config-entries kunnen niet vanuit Hass-Cleaner worden gewijzigd.
 - Alleen `recorder.purge` is uitvoerbaar, na expliciete back-up- en tekstbevestiging.
+- Inhoudsadvies toont nooit ruwe geheime waarden en verandert geen bestanden.
+- Geavanceerde beoordeling ontgrendelt alleen analyse en dry-runselectie, geen uitvoering.
 
 ## Gebruik
 
@@ -25,6 +27,22 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 8. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
 9. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
 10. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
+
+## Impact- en hersteladvies
+
+Klik in **Scanresultaten** op een bestandsnaam om te zien:
+
+- hoe sterk het bewijs voor opschoning is;
+- welke veilige structuur uit het bestand is herkend;
+- wat mogelijk kan stoppen of verloren gaan;
+- hoe het onderdeel hersteld kan worden;
+- welke eerste stap Hass-Cleaner adviseert.
+
+JSON- en YAML-previews bevatten alleen sleutelnamen en tellingen. Wachtwoorden, tokens, API-sleutels en andere waarden worden niet in de scanresultaten of impactplannen opgenomen.
+
+## Geavanceerde beoordeling
+
+In **Instellingen** kan geavanceerde beoordeling worden ingeschakeld. Review-items worden dan selecteerbaar voor een impactplan. Beschermde items blijven geblokkeerd en ieder plan vermeldt `execution_locked: true` en `executable_actions: 0`. Het plan kan als JSON of Markdown worden gedownload en bevat de verwachte voor- en nasituatie plus herstelstappen.
 
 ## Registercontrole
 

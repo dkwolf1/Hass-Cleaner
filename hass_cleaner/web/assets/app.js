@@ -5,6 +5,7 @@ const state = {
   registryAudit: null,
   status: null,
   activeBundle: null,
+  latestPlan: null,
   selected: new Set(),
   pollTimer: null,
 };
@@ -107,6 +108,7 @@ async function loadSettings() {
   $("#retention-value").textContent = state.settings.retention_days;
   const selected = $(`input[name="deletion-mode"][value="${state.settings.deletion_mode}"]`);
   if (selected) selected.checked = true;
+  $("#advanced-mode").checked = Boolean(state.settings.advanced_mode);
   updateRetentionVisibility();
   renderPolicy();
 }
@@ -197,12 +199,13 @@ function renderResults() {
     return;
   }
   body.innerHTML = items.map((item) => {
-    const disabled = item.risk !== "safe" ? "disabled" : "";
+    const advanced = Boolean(state.settings?.advanced_mode || $("#advanced-mode").checked);
+    const disabled = item.risk === "protected" || (item.risk === "review" && !advanced) ? "disabled" : "";
     const checked = state.selected.has(item.id) ? "checked" : "";
     return `<label class="result-row">
       <input type="checkbox" data-item-id="${item.id}" ${disabled} ${checked} aria-label="Selecteer ${escapeHtml(item.path)}">
-      <span class="result-path"><strong>${escapeHtml(item.path.split("/").pop())}</strong><small title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</small></span>
-      <span>${escapeHtml(categoryLabel(item.category))}</span>
+      <span class="result-path"><button type="button" class="file-advice-link" data-advice-id="${item.id}">${escapeHtml(item.path.split("/").pop())}</button><small title="${escapeHtml(item.path)}">${escapeHtml(item.path)}</small></span>
+      <span class="item-category">${escapeHtml(categoryLabel(item.category))}<small>${escapeHtml(item.advice?.evidence_label || "Niet beoordeeld")}</small></span>
       <span class="risk-chip ${item.risk}">${escapeHtml(riskLabel(item.risk))}</span>
       <span>${formatBytes(item.size_bytes)}</span>
     </label>`;
@@ -210,6 +213,10 @@ function renderResults() {
   $$('input[data-item-id]', body).forEach((input) => input.addEventListener("change", () => {
     input.checked ? state.selected.add(input.dataset.itemId) : state.selected.delete(input.dataset.itemId);
     updatePrepareButton();
+  }));
+  $$(".file-advice-link", body).forEach((button) => button.addEventListener("click", (event) => {
+    event.preventDefault();
+    openFileAdvice(button.dataset.adviceId);
   }));
   updatePrepareButton();
 }
@@ -273,7 +280,7 @@ function renderBundles() {
     const devicePreview = bundle.devices.slice(0, 3).map((item) => `<span>${escapeHtml(item.name)}</span>`).join("");
     const warning = bundle.review_count
       ? `<span class="risk-chip review">${bundle.review_count} beoordelen</span>`
-      : '<span class="risk-chip info">Geen blokkades</span>';
+      : `<span class="risk-chip info">${escapeHtml(bundle.advice?.evidence_label || "Meer bewijs nodig")}</span>`;
     return `<article class="panel bundle-card">
       <div class="bundle-main">
         <div class="bundle-icon">${escapeHtml((bundle.domain || "?").slice(0, 2).toUpperCase())}</div>
@@ -291,6 +298,7 @@ async function openBundle(bundleId) {
   state.activeBundle = bundle;
   $("#bundle-dialog-title").textContent = bundle.title;
   $("#bundle-dialog-summary").textContent = `${bundle.devices.length} apparaten en ${bundle.entities.length} entities. ${bundle.review_count} waarschuwingen.`;
+  $("#bundle-advice").innerHTML = renderAdvice(bundle.advice || {});
   const related = $("#bundle-related");
   related.innerHTML = renderLocalBundleDetails(bundle);
   $("#bundle-dialog").showModal();
@@ -322,10 +330,47 @@ async function addBundleToPlan() {
   try {
     const plan = await api("api/plans/preview", { method: "POST", body: JSON.stringify({ selected_bundle_ids: [state.activeBundle.id] }) });
     $("#bundle-dialog").close();
-    showToast(`${state.activeBundle.title} toegevoegd: ${plan.message}`);
+    showPlan(plan);
   } catch (error) {
     showToast(error.message, true);
   }
+}
+
+function openFileAdvice(itemId) {
+  const item = state.items.find((candidate) => candidate.id === itemId);
+  if (!item) return;
+  $("#file-advice-title").textContent = item.path.split("/").pop();
+  $("#file-advice-path").textContent = item.path;
+  $("#file-advice-content").innerHTML = renderAdvice(item.advice || {});
+  $("#file-advice-dialog").showModal();
+}
+
+function renderAdvice(advice) {
+  const consequences = (advice.possible_consequences || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Geen gevolgadvies beschikbaar.</li>";
+  const recovery = (advice.recovery_steps || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Hersteladvies ontbreekt; niet uitvoeren.</li>";
+  const preview = advice.content_preview || {};
+  return `<div class="evidence-banner ${escapeHtml(advice.evidence_level || "insufficient")}"><span>Bewijsniveau</span><strong>${escapeHtml(advice.evidence_label || "Meer bewijs nodig")}</strong></div>
+    <section class="advice-section"><h3>Wat is dit?</h3><p>${escapeHtml(advice.summary || "Geen beschrijving beschikbaar.")}</p></section>
+    <section class="advice-section"><h3>Veilige inhoudspreview</h3><pre>${escapeHtml(JSON.stringify(preview, null, 2))}</pre><small>Waarden die gevoelig kunnen zijn worden niet opgenomen.</small></section>
+    <section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section>
+    <section class="advice-section first-step"><h3>Aanbevolen eerste stap</h3><p>${escapeHtml(advice.recommended_first_step || "Niet wijzigen zonder aanvullende controle.")}</p></section>`;
+}
+
+function showPlan(response) {
+  state.latestPlan = response;
+  const summary = response.plan?.summary || {};
+  $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden en ${summary.bundle_count || 0} bundels vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
+  $("#plan-dialog").showModal();
+  showToast(response.message || "Dry-runplan opgeslagen");
+}
+
+function downloadPlan(format) {
+  const path = state.latestPlan?.downloads?.[format];
+  if (!path) {
+    showToast("Maak eerst een impactplan", true);
+    return;
+  }
+  window.location.assign(apiUrl(path));
 }
 
 async function loadPurgeHistory() {
@@ -413,6 +458,7 @@ async function saveSettings() {
     min_log_age_days: Number($("#min-log-age").value),
     deletion_mode: $('input[name="deletion-mode"]:checked').value,
     retention_days: Number($("#retention-days").value),
+    advanced_mode: $("#advanced-mode").checked,
   };
   try {
     state.settings = await api("api/settings", { method: "POST", body: JSON.stringify(payload) });
@@ -424,41 +470,34 @@ async function saveSettings() {
 }
 
 function openCleanupDialog() {
-  const mode = state.settings?.deletion_mode || "quarantine";
-  const text = mode === "quarantine"
-    ? `${state.selected.size} bestanden · ${state.settings.retention_days} dagen herstelbaar`
-    : `${state.selected.size} bestanden · direct permanent verwijderen`;
+  const chosen = state.items.filter((item) => state.selected.has(item.id));
+  const reviewCount = chosen.filter((item) => item.risk === "review").length;
+  const text = `${chosen.length} bestanden in dry-run · ${reviewCount} buiten de veilige marge · 0 uitvoerbare acties`;
   $("#dialog-summary").textContent = text;
   $("#cleanup-dialog").showModal();
 }
 
 async function confirmPlan() {
-  const choice = $('input[name="backup-choice"]:checked').value;
   const button = $("#confirm-plan");
   button.disabled = true;
   try {
-    if (choice === "create") {
-      button.textContent = "Back-up starten...";
-      await api("api/backups", { method: "POST", body: "{}" });
-      showToast("Home Assistant-back-up is gestart");
-    }
     button.textContent = "Dry-run voorbereiden...";
     const plan = await api("api/plans/preview", {
       method: "POST",
       body: JSON.stringify({
-        backup_choice: choice,
+        backup_choice: "not_required_for_dry_run",
         deletion_mode: state.settings.deletion_mode,
         retention_days: state.settings.retention_days,
         selected_ids: [...state.selected],
       }),
     });
     $("#cleanup-dialog").close();
-    showToast(plan.message);
+    showPlan(plan);
   } catch (error) {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
-    button.textContent = "Back-up en dry-run starten";
+    button.textContent = "Dry-runplan maken";
   }
 }
 
@@ -483,6 +522,13 @@ function bindEvents() {
   $("#open-purge-dialog").addEventListener("click", openPurgeDialog);
   $("#purge-backup-button").addEventListener("click", startPurgeBackup);
   $("#confirm-purge").addEventListener("click", executePurge);
+  $("#advanced-mode").addEventListener("change", () => {
+    if (!$("#advanced-mode").checked) {
+      state.items.filter((item) => item.risk === "review").forEach((item) => state.selected.delete(item.id));
+    }
+    renderResults();
+  });
+  $$(".plan-download").forEach((button) => button.addEventListener("click", () => downloadPlan(button.dataset.format)));
   $$('[data-close-dialog]').forEach((button) => button.addEventListener("click", () => $("#" + button.dataset.closeDialog).close()));
   $$(".report-action").forEach((button) => button.addEventListener("click", () => downloadReport(button.dataset.report)));
   $$('input[name="deletion-mode"]').forEach((input) => input.addEventListener("change", updateRetentionVisibility));
