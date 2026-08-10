@@ -1,16 +1,17 @@
 # Hass-Cleaner
 
-Deze versie is uitsluitend bedoeld om veilig bestanden en Home Assistant-registers te inventariseren.
+Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 
 ## Veiligheidswaarborg
 
 - Home Assistant-configuratie is read-only gemount.
-- De app bevat geen verwijderendpoint.
+- De app bevat geen verwijderendpoint voor bestanden, entities of apparaten.
 - Scannen verandert geen bestanden of metadata.
 - Niets wordt vooraf geselecteerd.
 - Beschermde bestanden zijn niet selecteerbaar.
 - Registergegevens worden alleen via de officiële read-only WebSocket-commando's opgevraagd.
 - Entities, apparaten, gebieden en config-entries kunnen niet vanuit Hass-Cleaner worden gewijzigd.
+- Alleen `recorder.purge` is uitvoerbaar, na expliciete back-up- en tekstbevestiging.
 
 ## Gebruik
 
@@ -20,8 +21,10 @@ Deze versie is uitsluitend bedoeld om veilig bestanden en Home Assistant-registe
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
 6. Open **Entities & apparaten** voor de registercontrole.
-7. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
-8. Deel het rapport voor controle voordat een latere cleanupversie wordt overwogen.
+7. Gebruik **Bundel beoordelen** om apparaten, entities en officiële relaties samen te bekijken.
+8. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
+9. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
+10. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
 
 ## Registercontrole
 
@@ -45,4 +48,4 @@ Rapporten vermelden expliciet `audit_only: true` en `execution_locked: true`.
 
 ## Back-up
 
-De interface bevat alvast de toekomstige verplichte back-upkeuze. De optie om een volledige Home Assistant-back-up te starten gebruikt de officiële Supervisor API. Omdat deze release niets kan verwijderen, is een back-up niet nodig om een gewone scan uit te voeren.
+Een scan vereist geen back-up. Vóór een Recorder-purge kan de app via de officiële Supervisor API een volledige back-up starten. De purge wordt pas geaccepteerd nadat de gebruiker bevestigt dat een recente, voltooide en bruikbare back-up beschikbaar is en exact `PURGE` typt. `repack` is standaard uitgeschakeld omdat dit een zware bewerking is en tijdelijk extra schijfruimte kan gebruiken.

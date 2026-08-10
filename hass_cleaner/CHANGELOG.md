@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Apparaten en entities per configuratie-entry/integratie gebundeld.
+- Bovenliggende apparaten, onderliggende apparaten en losse entities samen zichtbaar gemaakt.
+- Officiële Home Assistant `search/related`-analyse toegevoegd voor automatiseringen, scripts, scènes en andere afhankelijkheden.
+- Volledige bundels kunnen met één klik worden beoordeeld en aan een dry-runplan worden toegevoegd; registerverwijdering blijft vergrendeld.
+- Afzonderlijke `recorder.purge`-actie toegevoegd met `keep_days`, `repack` en `apply_filter`.
+- Recorder-purge vereist een bevestigde back-up en de exacte bevestigingstekst `PURGE`.
+- De laatste 50 purgeaanvragen worden lokaal zonder gevoelige gegevens gelogd.
+
 ## 0.3.0
 
 - Read-only registerscan via de officiële Home Assistant WebSocket API toegevoegd.

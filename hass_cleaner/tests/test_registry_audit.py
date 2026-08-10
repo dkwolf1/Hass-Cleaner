@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from hass_cleaner.registry_audit import audit_registry_snapshot, fetch_registry_snapshot
+from hass_cleaner.registry_audit import audit_registry_snapshot, fetch_registry_snapshot, fetch_related
 
 
 class FakeConnection:
@@ -78,6 +78,23 @@ class RegistryAuditTests(unittest.TestCase):
         self.assertIn("device_without_entities", categories)
         self.assertIn("empty_area", categories)
         self.assertTrue(all(item.recommended_action != "delete" for item in audit.findings))
+        self.assertEqual(2, audit.summary["bundles_total"])
+        demo = next(bundle for bundle in audit.bundles if bundle.config_entry_id == "entry-1")
+        self.assertEqual("Demo", demo.title)
+        self.assertEqual(1, len(demo.devices))
+        self.assertEqual(3, len(demo.entities))
+        self.assertEqual(["sensor.normal"], demo.devices[0]["entity_ids"])
+
+    def test_related_search_uses_official_read_only_command(self) -> None:
+        connection = FakeConnection([
+            {"type": "auth_required"},
+            {"type": "auth_ok"},
+            {"id": 1, "type": "result", "success": True, "result": {"entity": ["sensor.one"], "automation": ["automation.test"]}},
+        ])
+        result = fetch_related("config_entry", "entry-1", token="test-token", connect=lambda *args, **kwargs: connection)
+        self.assertEqual(["automation.test"], result["automation"])
+        self.assertEqual("search/related", connection.sent[-1]["type"])
+        self.assertEqual("config_entry", connection.sent[-1]["item_type"])
 
 
 if __name__ == "__main__":

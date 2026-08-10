@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from hass_cleaner.reporting import write_report_files
-from hass_cleaner.registry_audit import RegistryAudit, RegistryFinding
+from hass_cleaner.registry_audit import RegistryAudit, RegistryBundle, RegistryFinding
 from hass_cleaner.scanner import scan_tree
 from hass_cleaner.settings import Settings
 
@@ -35,6 +35,19 @@ class ReportingTests(unittest.TestCase):
                         reason="Entity is niet aan een apparaat gekoppeld",
                     )
                 ],
+                bundles=[
+                    RegistryBundle(
+                        id="entry-1",
+                        title="Demo integration",
+                        domain="demo",
+                        config_entry_id="entry-1",
+                        state="loaded",
+                        devices=[{"device_id": "device-1"}],
+                        entities=[{"entity_id": "sensor.helper"}],
+                        review_count=0,
+                        informational_count=1,
+                    )
+                ],
             )
 
             paths = write_report_files(result, Settings(), Path(output_folder))
@@ -50,6 +63,8 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("/homeassistant/custom_components/demo/__pycache__/demo.cpython-313.pyc", markdown)
             self.assertIn("Home Assistant-registercontrole", markdown)
             self.assertIn("sensor.helper", markdown)
+            self.assertIn("Bundels per integratie", markdown)
+            self.assertIn("Demo integration", markdown)
             with paths["csv"].open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream, delimiter=";"))
             cache_row = next(row for row in rows if row["path"].endswith("demo.cpython-313.pyc"))
@@ -57,6 +72,8 @@ class ReportingTests(unittest.TestCase):
             registry_row = next(row for row in rows if row["record_type"] == "registry")
             self.assertEqual("no", registry_row["proposed_for_cleanup"])
             self.assertNotEqual("delete", registry_row["recommended_action"])
+            bundle_row = next(row for row in rows if row["record_type"] == "bundle")
+            self.assertEqual("Demo integration", bundle_row["name"])
 
     def test_manifest_mount_is_read_only(self) -> None:
         manifest = (Path(__file__).resolve().parents[1] / "config.yaml").read_text(encoding="utf-8")

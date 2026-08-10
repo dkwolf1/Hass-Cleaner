@@ -13,6 +13,8 @@ from urllib.parse import urlsplit
 from . import __version__
 from .scanner import ScanManager
 from .reporting import report_path
+from .recorder import PurgeManager
+from .registry_audit import HomeAssistantApiError, fetch_related
 from .settings import Settings, environment, load_effective_settings, save_local_settings
 from .supervisor import SupervisorError, create_full_backup, supervisor_available
 
@@ -28,10 +30,11 @@ class AppState:
             lambda: load_effective_settings(data_root),
             self.report_root,
         )
+        self.purge_manager = PurgeManager(data_root)
 
 
 class CleanupHandler(BaseHTTPRequestHandler):
-    server_version = "HassCleaner/0.3"
+    server_version = "HassCleaner/0.4"
 
     @property
     def state(self) -> AppState:
@@ -48,7 +51,11 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "mode": "local" if not supervisor_available() else "home_assistant",
                     "config_root_available": self.state.config_root.is_dir(),
                     "audit_only": True,
-                    "destructive_execution_enabled": False,
+                    "destructive_execution_enabled": supervisor_available(),
+                    "destructive_scope": "recorder_only",
+                    "file_execution_enabled": False,
+                    "registry_execution_enabled": False,
+                    "recorder_purge_enabled": supervisor_available(),
                     "config_mount_expected_read_only": True,
                     "backup_available": supervisor_available(),
                     "registry_scan_available": supervisor_available(),
@@ -59,6 +66,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
         elif path == "/api/scans/latest":
             scan = self.state.scan_manager.latest()
             self._json(scan.to_dict() if scan else {"status": "never_run"})
+        elif path == "/api/recorder/purges":
+            self._json({"items": self.state.purge_manager.history()})
         elif path.startswith("/api/scans/"):
             scan_id = path.rsplit("/", 1)[-1]
             scan = self.state.scan_manager.get(scan_id)
@@ -116,6 +125,43 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
                 return
             self._json({"status": "started", "backup": result}, HTTPStatus.ACCEPTED)
+        elif path == "/api/related":
+            body = self._read_json()
+            item_type = str(body.get("item_type", ""))
+            item_id = str(body.get("item_id", ""))
+            if not item_id or len(item_id) > 255:
+                self._json({"error": "Ongeldig relatie-item"}, HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                related = fetch_related(item_type, item_id)
+            except HomeAssistantApiError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+                return
+            self._json({"item_type": item_type, "item_id": item_id, "related": related})
+        elif path == "/api/recorder/purge":
+            body = self._read_json()
+            try:
+                keep_days = int(body.get("keep_days", 10))
+                repack = _required_bool(body, "repack")
+                apply_filter = _required_bool(body, "apply_filter")
+                backup_confirmed = _required_bool(body, "backup_confirmed")
+                record = self.state.purge_manager.execute(
+                    keep_days=keep_days,
+                    repack=repack,
+                    apply_filter=apply_filter,
+                    backup_confirmed=backup_confirmed,
+                    confirmation=str(body.get("confirmation", "")),
+                )
+            except (TypeError, ValueError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            except HomeAssistantApiError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+                return
+            except RuntimeError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "accepted", "record": asdict(record)}, HTTPStatus.ACCEPTED)
         elif path == "/api/plans/preview":
             body = self._read_json()
             self._json(
@@ -126,6 +172,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "deletion_mode": body.get("deletion_mode"),
                     "retention_days": body.get("retention_days"),
                     "selected_ids": body.get("selected_ids", []),
+                    "selected_bundle_ids": body.get("selected_bundle_ids", []),
                 },
                 HTTPStatus.ACCEPTED,
             )
@@ -190,6 +237,13 @@ def create_server(host: str, port: int, config_root: Path, data_root: Path) -> T
     server = ThreadingHTTPServer((host, port), CleanupHandler)
     server.state = AppState(config_root, data_root, web_root)  # type: ignore[attr-defined]
     return server
+
+
+def _required_bool(body: dict[str, object], key: str) -> bool:
+    value = body.get(key)
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} moet true of false zijn")
+    return value
 
 
 def run() -> None:

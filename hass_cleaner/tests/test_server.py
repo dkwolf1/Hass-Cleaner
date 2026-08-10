@@ -51,6 +51,9 @@ class ServerTests(unittest.TestCase):
         status, payload = self.request("/api/status")
         self.assertEqual(200, status)
         self.assertFalse(payload["destructive_execution_enabled"])
+        self.assertEqual("recorder_only", payload["destructive_scope"])
+        self.assertFalse(payload["file_execution_enabled"])
+        self.assertFalse(payload["registry_execution_enabled"])
 
     def test_retention_range_is_enforced(self) -> None:
         with self.assertRaises(urllib.error.HTTPError) as raised:
@@ -74,6 +77,20 @@ class ServerTests(unittest.TestCase):
         )
         self.assertEqual(202, status)
         self.assertEqual("dry_run_only", payload["status"])
+
+    def test_recorder_purge_requires_backup_and_exact_confirmation(self) -> None:
+        calls = []
+        self.server.state.purge_manager.purge_caller = lambda days, repack, apply_filter: calls.append((days, repack, apply_filter))
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request("/api/recorder/purge", "POST", {"keep_days": 10, "repack": False, "apply_filter": False, "backup_confirmed": False, "confirmation": "PURGE"})
+        self.assertEqual(400, raised.exception.code)
+
+        status, payload = self.request("/api/recorder/purge", "POST", {"keep_days": 7, "repack": True, "apply_filter": False, "backup_confirmed": True, "confirmation": "PURGE"})
+        self.assertEqual(202, status)
+        self.assertEqual("accepted", payload["status"])
+        self.assertEqual([(7, True, False)], calls)
+        _, history = self.request("/api/recorder/purges")
+        self.assertEqual(7, history["items"][0]["keep_days"])
 
     def test_completed_scan_exposes_downloadable_report(self) -> None:
         cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"

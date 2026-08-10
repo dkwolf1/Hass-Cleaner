@@ -27,11 +27,25 @@ class RegistryFinding:
     recommended_action: str = "none"
 
 
+@dataclass(frozen=True)
+class RegistryBundle:
+    id: str
+    title: str
+    domain: str
+    config_entry_id: str
+    state: str
+    devices: list[dict[str, Any]]
+    entities: list[dict[str, Any]]
+    review_count: int
+    informational_count: int
+
+
 @dataclass
 class RegistryAudit:
     status: str
     summary: dict[str, int] = field(default_factory=dict)
     findings: list[RegistryFinding] = field(default_factory=list)
+    bundles: list[RegistryBundle] = field(default_factory=list)
     error: str | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -39,6 +53,7 @@ class RegistryAudit:
             "status": self.status,
             "summary": self.summary,
             "findings": [asdict(item) for item in self.findings],
+            "bundles": [asdict(item) for item in self.bundles],
             "error": self.error,
             "audit_only": True,
             "destructive_actions_available": False,
@@ -198,7 +213,145 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
         "review_findings": sum(1 for item in findings if item.severity == "review"),
         "informational_findings": sum(1 for item in findings if item.severity == "info"),
     }
-    return RegistryAudit(status="completed", summary=summary, findings=findings)
+    bundles = _build_bundles(entities, devices, config_entries, findings)
+    summary["bundles_total"] = len(bundles)
+    return RegistryAudit(status="completed", summary=summary, findings=findings, bundles=bundles)
+
+
+def fetch_related(
+    item_type: str,
+    item_id: str,
+    *,
+    token: str | None = None,
+    connect: Callable[..., Any] | None = None,
+    url: str = WEBSOCKET_URL,
+) -> dict[str, list[str]]:
+    """Ask Home Assistant for the official relationship graph of one item."""
+    if item_type not in {"config_entry", "device", "entity"}:
+        raise HomeAssistantApiError("Dit relatietype wordt niet ondersteund")
+    access_token = token or os.environ.get("SUPERVISOR_TOKEN")
+    if not access_token:
+        raise HomeAssistantApiError("Relatieanalyse is alleen beschikbaar binnen Home Assistant")
+    if connect is None:
+        try:
+            import websocket
+        except ImportError as exc:  # pragma: no cover
+            raise HomeAssistantApiError("Python-package websocket-client ontbreekt") from exc
+        connect = websocket.create_connection
+    connection = connect(url, timeout=20, header=[f"Authorization: Bearer {access_token}"])
+    try:
+        greeting = _receive_json(connection)
+        if greeting.get("type") == "auth_required":
+            connection.send(json.dumps({"type": "auth", "access_token": access_token}))
+            authentication = _receive_json(connection)
+        else:
+            authentication = greeting
+        if authentication.get("type") != "auth_ok":
+            raise HomeAssistantApiError(authentication.get("message", "WebSocket-authenticatie geweigerd"))
+        connection.send(json.dumps({"id": 1, "type": "search/related", "item_type": item_type, "item_id": item_id}))
+        result = _receive_result(connection, 1).get("result")
+        if not isinstance(result, dict):
+            raise HomeAssistantApiError("Ongeldig antwoord van search/related")
+        return {
+            str(key): sorted(str(value) for value in values if isinstance(value, str))
+            for key, values in result.items()
+            if isinstance(values, list)
+        }
+    finally:
+        connection.close()
+
+
+def _build_bundles(
+    entities: list[dict[str, Any]],
+    devices: list[dict[str, Any]],
+    config_entries: list[dict[str, Any]],
+    findings: list[RegistryFinding],
+) -> list[RegistryBundle]:
+    entries = {_identifier(item, "entry_id", "id"): item for item in config_entries}
+    grouped_entities: dict[str, list[dict[str, Any]]] = {}
+    grouped_devices: dict[str, list[dict[str, Any]]] = {}
+
+    for entity in entities:
+        entry_id = _identifier(entity, "config_entry_id")
+        if not entry_id:
+            platform = _identifier(entity, "platform") or _identifier(entity, "entity_id").partition(".")[0] or "overig"
+            entry_id = f"unlinked:{platform}"
+        grouped_entities.setdefault(entry_id, []).append(entity)
+
+    for device in devices:
+        entry_ids = _device_config_entry_ids(device)
+        if not entry_ids:
+            entry_ids = {"unlinked:devices"}
+        for entry_id in entry_ids:
+            grouped_devices.setdefault(entry_id, []).append(device)
+
+    bundle_ids = set(entries) | set(grouped_entities) | set(grouped_devices)
+    findings_by_subject: dict[str, list[RegistryFinding]] = {}
+    for finding in findings:
+        findings_by_subject.setdefault(finding.subject_id, []).append(finding)
+
+    bundles: list[RegistryBundle] = []
+    for entry_id in bundle_ids:
+        entry = entries.get(entry_id, {})
+        bundle_entities = grouped_entities.get(entry_id, [])
+        bundle_devices = grouped_devices.get(entry_id, [])
+        entity_ids_by_device: dict[str, list[str]] = {}
+        for entity in bundle_entities:
+            device_id = _identifier(entity, "device_id")
+            if device_id:
+                entity_ids_by_device.setdefault(device_id, []).append(_identifier(entity, "entity_id"))
+        child_ids_by_parent: dict[str, list[str]] = {}
+        for device in bundle_devices:
+            parent_id = _identifier(device, "via_device_id")
+            if parent_id:
+                child_ids_by_parent.setdefault(parent_id, []).append(_identifier(device, "id", "device_id"))
+
+        entity_summaries = [
+            {
+                "entity_id": _identifier(item, "entity_id"),
+                "name": _display_name(item, _identifier(item, "entity_id")),
+                "device_id": _identifier(item, "device_id"),
+                "area_id": _identifier(item, "area_id"),
+                "platform": _identifier(item, "platform"),
+                "disabled": item.get("disabled_by") is not None,
+            }
+            for item in bundle_entities
+        ]
+        device_summaries = []
+        for item in bundle_devices:
+            device_id = _identifier(item, "id", "device_id")
+            device_summaries.append(
+                {
+                    "device_id": device_id,
+                    "name": _display_name(item, device_id),
+                    "manufacturer": _identifier(item, "manufacturer"),
+                    "model": _identifier(item, "model", "model_id"),
+                    "area_id": _identifier(item, "area_id"),
+                    "via_device_id": _identifier(item, "via_device_id"),
+                    "entity_ids": sorted(entity_ids_by_device.get(device_id, [])),
+                    "child_device_ids": sorted(child_ids_by_parent.get(device_id, [])),
+                }
+            )
+
+        subject_ids = {item["entity_id"] for item in entity_summaries} | {item["device_id"] for item in device_summaries}
+        bundle_findings = [finding for subject_id in subject_ids for finding in findings_by_subject.get(subject_id, [])]
+        unlinked = entry_id.startswith("unlinked:")
+        domain = _identifier(entry, "domain") or (entry_id.split(":", 1)[1] if unlinked else "onbekend")
+        title = _display_name(entry, domain.replace("_", " ").title())
+        bundles.append(
+            RegistryBundle(
+                id=entry_id,
+                title=title,
+                domain=domain,
+                config_entry_id="" if unlinked else entry_id,
+                state=_identifier(entry, "state") or ("niet gekoppeld" if unlinked else "onbekend"),
+                devices=sorted(device_summaries, key=lambda item: (str(item["name"]).lower(), item["device_id"])),
+                entities=sorted(entity_summaries, key=lambda item: item["entity_id"]),
+                review_count=sum(1 for item in bundle_findings if item.severity == "review"),
+                informational_count=sum(1 for item in bundle_findings if item.severity == "info"),
+            )
+        )
+    return sorted(bundles, key=lambda item: (item.review_count == 0, item.domain.lower(), item.title.lower()))
 
 
 def _receive_json(connection: Any) -> dict[str, Any]:

@@ -28,7 +28,8 @@
       <nav class="tabs" aria-label="Hoofdnavigatie">
         <button class="tab active" data-tab="overview">Overzicht</button>
         <button class="tab" data-tab="results">Scanresultaten</button>
-        <button class="tab" data-tab="registry">Entities &amp; apparaten</button>
+        <button class="tab" data-tab="registry">Bundels</button>
+        <button class="tab" data-tab="database">Database</button>
         <button class="tab" data-tab="quarantine">Quarantaine</button>
         <button class="tab" data-tab="history">Historie</button>
         <button class="tab" data-tab="settings">Instellingen <span class="dot"></span></button>
@@ -39,8 +40,8 @@
           <div class="notice notice-info" id="safety-notice">
             <div class="notice-icon">✦</div>
             <div>
-              <strong>Veiligheidsmodus actief</strong>
-              <p>Audit-only is technisch afgedwongen: `/homeassistant` is read-only gemount en er bestaat geen verwijderendpoint.</p>
+              <strong>Veilige scheiding actief</strong>
+              <p>Bestanden en registers blijven read-only. Alleen de afzonderlijk bevestigde officiële Recorder-purgeactie kan gegevens wijzigen.</p>
             </div>
           </div>
 
@@ -153,29 +154,60 @@
 
         <section class="view" id="view-registry">
           <div class="section-heading">
-            <div><div class="eyebrow">HOME ASSISTANT-REGISTERCONTROLE</div><h2>Entities en apparaten</h2></div>
+            <div><div class="eyebrow">RELATIEANALYSE</div><h2>Apparaten en entities gebundeld</h2></div>
             <div class="section-actions">
-              <select id="registry-severity-filter" aria-label="Filter registerbevindingen">
-                <option value="all">Alle bevindingen</option>
-                <option value="review">Handmatig beoordelen</option>
-                <option value="info">Informatief</option>
+              <input type="search" id="bundle-search" placeholder="Zoek integratie, apparaat of entity" aria-label="Zoek bundels">
+              <select id="registry-severity-filter" aria-label="Filter bundels">
+                <option value="all">Alle bundels</option>
+                <option value="review">Met waarschuwingen</option>
+                <option value="devices">Met apparaten</option>
+                <option value="entities">Met entities</option>
               </select>
               <span class="soft-pill" id="registry-state">Nog niet gescand</span>
             </div>
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Alleen read-only registercontrole</strong><p id="registry-message">Start een veilige scan om entities, apparaten, gebieden en configuratie-entries via de officiële Home Assistant API te vergelijken.</p></div>
+            <div><strong>Eén bundel per integratie</strong><p id="registry-message">Start een veilige scan. Hass-Cleaner groepeert configuratie, apparaten, onderliggende apparaten en entities; verwijderen blijft geblokkeerd.</p></div>
           </div>
           <section class="metric-grid registry-metrics" aria-label="Registeroverzicht">
-            <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">—</strong><p>In het entityregister</p></article>
-            <article class="metric-card protected"><div class="metric-top"><span>ZONDER APPARAAT</span></div><strong id="registry-unlinked-total">—</strong><p>Informatief; vaak normaal</p></article>
-            <article class="metric-card review"><div class="metric-top"><span>BEOORDELEN</span></div><strong id="registry-review-total">—</strong><p>Gebroken verwijzingen of niet geladen</p></article>
-            <article class="metric-card safe"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="registry-unavailable-total">—</strong><p>Alleen geteld, nooit opgeschoond</p></article>
+            <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">-</strong><p>In het entityregister</p></article>
+            <article class="metric-card protected"><div class="metric-top"><span>BUNDELS</span></div><strong id="registry-unlinked-total">-</strong><p>Integraties en losse platformen</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>BEOORDELEN</span></div><strong id="registry-review-total">-</strong><p>Gebroken verwijzingen of niet geladen</p></article>
+            <article class="metric-card safe"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="registry-unavailable-total">-</strong><p>Alleen geteld, nooit opgeschoond</p></article>
           </section>
-          <div class="registry-table panel">
-            <div class="registry-head"><span>Onderdeel</span><span>Categorie</span><span>Status</span><span>Reden</span></div>
-            <div id="registry-results-body" class="table-body"><div class="table-empty">Voer eerst een scan uit.</div></div>
+          <div id="bundle-list" class="bundle-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
+          <details class="panel findings-panel">
+            <summary>Alle afzonderlijke registerbevindingen</summary>
+            <div class="registry-table">
+              <div class="registry-head"><span>Onderdeel</span><span>Categorie</span><span>Status</span><span>Reden</span></div>
+              <div id="registry-results-body" class="table-body"><div class="table-empty">Voer eerst een scan uit.</div></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="view" id="view-database">
+          <div class="section-heading">
+            <div><div class="eyebrow">RECORDER</div><h2>Database opschonen</h2></div>
+            <span class="soft-pill" id="purge-availability">Controleren...</span>
+          </div>
+          <div class="notice notice-warning">
+            <div class="notice-icon">!</div>
+            <div><strong>Dit verwijdert historische gegevens permanent</strong><p>De actie gebruikt rechtstreeks <code>recorder.purge</code>. Actuele entities en apparaten worden niet verwijderd.</p></div>
+          </div>
+          <div class="database-layout">
+            <section class="panel settings-card">
+              <div class="panel-heading"><div><div class="eyebrow">BEWAARTERMIJN</div><h3>Oude historie verwijderen</h3></div></div>
+              <label class="field"><span>Dagen geschiedenis bewaren</span><div><input type="number" id="purge-keep-days" min="1" max="365" value="10"><span>dagen</span></div></label>
+              <label class="toggle-row"><span><strong>Database herverpakken</strong><small>Kan schijfruimte vrijmaken, maar is zwaar en kan tijdelijk extra ruimte gebruiken.</small></span><input type="checkbox" id="purge-repack"></label>
+              <label class="toggle-row"><span><strong>Recorder-filter toepassen</strong><small>Verwijdert ook gegevens die volgens de huidige include/exclude-filters niet meer opgenomen horen te worden.</small></span><input type="checkbox" id="purge-apply-filter"></label>
+              <div class="inline-note"><span>i</span><p>Bij herverpakken kan tijdelijk minstens ongeveer de databasegrootte aan vrije opslag nodig zijn.</p></div>
+              <button class="button button-danger" id="open-purge-dialog">Purge voorbereiden</button>
+            </section>
+            <section class="panel settings-card">
+              <div class="panel-heading"><div><div class="eyebrow">AUDIT-LOG</div><h3>Laatste purgeacties</h3></div></div>
+              <div id="purge-history" class="history-list"><div class="table-empty compact">Nog geen purgeactie uitgevoerd.</div></div>
+            </section>
           </div>
         </section>
 
@@ -247,6 +279,32 @@
         <div class="dialog-summary" id="dialog-summary"></div>
         <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Back-up en dry-run starten</button></div>
       </form>
+    </dialog>
+
+    <dialog id="bundle-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="bundle-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">BUNDELBEOORDELING</div>
+        <h2 id="bundle-dialog-title">Bundel</h2>
+        <p id="bundle-dialog-summary"></p>
+        <div id="bundle-related" class="related-list"></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Verwijderen vergrendeld</strong><p>Je kunt de volledige bundel in één keer beoordelen. Uitvoering wordt pas toegevoegd nadat de relaties in echte rapporten zijn gecontroleerd.</p></div></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan dry-run toevoegen</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="purge-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="purge-dialog" aria-label="Sluiten">&times;</button>
+        <div class="dialog-icon">!</div>
+        <div class="eyebrow">DESTRUCTIEVE DATABASEACTIE</div>
+        <h2>Recorder-database opschonen</h2>
+        <p id="purge-dialog-summary"></p>
+        <button class="button button-ghost" id="purge-backup-button">Eerst volledige back-up starten</button>
+        <label class="confirm-row"><input type="checkbox" id="purge-backup-confirmed"><span>Ik bevestig dat een recente, voltooide en bruikbare back-up beschikbaar is.</span></label>
+        <label class="field confirmation-field"><span>Typ <strong>PURGE</strong> ter bevestiging</span><input type="text" id="purge-confirmation" autocomplete="off" spellcheck="false"></label>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="purge-dialog">Annuleren</button><button class="button button-danger" id="confirm-purge">Recorder-purge uitvoeren</button></div>
+      </div>
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

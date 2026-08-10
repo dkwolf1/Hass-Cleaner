@@ -3,6 +3,8 @@ const state = {
   items: [],
   settings: null,
   registryAudit: null,
+  status: null,
+  activeBundle: null,
   selected: new Set(),
   pollTimer: null,
 };
@@ -84,9 +86,14 @@ function registryCategoryLabel(category) {
 async function loadStatus() {
   try {
     const status = await api("api/status");
+    state.status = status;
     const pill = $("#mode-pill");
     pill.classList.add("online");
     pill.innerHTML = `<i></i>${status.mode === "home_assistant" ? "Home Assistant verbonden" : "Lokale ontwikkelmodus"}`;
+    const purgeAvailability = $("#purge-availability");
+    purgeAvailability.textContent = status.recorder_purge_enabled ? "Beschikbaar" : "Alleen in Home Assistant";
+    purgeAvailability.classList.toggle("success", status.recorder_purge_enabled);
+    $("#open-purge-dialog").disabled = !status.recorder_purge_enabled;
   } catch (error) {
     $("#mode-pill").innerHTML = "<i></i>Niet verbonden";
   }
@@ -214,6 +221,7 @@ function renderRegistryAudit() {
     $("#registry-state").textContent = audit?.status === "failed" ? "Mislukt" : "Niet beschikbaar";
     $("#registry-message").textContent = audit?.error || "Voer de scan uit binnen Home Assistant.";
     body.innerHTML = '<div class="table-empty">Geen registergegevens beschikbaar.</div>';
+    $("#bundle-list").innerHTML = '<div class="table-empty panel">Geen bundelgegevens beschikbaar.</div>';
     return;
   }
 
@@ -221,22 +229,163 @@ function renderRegistryAudit() {
   $("#registry-state").textContent = "Voltooid";
   $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd.`;
   $("#registry-entities-total").textContent = summary.entities_total || 0;
-  $("#registry-unlinked-total").textContent = summary.entities_without_device || 0;
+  $("#registry-unlinked-total").textContent = summary.bundles_total || 0;
   $("#registry-review-total").textContent = summary.review_findings || 0;
   $("#registry-unavailable-total").textContent = summary.unavailable_states || 0;
 
-  const filter = $("#registry-severity-filter").value;
-  const findings = (audit.findings || []).filter((item) => filter === "all" || item.severity === filter);
+  renderBundles();
+  const allFindings = audit.findings || [];
+  const reviewFindings = allFindings.filter((item) => item.severity === "review");
+  const informationalFindings = allFindings.filter((item) => item.severity !== "review").slice(0, 250);
+  const findings = [...reviewFindings, ...informationalFindings];
   if (!findings.length) {
     body.innerHTML = '<div class="table-empty">Geen registerbevindingen binnen dit filter.</div>';
     return;
   }
-  body.innerHTML = findings.map((item) => `<div class="registry-row">
+  const limitedNotice = findings.length < allFindings.length
+    ? `<div class="registry-limit">${allFindings.length - findings.length} aanvullende informatieve regels staan volledig in het downloadbare rapport.</div>`
+    : "";
+  body.innerHTML = limitedNotice + findings.map((item) => `<div class="registry-row">
     <span class="result-path"><strong>${escapeHtml(item.name || item.subject_id)}</strong><small title="${escapeHtml(item.subject_id)}">${escapeHtml(item.subject_type)} · ${escapeHtml(item.subject_id)}</small></span>
     <span>${escapeHtml(registryCategoryLabel(item.category))}</span>
     <span class="risk-chip ${item.severity}">${item.severity === "review" ? "Beoordeling" : "Informatief"}</span>
     <span class="registry-reason">${escapeHtml(item.reason)}</span>
   </div>`).join("");
+}
+
+function renderBundles() {
+  const list = $("#bundle-list");
+  const filter = $("#registry-severity-filter").value;
+  const query = $("#bundle-search").value.trim().toLowerCase();
+  const bundles = (state.registryAudit?.bundles || []).filter((bundle) => {
+    if (filter === "review" && !bundle.review_count) return false;
+    if (filter === "devices" && !bundle.devices.length) return false;
+    if (filter === "entities" && !bundle.entities.length) return false;
+    if (!query) return true;
+    const haystack = [bundle.title, bundle.domain, ...bundle.devices.map((item) => item.name), ...bundle.entities.map((item) => item.entity_id)].join(" ").toLowerCase();
+    return haystack.includes(query);
+  });
+  if (!bundles.length) {
+    list.innerHTML = '<div class="table-empty panel">Geen bundels binnen dit filter.</div>';
+    return;
+  }
+  list.innerHTML = bundles.map((bundle) => {
+    const devicePreview = bundle.devices.slice(0, 3).map((item) => `<span>${escapeHtml(item.name)}</span>`).join("");
+    const warning = bundle.review_count
+      ? `<span class="risk-chip review">${bundle.review_count} beoordelen</span>`
+      : '<span class="risk-chip info">Geen blokkades</span>';
+    return `<article class="panel bundle-card">
+      <div class="bundle-main">
+        <div class="bundle-icon">${escapeHtml((bundle.domain || "?").slice(0, 2).toUpperCase())}</div>
+        <div class="bundle-copy"><div class="eyebrow">${escapeHtml(bundle.domain || "ONBEKEND")} · ${escapeHtml(bundle.state)}</div><h3>${escapeHtml(bundle.title)}</h3><p>${bundle.devices.length} apparaten · ${bundle.entities.length} entities</p><div class="device-preview">${devicePreview}${bundle.devices.length > 3 ? `<span>+${bundle.devices.length - 3}</span>` : ""}</div></div>
+      </div>
+      <div class="bundle-actions">${warning}<button class="button button-primary bundle-review" data-bundle-id="${escapeHtml(bundle.id)}">Bundel beoordelen</button></div>
+    </article>`;
+  }).join("");
+  $$(".bundle-review", list).forEach((button) => button.addEventListener("click", () => openBundle(button.dataset.bundleId)));
+}
+
+async function openBundle(bundleId) {
+  const bundle = (state.registryAudit?.bundles || []).find((item) => item.id === bundleId);
+  if (!bundle) return;
+  state.activeBundle = bundle;
+  $("#bundle-dialog-title").textContent = bundle.title;
+  $("#bundle-dialog-summary").textContent = `${bundle.devices.length} apparaten en ${bundle.entities.length} entities. ${bundle.review_count} waarschuwingen.`;
+  const related = $("#bundle-related");
+  related.innerHTML = renderLocalBundleDetails(bundle);
+  $("#bundle-dialog").showModal();
+  if (!bundle.config_entry_id) return;
+  related.insertAdjacentHTML("afterbegin", '<div class="related-loading">Officiële Home Assistant-relaties ophalen...</div>');
+  try {
+    const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "config_entry", item_id: bundle.config_entry_id }) });
+    const groups = Object.entries(response.related || {}).filter(([, ids]) => ids.length);
+    const graph = groups.length
+      ? groups.map(([type, ids]) => `<div class="related-group"><strong>${escapeHtml(type)}</strong><span>${ids.length}</span><small>${escapeHtml(ids.slice(0, 8).join(", "))}${ids.length > 8 ? " ..." : ""}</small></div>`).join("")
+      : '<div class="related-loading">Geen extra relaties gevonden.</div>';
+    related.innerHTML = graph + renderLocalBundleDetails(bundle);
+  } catch (error) {
+    related.querySelector(".related-loading").textContent = `Relatiezoekactie niet beschikbaar: ${error.message}`;
+  }
+}
+
+function renderLocalBundleDetails(bundle) {
+  const devices = bundle.devices.length
+    ? bundle.devices.map((device) => `<li><strong>${escapeHtml(device.name)}</strong><small>${device.entity_ids.length} entities${device.child_device_ids.length ? ` · ${device.child_device_ids.length} onderliggende apparaten` : ""}</small></li>`).join("")
+    : "<li>Geen apparaten in deze bundel</li>";
+  const loose = bundle.entities.filter((entity) => !entity.device_id);
+  return `<details class="bundle-details" open><summary>Apparaten (${bundle.devices.length})</summary><ul>${devices}</ul></details>
+    <details class="bundle-details"><summary>Losse entities (${loose.length})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities</li>"}</ul></details>`;
+}
+
+async function addBundleToPlan() {
+  if (!state.activeBundle) return;
+  try {
+    const plan = await api("api/plans/preview", { method: "POST", body: JSON.stringify({ selected_bundle_ids: [state.activeBundle.id] }) });
+    $("#bundle-dialog").close();
+    showToast(`${state.activeBundle.title} toegevoegd: ${plan.message}`);
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
+async function loadPurgeHistory() {
+  try {
+    const response = await api("api/recorder/purges");
+    const items = response.items || [];
+    $("#purge-history").innerHTML = items.length ? items.map((item) => `<div class="history-row"><span class="risk-chip ${item.status === "accepted" ? "safe" : "review"}">${escapeHtml(item.status)}</span><div><strong>${item.keep_days} dagen bewaard${item.repack ? " · herverpakt" : ""}</strong><small>${new Date(item.requested_at).toLocaleString("nl-NL")}</small></div></div>`).join("") : '<div class="table-empty compact">Nog geen purgeactie uitgevoerd.</div>';
+  } catch (error) {
+    $("#purge-history").innerHTML = `<div class="table-empty compact">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function openPurgeDialog() {
+  const keepDays = Number($("#purge-keep-days").value);
+  if (!Number.isInteger(keepDays) || keepDays < 1 || keepDays > 365) {
+    showToast("Kies 1 tot en met 365 dagen", true);
+    return;
+  }
+  const extras = [$("#purge-repack").checked ? "database herverpakken" : "niet herverpakken", $("#purge-apply-filter").checked ? "filters toepassen" : "filters niet toepassen"];
+  $("#purge-dialog-summary").textContent = `Alle Recorder-historie ouder dan ${keepDays} dagen wordt permanent verwijderd; ${extras.join("; ")}.`;
+  $("#purge-confirmation").value = "";
+  $("#purge-backup-confirmed").checked = false;
+  $("#purge-dialog").showModal();
+}
+
+async function startPurgeBackup() {
+  const button = $("#purge-backup-button");
+  button.disabled = true;
+  try {
+    await api("api/backups", { method: "POST", body: "{}" });
+    showToast("Back-up gestart. Wacht op voltooiing in Home Assistant en vink daarna de bevestiging aan.");
+    button.textContent = "Back-up gestart - controleer voltooiing";
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function executePurge() {
+  const button = $("#confirm-purge");
+  button.disabled = true;
+  button.textContent = "Purge aanvragen...";
+  try {
+    await api("api/recorder/purge", { method: "POST", body: JSON.stringify({
+      keep_days: Number($("#purge-keep-days").value),
+      repack: $("#purge-repack").checked,
+      apply_filter: $("#purge-apply-filter").checked,
+      backup_confirmed: $("#purge-backup-confirmed").checked,
+      confirmation: $("#purge-confirmation").value,
+    }) });
+    $("#purge-dialog").close();
+    showToast("Recorder-purge is door Home Assistant geaccepteerd");
+    await loadPurgeHistory();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Recorder-purge uitvoeren";
+  }
 }
 
 function updatePrepareButton() {
@@ -325,10 +474,16 @@ function bindEvents() {
   $("#scan-button").addEventListener("click", startScan);
   $("#hero-scan-button").addEventListener("click", startScan);
   $("#risk-filter").addEventListener("change", renderResults);
-  $("#registry-severity-filter").addEventListener("change", renderRegistryAudit);
+  $("#registry-severity-filter").addEventListener("change", renderBundles);
+  $("#bundle-search").addEventListener("input", renderBundles);
   $("#prepare-button").addEventListener("click", openCleanupDialog);
   $("#save-settings").addEventListener("click", saveSettings);
   $("#confirm-plan").addEventListener("click", confirmPlan);
+  $("#bundle-plan-button").addEventListener("click", addBundleToPlan);
+  $("#open-purge-dialog").addEventListener("click", openPurgeDialog);
+  $("#purge-backup-button").addEventListener("click", startPurgeBackup);
+  $("#confirm-purge").addEventListener("click", executePurge);
+  $$('[data-close-dialog]').forEach((button) => button.addEventListener("click", () => $("#" + button.dataset.closeDialog).close()));
   $$(".report-action").forEach((button) => button.addEventListener("click", () => downloadReport(button.dataset.report)));
   $$('input[name="deletion-mode"]').forEach((input) => input.addEventListener("change", updateRetentionVisibility));
   $("#retention-days").addEventListener("input", (event) => {
@@ -340,7 +495,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
-  await Promise.allSettled([loadStatus(), loadSettings()]);
+  await Promise.allSettled([loadStatus(), loadSettings(), loadPurgeHistory()]);
   try {
     const latest = await api("api/scans/latest");
     if (latest.status && latest.status !== "never_run") {

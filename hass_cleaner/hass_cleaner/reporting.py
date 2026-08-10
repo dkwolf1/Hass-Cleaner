@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -118,6 +118,24 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     item.reason,
                 ]
             )
+        for bundle in scan.registry_audit.bundles:
+            writer.writerow(
+                [
+                    "bundle",
+                    bundle.id,
+                    "",
+                    "integration_bundle",
+                    bundle.config_entry_id,
+                    bundle.title,
+                    "integration_bundle",
+                    "review" if bundle.review_count else "info",
+                    "no",
+                    "manual_review",
+                    0,
+                    "",
+                    f"{len(bundle.devices)} apparaten; {len(bundle.entities)} entities; {bundle.review_count} waarschuwingen",
+                ]
+            )
 
 
 def _markdown(report: dict[str, object]) -> str:
@@ -175,6 +193,10 @@ def _markdown(report: dict[str, object]) -> str:
         lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "review"]))
         lines.extend(["", "### Informatief - nooit automatisch opruimen", ""])
         lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "info"]))
+        bundles = registry.get("bundles", [])
+        assert isinstance(bundles, list)
+        lines.extend(["", "### Bundels per integratie", ""])
+        lines.extend(_markdown_bundle_table([item for item in bundles if isinstance(item, dict)]))
     else:
         lines.append(f"Registerscan niet beschikbaar: {registry.get('error') or registry_status}.")
     lines.extend(
@@ -227,5 +249,28 @@ def _markdown_registry_table(items: list[dict[str, object]]) -> list[str]:
         }
         lines.append(
             "| {subject_type} | {name} | `{subject_id}` | {category} | `{related_id}` | {reason} |".format(**values)
+        )
+    return lines
+
+
+def _markdown_bundle_table(items: list[dict[str, object]]) -> list[str]:
+    if not items:
+        return ["Geen bundels gevonden."]
+    lines = [
+        "| Integratie | Domein | Apparaten | Entities | Waarschuwingen | Config-entry |",
+        "|---|---|---:|---:|---:|---|",
+    ]
+    for item in items:
+        devices = item.get("devices", [])
+        entities = item.get("entities", [])
+        lines.append(
+            "| {title} | `{domain}` | {devices} | {entities} | {review} | `{entry}` |".format(
+                title=str(item.get("title", "")).replace("|", "\\|"),
+                domain=str(item.get("domain", "")).replace("|", "\\|"),
+                devices=len(devices) if isinstance(devices, list) else 0,
+                entities=len(entities) if isinstance(entities, list) else 0,
+                review=item.get("review_count", 0),
+                entry=str(item.get("config_entry_id", "")).replace("|", "\\|"),
+            )
         )
     return lines
