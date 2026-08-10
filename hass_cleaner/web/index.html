@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Hass-Cleaner</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M7 3h10l1 3h3v2H3V6h3l1-3Zm-1 7h12l-1 10H7L6 10Zm3 2v6h2v-6H9Zm4 0v6h2v-6h-2Z"/></svg>
+          </div>
+          <div>
+            <div class="eyebrow">HOME ASSISTANT APP</div>
+            <h1>Hass-Cleaner</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span class="status-pill" id="mode-pill"><i></i> Verbinden...</span>
+          <button class="button button-primary" id="scan-button">Nieuwe scan</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Hoofdnavigatie">
+        <button class="tab active" data-tab="overview">Overzicht</button>
+        <button class="tab" data-tab="results">Scanresultaten</button>
+        <button class="tab" data-tab="quarantine">Quarantaine</button>
+        <button class="tab" data-tab="history">Historie</button>
+        <button class="tab" data-tab="settings">Instellingen <span class="dot"></span></button>
+      </nav>
+
+      <main>
+        <section class="view active" id="view-overview">
+          <div class="notice notice-info" id="safety-notice">
+            <div class="notice-icon">✦</div>
+            <div>
+              <strong>Veiligheidsmodus actief</strong>
+              <p>Audit-only is technisch afgedwongen: `/homeassistant` is read-only gemount en er bestaat geen verwijderendpoint.</p>
+            </div>
+          </div>
+
+          <section class="hero-card">
+            <div class="hero-copy">
+              <div class="eyebrow">OPSLAGAUDIT</div>
+              <h2>Maak ruimte vrij,<br><span>zonder verrassingen.</span></h2>
+              <p>Bekijk eerst wat veilig weg kan, beoordeel twijfelgevallen en kies zelf hoe lang bestanden herstelbaar blijven.</p>
+              <div class="hero-actions">
+                <button class="button button-primary" id="hero-scan-button">Start veilige scan</button>
+                <button class="button button-ghost" data-tab-jump="settings">Bewaarbeleid instellen</button>
+              </div>
+            </div>
+            <div class="score-ring" aria-label="Veiligheidsscore">
+              <svg viewBox="0 0 120 120">
+                <circle class="ring-track" cx="60" cy="60" r="49"></circle>
+                <circle class="ring-value" cx="60" cy="60" r="49"></circle>
+              </svg>
+              <div><strong>100%</strong><span>read-only scan</span></div>
+            </div>
+          </section>
+
+          <section class="metric-grid" aria-label="Scanoverzicht">
+            <article class="metric-card safe">
+              <div class="metric-top"><span>VEILIG</span><span class="metric-icon">✓</span></div>
+              <strong id="safe-size">—</strong>
+              <p id="safe-count">Nog niet gescand</p>
+            </article>
+            <article class="metric-card review">
+              <div class="metric-top"><span>BEOORDELING</span><span class="metric-icon">!</span></div>
+              <strong id="review-size">—</strong>
+              <p id="review-count">Nog niet gescand</p>
+            </article>
+            <article class="metric-card protected">
+              <div class="metric-top"><span>BESCHERMD</span><span class="metric-icon">◆</span></div>
+              <strong id="protected-size">—</strong>
+              <p id="protected-count">Nooit automatisch wijzigen</p>
+            </article>
+            <article class="metric-card total">
+              <div class="metric-top"><span>MOGELIJKE WINST</span><span class="metric-icon">↗</span></div>
+              <strong id="total-size">—</strong>
+              <p>Na controle van alle kandidaten</p>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <article class="panel scan-panel">
+              <div class="panel-heading">
+                <div><div class="eyebrow">LAATSTE CONTROLE</div><h3>Scanstatus</h3></div>
+                <div class="heading-tools">
+                  <button class="link-button report-action hidden" data-report="md">Rapport</button>
+                  <button class="link-button report-action hidden" data-report="json">JSON</button>
+                  <span class="soft-pill" id="scan-state">Niet uitgevoerd</span>
+                </div>
+              </div>
+              <div class="scan-empty" id="scan-empty">
+                <div class="empty-icon">⌕</div>
+                <strong>Nog geen opslagscan uitgevoerd</strong>
+                <p>De scan leest alleen metadata en wijzigt geen enkel bestand.</p>
+              </div>
+              <div class="scan-progress hidden" id="scan-progress">
+                <div class="progress-line"><span id="progress-fill"></span></div>
+                <strong id="progress-title">Bestanden inventariseren</strong>
+                <p id="progress-detail">Scan voorbereiden...</p>
+              </div>
+            </article>
+
+            <article class="panel policy-panel">
+              <div class="panel-heading">
+                <div><div class="eyebrow">BEWAARBELEID</div><h3>Na goedkeuring</h3></div>
+                <button class="link-button" data-tab-jump="settings">Wijzigen</button>
+              </div>
+              <div class="policy-row">
+                <span class="policy-icon">↶</span>
+                <div><strong id="policy-title">7 dagen herstelbaar</strong><p id="policy-description">Verplaatsen naar beveiligde quarantaine</p></div>
+              </div>
+              <div class="policy-row">
+                <span class="policy-icon">▣</span>
+                <div><strong>Back-upvraag verplicht</strong><p>Voor iedere cleanup verschijnt een Home Assistant-back-upkeuze</p></div>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" id="view-results">
+          <div class="section-heading">
+            <div><div class="eyebrow">AUDITRESULTATEN</div><h2>Gevonden bestanden</h2></div>
+            <div class="section-actions">
+              <select id="risk-filter" aria-label="Filter op risico">
+                <option value="all">Alle categorieën</option>
+                <option value="safe">Veilig</option>
+                <option value="review">Beoordeling</option>
+                <option value="protected">Beschermd</option>
+              </select>
+              <button class="button button-ghost report-action hidden" data-report="csv">CSV export</button>
+              <button class="button button-primary" id="prepare-button" disabled>Dry-run voorbereiden</button>
+            </div>
+          </div>
+          <div class="notice notice-warning">
+            <div class="notice-icon">!</div>
+            <div><strong>Niets is vooraf geselecteerd</strong><p>Kies bewust welke veilige kandidaten in een dry-runplan komen. Beschermde bestanden zijn niet selecteerbaar.</p></div>
+          </div>
+          <div class="results-table panel">
+            <div class="table-head"><span></span><span>Bestand</span><span>Categorie</span><span>Risico</span><span>Grootte</span></div>
+            <div id="results-body" class="table-body">
+              <div class="table-empty">Voer eerst een scan uit.</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-quarantine">
+          <div class="section-heading"><div><div class="eyebrow">HERSTELBARE OPSLAG</div><h2>Quarantaine</h2></div></div>
+          <div class="empty-state panel"><div class="empty-icon">↶</div><h3>Nog geen bestanden in quarantaine</h3><p>Quarantaine wordt in een volgende bouwfase geactiveerd. Bestanden blijven dan 1–10 dagen herstelbaar.</p></div>
+        </section>
+
+        <section class="view" id="view-history">
+          <div class="section-heading"><div><div class="eyebrow">AUDIT-LOG</div><h2>Historie</h2></div></div>
+          <div class="empty-state panel"><div class="empty-icon">≡</div><h3>Lokale sessiehistorie</h3><p>Voltooide scans verschijnen hier zodra persistente SQLite-opslag in de volgende bouwstap is aangesloten.</p></div>
+        </section>
+
+        <section class="view" id="view-settings">
+          <div class="section-heading"><div><div class="eyebrow">VEILIGHEID EN GEDRAG</div><h2>Instellingen</h2></div><button class="button button-primary" id="save-settings">Instellingen opslaan</button></div>
+          <div class="settings-layout">
+            <section class="panel settings-card">
+              <div class="panel-heading"><div><div class="eyebrow">VERWIJDERBELEID</div><h3>Wat gebeurt er met bestanden?</h3></div></div>
+              <label class="choice-card">
+                <input type="radio" name="deletion-mode" value="quarantine" checked>
+                <span class="choice-control"></span>
+                <span><strong>Eerst in quarantaine <em>Aanbevolen</em></strong><small>Bestanden blijven tijdelijk herstelbaar en worden daarna permanent verwijderd.</small></span>
+              </label>
+              <div class="retention-control" id="retention-control">
+                <div class="range-label"><span>Bewaartermijn</span><strong><span id="retention-value">7</span> dagen</strong></div>
+                <input type="range" id="retention-days" min="1" max="10" value="7">
+                <div class="range-scale"><span>1 dag</span><span>10 dagen</span></div>
+              </div>
+              <label class="choice-card danger-choice">
+                <input type="radio" name="deletion-mode" value="permanent">
+                <span class="choice-control"></span>
+                <span><strong>Direct permanent verwijderen</strong><small>Geen herstelmogelijkheid. Vooraf verschijnt altijd de back-upvraag en een extra waarschuwing.</small></span>
+              </label>
+            </section>
+
+            <section class="panel settings-card">
+              <div class="panel-heading"><div><div class="eyebrow">SELECTIEREGELS</div><h3>Minimumleeftijd</h3></div></div>
+              <label class="field"><span>Tijdelijke- en editorbestanden</span><div><input type="number" id="min-temp-age" min="1" max="365" value="30"><span>dagen</span></div></label>
+              <label class="field"><span>Oude logbestanden</span><div><input type="number" id="min-log-age" min="1" max="365" value="14"><span>dagen</span></div></label>
+              <div class="inline-note"><span>i</span><p>Een bestandsnaam alleen is nooit voldoende. Pad, type, leeftijd en beschermingsregels worden altijd gecombineerd.</p></div>
+            </section>
+
+            <section class="panel settings-card full-width">
+              <div class="panel-heading"><div><div class="eyebrow">HOME ASSISTANT-BACK-UP</div><h3>Verplichte vraag vóór cleanup</h3></div><span class="soft-pill success">Altijd actief</span></div>
+              <p class="settings-intro">Voor elke destructieve uitvoering moet de gebruiker kiezen:</p>
+              <div class="backup-options">
+                <div><strong>1. Nu volledige back-up maken</strong><span>De app start een officiële Home Assistant-back-up en wacht in een latere versie op voltooiing.</span></div>
+                <div><strong>2. Recente back-up bevestigd</strong><span>De gebruiker bevestigt bewust dat een bruikbare back-up aanwezig is.</span></div>
+                <div><strong>3. Zonder back-up doorgaan</strong><span>Alleen na een extra risicobevestiging; nooit de standaardkeuze.</span></div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="cleanup-dialog">
+      <form method="dialog" class="dialog-card" id="cleanup-form">
+        <button class="dialog-close" value="cancel" aria-label="Sluiten">×</button>
+        <div class="dialog-icon">▣</div>
+        <div class="eyebrow">VEILIGHEIDSCONTROLE</div>
+        <h2>Maak eerst een back-up</h2>
+        <p>Voordat het cleanup-plan wordt gemaakt, kies je hoe Home Assistant beschermd moet worden.</p>
+        <div class="dialog-options">
+          <label><input type="radio" name="backup-choice" value="create" checked><span><strong>Nu een volledige Home Assistant-back-up maken</strong><small>Aanbevolen. Wordt via Supervisor gestart.</small></span></label>
+          <label><input type="radio" name="backup-choice" value="existing"><span><strong>Ik heb een recente, bruikbare back-up</strong><small>Controleer datum en opslaglocatie voordat je doorgaat.</small></span></label>
+          <label class="danger-option"><input type="radio" name="backup-choice" value="skip"><span><strong>Zonder back-up doorgaan</strong><small>Niet aanbevolen; permanent verlies kan niet worden hersteld.</small></span></label>
+        </div>
+        <div class="dialog-summary" id="dialog-summary"></div>
+        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Back-up en dry-run starten</button></div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="assets/app.js"></script>
+  </body>
+</html>

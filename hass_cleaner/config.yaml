@@ -1,0 +1,32 @@
+name: Hass-Cleaner
+version: "0.2.0"
+slug: hass_cleaner
+description: Veilige audit en gecontroleerde opschoning voor Home Assistant OS
+url: https://github.com/dkwolf1/Hass-Cleaner
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_admin: true
+panel_icon: mdi:broom
+homeassistant_api: true
+hassio_api: true
+hassio_role: backup
+watchdog: http://[HOST]:[PORT:8099]/health
+map:
+  - type: homeassistant_config
+    read_only: true
+options:
+  min_temp_age_days: 30
+  min_log_age_days: 14
+  deletion_mode: quarantine
+  retention_days: 7
+schema:
+  min_temp_age_days: int(1,365)
+  min_log_age_days: int(1,365)
+  deletion_mode: list(permanent|quarantine)
+  retention_days: int(1,10)
