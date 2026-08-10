@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -18,6 +18,9 @@ def build_report(scan: ScanResult, settings: Settings) -> dict[str, object]:
     safe_items = [item for item in scan.items if item.risk == "safe"]
     review_items = [item for item in scan.items if item.risk == "review"]
     protected_items = [item for item in scan.items if item.risk == "protected"]
+    registry_data = scan.registry_audit.to_dict()
+    registry_summary = registry_data.get("summary", {})
+    assert isinstance(registry_summary, dict)
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -31,6 +34,8 @@ def build_report(scan: ScanResult, settings: Settings) -> dict[str, object]:
             "protected_count": len(protected_items),
             "proposed_for_cleanup_bytes": sum(item.size_bytes for item in safe_items),
             "requires_manual_review_bytes": sum(item.size_bytes for item in review_items),
+            "registry_review_findings": registry_summary.get("review_findings", 0),
+            "registry_informational_findings": registry_summary.get("informational_findings", 0),
         },
         "scan": scan_data,
     }
@@ -62,8 +67,12 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
         writer = csv.writer(stream, delimiter=";")
         writer.writerow(
             [
+                "record_type",
                 "item_id",
                 "path",
+                "subject_type",
+                "subject_id",
+                "name",
                 "category",
                 "risk",
                 "proposed_for_cleanup",
@@ -76,14 +85,36 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
         for item in scan.items:
             writer.writerow(
                 [
+                    "file",
                     item.id,
                     item.path,
+                    "",
+                    "",
+                    "",
                     item.category,
                     item.risk,
                     "yes" if item.risk == "safe" else "no",
                     item.recommended_action,
                     item.size_bytes,
                     item.modified_at,
+                    item.reason,
+                ]
+            )
+        for item in scan.registry_audit.findings:
+            writer.writerow(
+                [
+                    "registry",
+                    item.id,
+                    "",
+                    item.subject_type,
+                    item.subject_id,
+                    item.name,
+                    item.category,
+                    item.severity,
+                    "no",
+                    item.recommended_action,
+                    0,
+                    "",
                     item.reason,
                 ]
             )
@@ -95,7 +126,9 @@ def _markdown(report: dict[str, object]) -> str:
     assert isinstance(scan, dict)
     assert isinstance(summary, dict)
     items = scan.get("items", [])
+    registry = scan.get("registry_audit", {})
     assert isinstance(items, list)
+    assert isinstance(registry, dict)
 
     lines = [
         "# Hass-Cleaner - auditrapport",
@@ -106,6 +139,7 @@ def _markdown(report: dict[str, object]) -> str:
         f"- Gestart: {scan.get('started_at')}",
         f"- Voltooid: {scan.get('finished_at')}",
         f"- Bekeken bestanden: {scan.get('visited_files')}",
+        f"- Genegeerd volgens beleid: {scan.get('ignored_files', 0)} bestanden",
         f"- Voorgesteld voor cleanup: {summary.get('proposed_for_cleanup_count')} bestanden",
         f"- Handmatig beoordelen: {summary.get('requires_manual_review_count')} bestanden",
         f"- Beschermd: {summary.get('protected_count')} bestanden",
@@ -118,6 +152,31 @@ def _markdown(report: dict[str, object]) -> str:
     lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "review"]))
     lines.extend(["", "## Beschermd - nooit wijzigen", ""])
     lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "protected"]))
+    lines.extend(["", "## Home Assistant-registercontrole", ""])
+    registry_status = registry.get("status")
+    if registry_status == "completed":
+        registry_summary = registry.get("summary", {})
+        findings = registry.get("findings", [])
+        assert isinstance(registry_summary, dict)
+        assert isinstance(findings, list)
+        lines.extend(
+            [
+                f"- Entities: {registry_summary.get('entities_total', 0)}",
+                f"- Apparaten: {registry_summary.get('devices_total', 0)}",
+                f"- Entities zonder apparaat: {registry_summary.get('entities_without_device', 0)} (informatief)",
+                f"- Gebroken registerverwijzingen: {registry_summary.get('broken_references', 0)}",
+                f"- Ingeschakelde entities zonder actuele state: {registry_summary.get('entities_not_loaded', 0)}",
+                f"- Onbeschikbare states: {registry_summary.get('unavailable_states', 0)} (alleen geteld)",
+                "",
+                "### Handmatig beoordelen",
+                "",
+            ]
+        )
+        lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "review"]))
+        lines.extend(["", "### Informatief - nooit automatisch opruimen", ""])
+        lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "info"]))
+    else:
+        lines.append(f"Registerscan niet beschikbaar: {registry.get('error') or registry_status}.")
     lines.extend(
         [
             "",
@@ -126,6 +185,7 @@ def _markdown(report: dict[str, object]) -> str:
             "- Alleen items onder 'Voorgesteld voor cleanup' zouden in een latere versie selecteerbaar zijn.",
             "- Review-items worden nooit automatisch geselecteerd.",
             "- Beschermde items zijn technisch uitgesloten.",
+            "- Registerbevindingen zijn uitsluitend informatief of voor handmatige beoordeling en zijn nooit selecteerbaar.",
             "- In deze versie bestaat geen verwijder- of verplaatsfunctie.",
             "",
         ]
@@ -149,5 +209,23 @@ def _markdown_table(items: list[dict[str, object]]) -> list[str]:
                 modified=str(item.get("modified_at", "")),
                 reason=str(item.get("reason", "")).replace("|", "\\|"),
             )
+        )
+    return lines
+
+
+def _markdown_registry_table(items: list[dict[str, object]]) -> list[str]:
+    if not items:
+        return ["Geen registerbevindingen gevonden."]
+    lines = [
+        "| Type | Naam | ID | Categorie | Gerelateerd ID | Reden |",
+        "|---|---|---|---|---|---|",
+    ]
+    for item in items:
+        values = {
+            key: str(item.get(key, "")).replace("|", "\\|")
+            for key in ("subject_type", "name", "subject_id", "category", "related_id", "reason")
+        }
+        lines.append(
+            "| {subject_type} | {name} | `{subject_id}` | {category} | `{related_id}` | {reason} |".format(**values)
         )
     return lines

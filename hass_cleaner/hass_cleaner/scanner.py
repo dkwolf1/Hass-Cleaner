@@ -7,7 +7,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .policy import RISK_PROTECTED, RISK_REVIEW, RISK_SAFE, classify
+from .policy import Classification, RISK_PROTECTED, RISK_REVIEW, RISK_SAFE, classify
+from .registry_audit import RegistryAudit, scan_home_assistant_registries
 from .settings import Settings
 
 
@@ -31,7 +32,9 @@ class ScanResult:
     finished_at: str | None = None
     current_path: str = ""
     visited_files: int = 0
+    ignored_files: int = 0
     items: list[ScanItem] = field(default_factory=list)
+    registry_audit: RegistryAudit = field(default_factory=lambda: RegistryAudit(status="not_run"))
     error: str | None = None
 
     def to_dict(self, *, include_items: bool = True) -> dict[str, object]:
@@ -47,12 +50,14 @@ class ScanResult:
             "finished_at": self.finished_at,
             "current_path": self.current_path,
             "visited_files": self.visited_files,
+            "ignored_files": self.ignored_files,
             "totals": totals,
             "counts": counts,
             "error": self.error,
         }
         if include_items:
             payload["items"] = [asdict(item) for item in self.items]
+        payload["registry_audit"] = self.registry_audit.to_dict()
         return payload
 
 
@@ -94,7 +99,15 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                     min_log_age_days=settings.min_log_age_days,
                 )
                 if decision is None:
+                    result.ignored_files += 1
                     continue
+                if decision.category == "python_cache" and not _python_source_exists(path):
+                    decision = Classification(
+                        "python_cache_without_source",
+                        RISK_REVIEW,
+                        "Python-cache heeft geen aantoonbaar bijbehorend .py-bronbestand",
+                        "review",
+                    )
                 # Windows may report st_ino=0. Only deduplicate when the
                 # platform supplies a real inode and the file has hardlinks.
                 inode_key = (metadata.st_dev, metadata.st_ino)
@@ -128,11 +141,21 @@ def _display_path(root: Path, path: Path) -> str:
     return "/homeassistant" if not relative.parts else "/homeassistant/" + relative.as_posix()
 
 
+def _python_source_exists(path: Path) -> bool:
+    if path.parent.name != "__pycache__":
+        return False
+    stem = path.name.split(".cpython-", 1)[0]
+    if stem == path.name:
+        return False
+    return (path.parent.parent / f"{stem}.py").is_file()
+
+
 class ScanManager:
-    def __init__(self, root: Path, settings_loader, report_dir: Path | None = None):
+    def __init__(self, root: Path, settings_loader, report_dir: Path | None = None, registry_scanner=scan_home_assistant_registries):
         self.root = root
         self.settings_loader = settings_loader
         self.report_dir = report_dir
+        self.registry_scanner = registry_scanner
         self._lock = threading.Lock()
         self._scans: dict[str, ScanResult] = {}
         self._latest_id: str | None = None
@@ -150,6 +173,8 @@ class ScanManager:
     def _run(self, scan_id: str) -> None:
         settings = self.settings_loader()
         completed = scan_tree(self.root, settings, scan_id)
+        if completed.status == "completed":
+            completed.registry_audit = self.registry_scanner()
         if completed.status == "completed" and self.report_dir is not None:
             from .reporting import write_report_files
 

@@ -17,18 +17,33 @@ class ScannerTests(unittest.TestCase):
             cache = root / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
             cache.parent.mkdir(parents=True)
             cache.write_bytes(b"cache")
+            source = cache.parent.parent / "demo.py"
+            source.write_text("# source", encoding="utf-8")
             protected = root / "secrets.yaml"
             protected.write_text("password: secret", encoding="utf-8")
-            before = {path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (cache, protected)}
+            before = {path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (cache, source, protected)}
 
             result = scan_tree(root, Settings())
 
-            after = {path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (cache, protected)}
+            after = {path: (path.stat().st_size, path.stat().st_mtime_ns) for path in (cache, source, protected)}
             self.assertEqual("completed", result.status)
             self.assertEqual(before, after)
-            self.assertEqual(2, result.visited_files)
+            self.assertEqual(3, result.visited_files)
             risks = {item.risk for item in result.items}
-            self.assertEqual({"safe", "protected"}, risks)
+            self.assertEqual({"safe", "review", "protected"}, risks)
+
+    def test_python_cache_without_source_requires_review(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            cache = root / "custom_components" / "demo" / "__pycache__" / "missing.cpython-314.pyc"
+            cache.parent.mkdir(parents=True)
+            cache.write_bytes(b"cache")
+
+            result = scan_tree(root, Settings())
+
+            self.assertEqual("python_cache_without_source", result.items[0].category)
+            self.assertEqual("review", result.items[0].risk)
+            self.assertNotEqual("delete", result.items[0].recommended_action)
 
     def test_old_log_is_detected(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

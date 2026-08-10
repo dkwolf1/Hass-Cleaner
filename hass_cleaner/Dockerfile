@@ -2,6 +2,8 @@ ARG BUILD_FROM=ghcr.io/home-assistant/base-python:3.13-alpine3.24
 FROM ${BUILD_FROM}
 
 WORKDIR /app
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --requirement /app/requirements.txt
 COPY hass_cleaner /app/hass_cleaner
 COPY web /app/web
 COPY run.sh /run.sh

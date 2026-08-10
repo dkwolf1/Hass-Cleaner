@@ -28,6 +28,7 @@
       <nav class="tabs" aria-label="Hoofdnavigatie">
         <button class="tab active" data-tab="overview">Overzicht</button>
         <button class="tab" data-tab="results">Scanresultaten</button>
+        <button class="tab" data-tab="registry">Entities &amp; apparaten</button>
         <button class="tab" data-tab="quarantine">Quarantaine</button>
         <button class="tab" data-tab="history">Historie</button>
         <button class="tab" data-tab="settings">Instellingen <span class="dot"></span></button>
@@ -147,6 +148,34 @@
             <div id="results-body" class="table-body">
               <div class="table-empty">Voer eerst een scan uit.</div>
             </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-registry">
+          <div class="section-heading">
+            <div><div class="eyebrow">HOME ASSISTANT-REGISTERCONTROLE</div><h2>Entities en apparaten</h2></div>
+            <div class="section-actions">
+              <select id="registry-severity-filter" aria-label="Filter registerbevindingen">
+                <option value="all">Alle bevindingen</option>
+                <option value="review">Handmatig beoordelen</option>
+                <option value="info">Informatief</option>
+              </select>
+              <span class="soft-pill" id="registry-state">Nog niet gescand</span>
+            </div>
+          </div>
+          <div class="notice notice-info">
+            <div class="notice-icon">i</div>
+            <div><strong>Alleen read-only registercontrole</strong><p id="registry-message">Start een veilige scan om entities, apparaten, gebieden en configuratie-entries via de officiële Home Assistant API te vergelijken.</p></div>
+          </div>
+          <section class="metric-grid registry-metrics" aria-label="Registeroverzicht">
+            <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">—</strong><p>In het entityregister</p></article>
+            <article class="metric-card protected"><div class="metric-top"><span>ZONDER APPARAAT</span></div><strong id="registry-unlinked-total">—</strong><p>Informatief; vaak normaal</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>BEOORDELEN</span></div><strong id="registry-review-total">—</strong><p>Gebroken verwijzingen of niet geladen</p></article>
+            <article class="metric-card safe"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="registry-unavailable-total">—</strong><p>Alleen geteld, nooit opgeschoond</p></article>
+          </section>
+          <div class="registry-table panel">
+            <div class="registry-head"><span>Onderdeel</span><span>Categorie</span><span>Status</span><span>Reden</span></div>
+            <div id="registry-results-body" class="table-body"><div class="table-empty">Voer eerst een scan uit.</div></div>
           </div>
         </section>
 

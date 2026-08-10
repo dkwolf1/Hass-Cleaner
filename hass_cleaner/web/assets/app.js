@@ -2,6 +2,7 @@ const state = {
   scan: null,
   items: [],
   settings: null,
+  registryAudit: null,
   selected: new Set(),
   pollTimer: null,
 };
@@ -53,6 +54,7 @@ function riskLabel(risk) {
 function categoryLabel(category) {
   return {
     python_cache: "Python-cache",
+    python_cache_without_source: "Python-cache zonder bron",
     editor_artifact: "Editorrestant",
     temporary_or_backup: "Tijdelijk / back-up",
     old_log: "Oud logbestand",
@@ -62,6 +64,20 @@ function categoryLabel(category) {
     core_configuration: "Kernconfiguratie",
     home_assistant_storage: ".storage",
     symlink: "Symbolische link",
+  }[category] || category;
+}
+
+function registryCategoryLabel(category) {
+  return {
+    entity_without_device: "Entity zonder apparaat",
+    missing_device_reference: "Ontbrekend apparaat",
+    missing_area_reference: "Ontbrekend gebied",
+    missing_config_entry_reference: "Ontbrekende config-entry",
+    missing_parent_device_reference: "Ontbrekend bovenliggend apparaat",
+    entity_not_loaded: "Entity niet geladen",
+    disabled_entity: "Uitgeschakelde entity",
+    device_without_entities: "Apparaat zonder entities",
+    empty_area: "Leeg gebied",
   }[category] || category;
 }
 
@@ -143,12 +159,14 @@ function finishScan(scan) {
     return;
   }
   state.items = scan.items || [];
+  state.registryAudit = scan.registry_audit || null;
   $$(".report-action").forEach((button) => button.classList.remove("hidden"));
   $("#scan-state").textContent = "Voltooid";
   $("#scan-empty strong").textContent = `${scan.visited_files} bestanden gecontroleerd`;
-  $("#scan-empty p").textContent = `${state.items.length} kandidaten gevonden. De scan heeft niets gewijzigd.`;
+  $("#scan-empty p").textContent = `${state.items.length} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. De scan heeft niets gewijzigd.`;
   renderMetrics(scan);
   renderResults();
+  renderRegistryAudit();
   showToast("Veilige scan voltooid");
 }
 
@@ -187,6 +205,38 @@ function renderResults() {
     updatePrepareButton();
   }));
   updatePrepareButton();
+}
+
+function renderRegistryAudit() {
+  const audit = state.registryAudit;
+  const body = $("#registry-results-body");
+  if (!audit || audit.status !== "completed") {
+    $("#registry-state").textContent = audit?.status === "failed" ? "Mislukt" : "Niet beschikbaar";
+    $("#registry-message").textContent = audit?.error || "Voer de scan uit binnen Home Assistant.";
+    body.innerHTML = '<div class="table-empty">Geen registergegevens beschikbaar.</div>';
+    return;
+  }
+
+  const summary = audit.summary || {};
+  $("#registry-state").textContent = "Voltooid";
+  $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd.`;
+  $("#registry-entities-total").textContent = summary.entities_total || 0;
+  $("#registry-unlinked-total").textContent = summary.entities_without_device || 0;
+  $("#registry-review-total").textContent = summary.review_findings || 0;
+  $("#registry-unavailable-total").textContent = summary.unavailable_states || 0;
+
+  const filter = $("#registry-severity-filter").value;
+  const findings = (audit.findings || []).filter((item) => filter === "all" || item.severity === filter);
+  if (!findings.length) {
+    body.innerHTML = '<div class="table-empty">Geen registerbevindingen binnen dit filter.</div>';
+    return;
+  }
+  body.innerHTML = findings.map((item) => `<div class="registry-row">
+    <span class="result-path"><strong>${escapeHtml(item.name || item.subject_id)}</strong><small title="${escapeHtml(item.subject_id)}">${escapeHtml(item.subject_type)} · ${escapeHtml(item.subject_id)}</small></span>
+    <span>${escapeHtml(registryCategoryLabel(item.category))}</span>
+    <span class="risk-chip ${item.severity}">${item.severity === "review" ? "Beoordeling" : "Informatief"}</span>
+    <span class="registry-reason">${escapeHtml(item.reason)}</span>
+  </div>`).join("");
 }
 
 function updatePrepareButton() {
@@ -275,6 +325,7 @@ function bindEvents() {
   $("#scan-button").addEventListener("click", startScan);
   $("#hero-scan-button").addEventListener("click", startScan);
   $("#risk-filter").addEventListener("change", renderResults);
+  $("#registry-severity-filter").addEventListener("change", renderRegistryAudit);
   $("#prepare-button").addEventListener("click", openCleanupDialog);
   $("#save-settings").addEventListener("click", saveSettings);
   $("#confirm-plan").addEventListener("click", confirmPlan);

@@ -76,9 +76,10 @@ class ServerTests(unittest.TestCase):
         self.assertEqual("dry_run_only", payload["status"])
 
     def test_completed_scan_exposes_downloadable_report(self) -> None:
-        cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.pyc"
+        cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
         cache.parent.mkdir(parents=True)
         cache.write_bytes(b"cache")
+        (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
         _, started = self.request("/api/scans", "POST", {})
         scan_id = started["id"]
         for _ in range(50):

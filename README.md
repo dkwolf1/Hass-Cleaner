@@ -4,12 +4,14 @@ Git-installatieklare Home Assistant App-repository voor een veilige opslag-audit
 
 ## Huidige veiligheidsstatus
 
-Versie 0.2.1 is technisch afgedwongen **audit-only**:
+Versie 0.3.0 is technisch afgedwongen **audit-only**:
 
 - `/homeassistant` wordt door Supervisor read-only gemount;
 - er bestaat geen verwijder-, verplaats- of purge-endpoint;
 - de UI kan uitsluitend scannen, filteren, exporteren en een dry-runplan tonen;
 - iedere scan schrijft JSON, CSV en Markdown naar `/data/reports`;
+- entities, apparaten, gebieden, config-entries en actuele states worden read-only via de officiële Home Assistant WebSocket API vergeleken;
+- entities zonder apparaat zijn uitsluitend informatief; gebroken registerverwijzingen zijn nooit automatisch selecteerbaar;
 - `.storage`, kernconfiguratie en databases worden expliciet als beschermd gerapporteerd;
 - de API rapporteert altijd `destructive_execution_enabled: false`.
 
@@ -23,6 +25,7 @@ hass_cleaner/
   Dockerfile
   DOCS.md
   CHANGELOG.md
+  requirements.txt
   hass_cleaner/
   web/
   tests/

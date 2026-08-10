@@ -31,7 +31,7 @@ class AppState:
 
 
 class CleanupHandler(BaseHTTPRequestHandler):
-    server_version = "HassCleaner/0.2"
+    server_version = "HassCleaner/0.3"
 
     @property
     def state(self) -> AppState:
@@ -51,6 +51,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "destructive_execution_enabled": False,
                     "config_mount_expected_read_only": True,
                     "backup_available": supervisor_available(),
+                    "registry_scan_available": supervisor_available(),
                 }
             )
         elif path == "/api/settings":
@@ -120,7 +121,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json(
                 {
                     "status": "dry_run_only",
-                    "message": "Destructieve uitvoering is in versie 0.1.0 nog vergrendeld.",
+                    "message": "Destructieve uitvoering is in deze audit-only versie vergrendeld.",
                     "backup_choice": body.get("backup_choice"),
                     "deletion_mode": body.get("deletion_mode"),
                     "retention_days": body.get("retention_days"),

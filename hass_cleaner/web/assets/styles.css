@@ -117,6 +117,13 @@ select, input[type="number"] { color: var(--text); background: #202127; border: 
 .risk-chip.safe { color: var(--safe); background: rgba(99,212,161,.1); }
 .risk-chip.review { color: var(--warning); background: rgba(242,186,99,.1); }
 .risk-chip.protected { color: var(--protected); background: rgba(119,169,255,.1); }
+.risk-chip.info { color: var(--protected); background: rgba(119,169,255,.1); }
+.registry-table { overflow: hidden; }
+.registry-head, .registry-row { display: grid; grid-template-columns: minmax(230px,1.1fr) minmax(180px,.8fr) 110px minmax(300px,1.6fr); align-items: center; gap: 12px; padding: 13px 16px; }
+.registry-head { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: #1c1d21; border-bottom: 1px solid var(--line); }
+.registry-row { border-bottom: 1px solid #27282d; font-size: 11px; }
+.registry-row:last-child { border-bottom: 0; }
+.registry-reason { color: var(--muted); line-height: 1.45; }
 .table-empty { min-height: 220px; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
 .empty-state { min-height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .empty-state h3 { margin: 0 0 5px; }
@@ -181,8 +188,11 @@ dialog::backdrop { background: rgba(5,6,8,.76); backdrop-filter: blur(4px); }
   .full-width { grid-column: auto; }
   .backup-options { grid-template-columns: 1fr; }
   .table-head { display: none; }
+  .registry-head { display: none; }
   .result-row { grid-template-columns: 34px 1fr auto; }
   .result-row > :nth-child(3), .result-row > :nth-child(5) { display: none; }
+  .registry-row { grid-template-columns: 1fr auto; }
+  .registry-row > :nth-child(2), .registry-row > :nth-child(4) { grid-column: 1/-1; }
 }
 
 @media (max-width: 520px) {

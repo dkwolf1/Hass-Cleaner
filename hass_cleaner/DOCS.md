@@ -1,6 +1,6 @@
 # Hass-Cleaner
 
-Deze versie is uitsluitend bedoeld om veilig te inventariseren welke bestanden mogelijk voor cleanup in aanmerking komen.
+Deze versie is uitsluitend bedoeld om veilig bestanden en Home Assistant-registers te inventariseren.
 
 ## Veiligheidswaarborg
 
@@ -9,6 +9,8 @@ Deze versie is uitsluitend bedoeld om veilig te inventariseren welke bestanden m
 - Scannen verandert geen bestanden of metadata.
 - Niets wordt vooraf geselecteerd.
 - Beschermde bestanden zijn niet selecteerbaar.
+- Registergegevens worden alleen via de officiële read-only WebSocket-commando's opgevraagd.
+- Entities, apparaten, gebieden en config-entries kunnen niet vanuit Hass-Cleaner worden gewijzigd.
 
 ## Gebruik
 
@@ -16,9 +18,20 @@ Deze versie is uitsluitend bedoeld om veilig te inventariseren welke bestanden m
 2. Schakel **Tonen in zijbalk** in.
 3. Open **Cleanup**.
 4. Kies **Nieuwe scan**.
-5. Controleer de categorieën veilig, beoordeling en beschermd.
-6. Download bij Scanstatus het Markdown-rapport of JSON.
-7. Deel het rapport voor controle voordat een latere cleanupversie wordt overwogen.
+5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
+6. Open **Entities & apparaten** voor de registercontrole.
+7. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
+8. Deel het rapport voor controle voordat een latere cleanupversie wordt overwogen.
+
+## Registercontrole
+
+De app vergelijkt read-only:
+
+- entity-, device- en area-registers;
+- configuratie-entries;
+- de momenteel geladen entity-states.
+
+Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. Een `unavailable` state wordt alleen geteld: dit kan tijdelijk en volkomen legitiem zijn.
 
 ## Rapportbestanden
 
