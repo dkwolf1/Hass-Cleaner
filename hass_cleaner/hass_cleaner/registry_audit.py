@@ -218,7 +218,7 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
         "review_findings": sum(1 for item in findings if item.severity == "review"),
         "informational_findings": sum(1 for item in findings if item.severity == "info"),
     }
-    bundles = _build_bundles(entities, devices, config_entries, findings)
+    bundles = _build_bundles(entities, devices, config_entries, findings, states)
     summary["bundles_total"] = len(bundles)
     anomalies = _detect_anomalies(bundles)
     summary["anomalies_total"] = len(anomalies)
@@ -310,6 +310,7 @@ def _build_bundles(
     devices: list[dict[str, Any]],
     config_entries: list[dict[str, Any]],
     findings: list[RegistryFinding],
+    states: list[dict[str, Any]],
 ) -> list[RegistryBundle]:
     entries = {_identifier(item, "entry_id", "id"): item for item in config_entries}
     grouped_entities: dict[str, list[dict[str, Any]]] = {}
@@ -331,6 +332,7 @@ def _build_bundles(
 
     bundle_ids = set(entries) | set(grouped_entities) | set(grouped_devices)
     findings_by_subject: dict[str, list[RegistryFinding]] = {}
+    states_by_entity = {_identifier(item, "entity_id"): item for item in states}
     for finding in findings:
         findings_by_subject.setdefault(finding.subject_id, []).append(finding)
 
@@ -350,17 +352,22 @@ def _build_bundles(
             if parent_id:
                 child_ids_by_parent.setdefault(parent_id, []).append(_identifier(device, "id", "device_id"))
 
-        entity_summaries = [
-            {
-                "entity_id": _identifier(item, "entity_id"),
-                "name": _display_name(item, _identifier(item, "entity_id")),
+        entity_summaries = []
+        for item in bundle_entities:
+            entity_id = _identifier(item, "entity_id")
+            state = states_by_entity.get(entity_id)
+            entity_summaries.append({
+                "entity_id": entity_id,
+                "name": _display_name(item, entity_id),
                 "device_id": _identifier(item, "device_id"),
                 "area_id": _identifier(item, "area_id"),
                 "platform": _identifier(item, "platform"),
                 "disabled": item.get("disabled_by") is not None,
-            }
-            for item in bundle_entities
-        ]
+                "disabled_by": item.get("disabled_by"),
+                "loaded": state is not None,
+                "state": state.get("state") if isinstance(state, dict) else None,
+                "last_changed": _identifier(state, "last_changed") if isinstance(state, dict) else "",
+            })
         device_summaries = []
         for item in bundle_devices:
             device_id = _identifier(item, "id", "device_id")

@@ -9,6 +9,9 @@
 - Generieke registry-afwijkingsdetectie toegevoegd voor grote orphan-groepen en gebroken verwijzingen.
 - Bundelscherm toont standaard alleen concrete aandachtspunten; gezonde integraties blijven opvraagbaar.
 - Detectieregels zijn integratie-onafhankelijk en bevatten geen HASS.Agent-specifieke uitzonderingen.
+- Onbeschikbare, niet-geladen en uitgeschakelde entiteiten worden per integratie met hun oorzaak gebundeld.
+- `last_changed` en niet-gevoelige waarnemingshistorie onderscheiden tijdelijke van langdurige onbeschikbaarheid.
+- Langdurige onbeschikbaarheid blijft een geblokkeerd aandachtspunt en wordt nooit zelfstandig een verwijderadvies.
 
 ## 0.6.0
 

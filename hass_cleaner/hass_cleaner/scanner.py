@@ -10,6 +10,7 @@ from pathlib import Path
 from .policy import Classification, RISK_PROTECTED, RISK_REVIEW, RISK_SAFE, classify
 from .impact import analyze_file
 from .guidance import build_cleanup_guidance
+from .availability import apply_availability_history
 from .registry_audit import RegistryAudit, scan_home_assistant_registries
 from .settings import Settings
 
@@ -180,6 +181,8 @@ class ScanManager:
         completed = scan_tree(self.root, settings, scan_id)
         if completed.status == "completed":
             completed.registry_audit = self.registry_scanner()
+            if self.report_dir is not None:
+                apply_availability_history(completed.registry_audit, self.report_dir.parent / "availability-history.json")
         if completed.status == "completed" and self.report_dir is not None:
             from .reporting import write_report_files
 

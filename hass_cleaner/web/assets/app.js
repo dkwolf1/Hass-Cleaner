@@ -296,7 +296,7 @@ function renderRegistryAudit() {
 
   const summary = audit.summary || {};
   $("#registry-state").textContent = "Voltooid";
-  $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd.`;
+  $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd. ${summary.long_unavailable_entities || 0} langdurig onbeschikbaar; ${summary.temporarily_unavailable_entities || 0} voorlopig alleen informatief.`;
   $("#registry-entities-total").textContent = summary.entities_total || 0;
   $("#registry-unlinked-total").textContent = summary.bundles_total || 0;
   $("#registry-review-total").textContent = summary.anomalies_total || 0;
@@ -389,8 +389,18 @@ function renderLocalBundleDetails(bundle) {
     ? bundle.devices.map((device) => `<li><strong>${escapeHtml(device.name)}</strong><small>${device.entity_ids.length} entities${device.child_device_ids.length ? ` · ${device.child_device_ids.length} onderliggende apparaten` : ""}</small></li>`).join("")
     : "<li>Geen apparaten in deze bundel</li>";
   const loose = bundle.entities.filter((entity) => !entity.device_id);
+  const availability = bundle.entities.filter((entity) => entity.availability_status && entity.availability_status !== "available");
   return `<details class="bundle-details" open><summary>Apparaten (${bundle.devices.length})</summary><ul>${devices}</ul></details>
-    <details class="bundle-details"><summary>Losse entities (${loose.length})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities</li>"}</ul></details>`;
+    <details class="bundle-details"><summary>Losse entities (${loose.length})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities</li>"}</ul></details>
+    <details class="bundle-details"><summary>Beschikbaarheid (${availability.length})</summary><ul>${availability.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)} · ${escapeHtml(availabilityLabel(entity.availability_status))}${entity.unavailable_days !== undefined ? ` · ${entity.unavailable_days} dagen` : ""}</small></li>`).join("") || "<li>Geen beschikbaarheidsproblemen</li>"}</ul></details>`;
+}
+
+function availabilityLabel(status) {
+  if (status === "temporarily_unavailable") return "tijdelijk onbeschikbaar";
+  if (status === "long_unavailable") return "langdurig onbeschikbaar";
+  if (status === "not_loaded") return "niet geladen";
+  if (String(status).startsWith("disabled_by_")) return `uitgeschakeld door ${String(status).slice(12)}`;
+  return status;
 }
 
 async function addBundleToPlan() {

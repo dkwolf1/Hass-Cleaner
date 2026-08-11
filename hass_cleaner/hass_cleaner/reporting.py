@@ -235,6 +235,8 @@ def _markdown(report: dict[str, object]) -> str:
                 f"- Gebroken registerverwijzingen: {registry_summary.get('broken_references', 0)}",
                 f"- Ingeschakelde entities zonder actuele state: {registry_summary.get('entities_not_loaded', 0)}",
                 f"- Onbeschikbare states: {registry_summary.get('unavailable_states', 0)} (alleen geteld)",
+                f"- Tijdelijk onbeschikbare entities: {registry_summary.get('temporarily_unavailable_entities', 0)} (informatief)",
+                f"- Langdurig onbeschikbare entities: {registry_summary.get('long_unavailable_entities', 0)} (gebundeld aandachtspunt, geen verwijderadvies)",
                 "",
                 "### Concrete aandachtspunten",
                 "",

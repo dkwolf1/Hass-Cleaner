@@ -66,6 +66,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "plan_download_available": True,
                     "beginner_recipes_available": True,
                     "evidence_gate_enforced": True,
+                    "availability_history_enabled": True,
                 }
             )
         elif path == "/api/settings":

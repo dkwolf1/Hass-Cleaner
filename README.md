@@ -24,6 +24,8 @@ Versie 0.6.1 houdt bestands- en registeropschoning technisch **audit-only**:
 - een bewijspoort vereist een herkend bestandstype, minimumleeftijd, afwezigheid van beschermde scope en een bekende herstelroute;
 - generieke cachepaden van onder meer camera-, NVR- en printerintegraties worden alleen als onderzoekskandidaat getoond;
 - HACS-code, custom integrations, dashboardbestanden en persoonlijke opnames worden niet als opruimwinst gepresenteerd.
+- beschikbaarheidsproblemen worden per integratie gebundeld; tijdelijke uitval en bewust uitgeschakelde entiteiten blijven informatief;
+- alleen langdurige of herhaald waargenomen onbeschikbaarheid wordt een geblokkeerd aandachtspunt, nooit automatisch een verwijderkandidaat.
 
 ## Repositorystructuur
 
