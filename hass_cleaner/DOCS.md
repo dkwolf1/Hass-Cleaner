@@ -1,12 +1,16 @@
 # Hass-Cleaner
 
-Versie 0.7.2 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. De app verzint geen historie: als Home Assistant `last_changed` levert, gebruikt Hass-Cleaner die duur; anders begint de teller met **Eerste meting** en daarna **< 24 uur**. Langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Markdown is een compacte beoordeling, terwijl JSON en CSV de volledige inventaris bevatten. Alle bestands- en entityacties blijven geblokkeerd.
+Versie 0.9.0 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. De app verzint geen historie: als Home Assistant `last_changed` levert, gebruikt Hass-Cleaner die duur; anders begint de teller met **Eerste meting**. Daarna toont de app gevolgde uren of dagen en het aantal metingen. Langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Entity- en registeracties blijven geblokkeerd. Alleen bewezen veilige bestanden kunnen na geverifieerde back-up naar quarantaine.
 
 Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 
 ## Veiligheidswaarborg
 
-- Home Assistant-configuratie is read-only gemount.
+- Scannen en registeronderzoek zijn read-only. De beschrijfbare configuratiemount wordt uitsluitend gebruikt voor exact geselecteerde, opnieuw gevalideerde veilige bestanden.
+- De volledige batch wordt vóór de eerste wijziging gevalideerd op pad, type, grootte, wijzigingstijd en actuele beleidsclassificatie.
+- Quarantainekopieën en herstel worden met SHA-256 gecontroleerd; een bestaand doelbestand wordt nooit overschreven.
+- Na de bewaartermijn wordt niets automatisch gewist: definitief verwijderen vereist een nieuwe checksumcontrole en de exacte bevestiging `VERWIJDER`.
+- Permanent verwijderen van bestanden is in 0.9.0 geblokkeerd.
 - De app bevat geen verwijderendpoint voor bestanden, entities of apparaten.
 - Scannen verandert geen bestanden of metadata.
 - Niets wordt vooraf geselecteerd.
@@ -24,8 +28,8 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 3. Open **Cleanup**.
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
-6. Open **Entiteiten** om te filteren op status, duur, integratie, apparaat of ruimte.
-7. Markeer tijdelijke signalen eventueel als verwacht of stel ze 7, 30 of 90 dagen uit. Selecteer alleen langdurige aandachtspunten voor een geblokkeerd onderzoeksplan en controleer per entity de officiële relaties.
+6. Open **Entiteiten**. De veilige standaard toont alleen bewezen aandachtspunten; kies **Tijdelijke signalen gegroepeerd bekijken** om de nulmeting en gevolgde signalen per integratie te openen.
+7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Markeer tijdelijke signalen eventueel als verwacht of stel ze 7, 30 of 90 dagen uit. Selecteer alleen langdurige aandachtspunten voor een geblokkeerd onderzoeksplan en controleer per entity de officiële relaties.
 8. Open **Bundels** om apparaten, entities en integraties samen te beoordelen.
 9. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
 10. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
@@ -58,6 +62,8 @@ De app vergelijkt read-only:
 Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. `unavailable`, `unknown` en `problem` worden qua duur gevolgd, maar tijdelijke waarnemingen blijven niet selecteerbaar. De duur komt eerst uit `last_changed` wanneer Home Assistant die waarde levert en wordt daarna door opeenvolgende Hass-Cleaner-scans onderbouwd. Integratiespecifieke signalen als `reachable=false` zijn alleen extra aanwijzingen. Ook een geselecteerde entity komt uitsluitend in een niet-uitvoerbaar onderzoeksplan terecht.
 
 De lokale keuzes **Volgen**, **Verwacht** en **Uitstellen** verbergen alleen een melding in Hass-Cleaner. Ze schakelen geen entity uit en wijzigen geen Home Assistant-register. In **Historie** zie je wat sinds de voorgaande scan nieuw, gewijzigd, hersteld of verdwenen is.
+
+Tijdelijke signalen worden standaard ingeklapt per integratie. Iedere groep toont afzonderlijk hoeveel entities `unavailable`, `unknown` of `problem` zijn, de langste gevolgde duur en het hoogste aantal metingen. Open een groep om de afzonderlijke apparaten en entities te beoordelen. Bij grote registerafwijkingen toont de app maximaal 100 apparaten in het dialoogvenster; JSON en CSV blijven volledig.
 
 ## Rapportbestanden
 

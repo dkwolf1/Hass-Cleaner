@@ -31,11 +31,12 @@ profile hass-cleaner flags=(attach_disconnected,mediate_deleted) {
   /app/** r,
   /run.sh rix,
 
-  # Read-only Home Assistant inventory and app-owned persistent data.
+  # Home Assistant inventory; writes are restricted in application code to
+  # exact, revalidated safe files moved into app-owned quarantine.
   /etc/** r,
   /proc/** r,
   /sys/** r,
-  /homeassistant/** r,
+  /homeassistant/** rw,
   /data/** rw,
   /tmp/** rwk,
 }

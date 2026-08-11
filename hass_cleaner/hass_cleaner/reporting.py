@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 9
+REPORT_SCHEMA_VERSION = 11
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -209,6 +209,8 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                 ]
             )
         for anomaly in scan.registry_audit.anomalies:
+            consequences = anomaly.get("possible_consequences", [])
+            recovery = anomaly.get("recovery_steps", [])
             writer.writerow(
                 [
                     "registry_anomaly",
@@ -224,10 +226,17 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     0,
                     "",
                     anomaly.get("summary", ""),
-                    "insufficient",
-                    "Geen verwijdering zonder aanvullende controle",
-                    "Herstel via volledige Home Assistant-back-up",
-                    json.dumps(anomaly.get("counts", {}), ensure_ascii=False),
+                    anomaly.get("evidence_level", "insufficient"),
+                    " | ".join(str(value) for value in consequences) if isinstance(consequences, list) else "",
+                    " | ".join(str(value) for value in recovery) if isinstance(recovery, list) else "",
+                    json.dumps({
+                        "counts": anomaly.get("counts", {}),
+                        "evidence_summary": anomaly.get("evidence_summary", ""),
+                        "risk_summary": anomaly.get("risk_summary", ""),
+                        "recommended_first_step": anomaly.get("recommended_first_step", ""),
+                        "sample_device_ids": anomaly.get("sample_device_ids", []),
+                        "sample_entity_ids": anomaly.get("sample_entity_ids", []),
+                    }, ensure_ascii=False),
                 ]
             )
 
@@ -344,6 +353,12 @@ def _markdown(report: dict[str, object]) -> str:
                 lines.extend(_markdown_entity_table(selectable[:100]))
                 if len(selectable) > 100:
                     lines.append(f"\nNog {len(selectable) - 100} entities staan in JSON en CSV.")
+            signal_groups = workspace.get("signal_groups", [])
+            if isinstance(signal_groups, list):
+                lines.extend(["", "#### Tijdelijke en langdurige signalen per integratie", ""])
+                lines.extend(_markdown_signal_groups(signal_groups[:50]))
+                if len(signal_groups) > 50:
+                    lines.append(f"\nNog {len(signal_groups) - 50} integratiegroepen staan in JSON en CSV.")
     else:
         lines.append(f"Registerscan niet beschikbaar: {registry.get('error') or registry_status}.")
     lines.extend(
@@ -351,12 +366,12 @@ def _markdown(report: dict[str, object]) -> str:
             "",
             "## Beoordelingsregels",
             "",
-            "- Alleen items onder 'Voorgesteld voor cleanup' zouden in een latere versie selecteerbaar zijn.",
+            "- Alleen items onder 'Voorgesteld voor cleanup' kunnen na een nieuwe servercontrole en geverifieerde back-up naar quarantaine.",
             "- Review-items worden nooit automatisch geselecteerd.",
             "- Beschermde items zijn technisch uitgesloten.",
             "- Alleen langdurige statusproblemen, niet-geladen entities en kapotte verwijzingen kunnen aan een geblokkeerd onderzoeksplan worden toegevoegd.",
             "- Een onderzoeksselectie is geen verwijderadvies en bevat altijd nul uitvoerbare acties.",
-            "- In deze versie bestaat geen verwijder- of verplaatsfunctie.",
+            "- Permanente bestandsverwijdering en alle registermutaties zijn technisch geblokkeerd.",
             "",
         ]
     )
@@ -480,14 +495,45 @@ def _markdown_registry_table(items: list[dict[str, object]]) -> list[str]:
 def _markdown_anomalies(value: object) -> list[str]:
     if not isinstance(value, list) or not value:
         return ["Geen concrete registry-afwijkingen gevonden."]
-    lines = ["| Aandachtspunt | Integratie | Samenvatting | Uitvoering |", "|---|---|---|---|"]
+    lines = [
+        "| Aandachtspunt | Integratie | Bewijs | Risico | Eerste stap | Uitvoering |",
+        "|---|---|---|---|---|---|",
+    ]
     for item in value:
         if isinstance(item, dict):
-            lines.append("| {title} | `{domain}` | {summary} | Geblokkeerd |".format(
+            lines.append("| {title} | `{domain}` | {evidence} | {risk} | {step} | Geblokkeerd |".format(
                 title=str(item.get("title", "")).replace("|", "\\|"),
                 domain=str(item.get("domain", "")).replace("|", "\\|"),
-                summary=str(item.get("summary", "")).replace("|", "\\|"),
+                evidence=str(item.get("evidence_summary") or item.get("summary", "")).replace("|", "\\|"),
+                risk=str(item.get("risk_summary", "")).replace("|", "\\|"),
+                step=str(item.get("recommended_first_step", "")).replace("|", "\\|"),
             ))
+    return lines
+
+
+def _markdown_signal_groups(value: object) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return ["Geen tijdelijke of langdurige entitysignalen gevonden."]
+    lines = [
+        "| Integratie | Totaal | Actie nodig | Tijdelijk volgen | Apparaten | Langste meting |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        devices = item.get("device_groups", [])
+        duration_hours = int(item.get("max_duration_seconds", 0) or 0) / 3600
+        duration = f"{duration_hours:.1f} uur" if duration_hours < 24 else f"{duration_hours / 24:.1f} dagen"
+        lines.append(
+            "| `{integration}` | {total} | {attention} | {watch} | {devices} | {duration} |".format(
+                integration=str(item.get("integration", "")).replace("|", "\\|"),
+                total=item.get("total", 0),
+                attention=item.get("attention", 0),
+                watch=item.get("watch", 0),
+                devices=len(devices) if isinstance(devices, list) else 0,
+                duration=duration,
+            )
+        )
     return lines
 
 

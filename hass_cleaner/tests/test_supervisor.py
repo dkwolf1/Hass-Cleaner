@@ -8,14 +8,22 @@ from hass_cleaner.supervisor import BackupEvidenceManager
 
 
 class BackupEvidenceTests(unittest.TestCase):
-    def test_accepted_request_is_audited_but_not_called_completed(self) -> None:
+    def test_request_only_becomes_valid_after_job_and_backup_verification(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            manager = BackupEvidenceManager(Path(folder), creator=lambda: {"slug": "backup-123"})
+            def getter(path: str):
+                if path.startswith("/jobs/"):
+                    return {"done": True, "progress": 100, "errors": [], "extra": {"slug": "backup-123"}}
+                return {"name": "Hass-Cleaner test", "size": 1234}
+
+            manager = BackupEvidenceManager(Path(folder), creator=lambda: {"slug": "backup-123", "job_id": "job-1"}, getter=getter)
             record = manager.create("Dennis")
 
             self.assertEqual("accepted", record["status"])
             self.assertEqual("backup-123", record["backup_reference"])
             self.assertEqual("Dennis", record["requested_by"])
+            self.assertFalse(manager.valid(str(record["token"])))
+            verified = manager.refresh(str(record["token"]))
+            self.assertEqual("completed", verified["status"])
             self.assertTrue(manager.valid(str(record["token"])))
             self.assertFalse(manager.valid("onbekend"))
 

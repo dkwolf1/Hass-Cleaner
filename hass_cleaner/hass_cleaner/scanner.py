@@ -4,6 +4,7 @@ import os
 import threading
 import uuid
 import json
+import hashlib
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,7 @@ class ScanItem:
     size_bytes: int
     modified_at: str
     advice: dict[str, object]
+    sha256: str = ""
 
 
 @dataclass
@@ -114,11 +116,19 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                         "Python-cache heeft geen aantoonbaar bijbehorend .py-bronbestand",
                         "review",
                     )
+                content_hash = _sha256(path) if decision.risk == RISK_SAFE else ""
+                if decision.risk == RISK_SAFE and not content_hash:
+                    decision = Classification(
+                        decision.category,
+                        RISK_REVIEW,
+                        "Bestand kon niet volledig worden gelezen voor checksumcontrole",
+                        "review",
+                    )
                 # Windows may report st_ino=0. Only deduplicate when the
                 # platform supplies a real inode and the file has hardlinks.
                 inode_key = (metadata.st_dev, metadata.st_ino)
                 deduplicate = bool(metadata.st_ino) and metadata.st_nlink > 1
-                size = 0 if deduplicate and inode_key in seen_inodes else metadata.st_size
+                size = metadata.st_size if decision.risk == RISK_SAFE else (0 if deduplicate and inode_key in seen_inodes else metadata.st_size)
                 if deduplicate:
                     seen_inodes.add(inode_key)
                 result.items.append(
@@ -132,6 +142,7 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                         size_bytes=size,
                         modified_at=datetime.fromtimestamp(metadata.st_mtime, tz=timezone.utc).isoformat(),
                         advice=analyze_file(path, decision.category, decision.risk, decision.reason),
+                        sha256=content_hash if decision.risk == RISK_SAFE else "",
                     )
                 )
         result.status = "completed"
@@ -155,6 +166,17 @@ def _python_source_exists(path: Path) -> bool:
     if stem == path.name:
         return False
     return (path.parent.parent / f"{stem}.py").is_file()
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 
 class ScanManager:

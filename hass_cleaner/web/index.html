@@ -42,7 +42,7 @@
             <div class="notice-icon">✦</div>
             <div>
               <strong>Veilige scheiding actief</strong>
-              <p>Bestanden en registers blijven read-only. Alleen de afzonderlijk bevestigde officiële Recorder-purgeactie kan gegevens wijzigen.</p>
+              <p>Scans en registers blijven read-only. Alleen bewezen veilige bestanden kunnen na back-upverificatie naar herstelbare quarantaine; permanent verwijderen blijft geblokkeerd.</p>
             </div>
           </div>
 
@@ -172,8 +172,8 @@
           <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
             <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
             <select id="entity-status-filter" aria-label="Filter op status">
-              <option value="problems" selected>Alle tijdelijke en langdurige signalen</option>
-              <option value="attention">Alleen actie nodig</option>
+              <option value="attention" selected>Alleen actie nodig</option>
+              <option value="problems">Alle tijdelijke en langdurige signalen</option>
               <option value="watch">Alleen tijdelijk volgen</option>
               <option value="muted">Genegeerd of verwacht</option>
               <option value="unavailable">Onbeschikbaar</option>
@@ -189,8 +189,8 @@
             <select id="entity-area-filter" aria-label="Filter op ruimte"><option value="all">Alle ruimtes</option></select>
             <label class="compact-field"><span>Minimaal</span><input type="number" id="entity-days-filter" min="0" max="3650" value="0"><span>dagen</span></label>
             <select id="entity-group-filter" aria-label="Groepeer entiteiten">
-              <option value="device" selected>Per apparaat</option>
-              <option value="integration">Per integratie</option>
+              <option value="integration" selected>Per integratie</option>
+              <option value="device">Per apparaat</option>
               <option value="status">Per status</option>
               <option value="none">Niet groeperen</option>
             </select>
@@ -270,7 +270,8 @@
 
         <section class="view" id="view-quarantine">
           <div class="section-heading"><div><div class="eyebrow">HERSTELBARE OPSLAG</div><h2>Quarantaine</h2></div></div>
-          <div class="empty-state panel"><div class="empty-icon">↶</div><h3>Nog geen bestanden in quarantaine</h3><p>Quarantaine wordt in een volgende bouwfase geactiveerd. Bestanden blijven dan 1–10 dagen herstelbaar.</p></div>
+          <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Checksum bewaakt herstel</strong><p>Alleen opnieuw gevalideerde veilige bestanden komen hier. Herstel overschrijft nooit een bestaand bestand.</p></div></div>
+          <div id="quarantine-list" class="history-list panel"><div class="table-empty">Nog geen bestanden in quarantaine.</div></div>
         </section>
 
         <section class="view" id="view-history">
@@ -296,7 +297,7 @@
               <label class="choice-card danger-choice">
                 <input type="radio" name="deletion-mode" value="permanent">
                 <span class="choice-control"></span>
-                <span><strong>Direct permanent verwijderen</strong><small>Geen herstelmogelijkheid. Vooraf verschijnt altijd de back-upvraag en een extra waarschuwing.</small></span>
+                <span><strong>Direct permanent verwijderen</strong><small>Nog geblokkeerd in deze release candidate. Bestandsuitvoering gebruikt uitsluitend quarantaine.</small></span>
               </label>
             </section>
 
@@ -316,11 +317,11 @@
 
             <section class="panel settings-card full-width">
               <div class="panel-heading"><div><div class="eyebrow">HOME ASSISTANT-BACK-UP</div><h3>Verplichte vraag vóór cleanup</h3></div><span class="soft-pill success">Altijd actief</span></div>
-              <p class="settings-intro">Voor elke destructieve uitvoering moet de gebruiker kiezen:</p>
+              <p class="settings-intro">Voor elke bestands- of database-uitvoering geldt:</p>
               <div class="backup-options">
-                <div><strong>1. Nu volledige back-up maken</strong><span>De app vraagt een officiële Home Assistant-back-up aan en bewaart het back-upbewijs bij de actie.</span></div>
-                <div><strong>2. Recente back-up bevestigd</strong><span>De gebruiker bevestigt bewust dat een bruikbare back-up aanwezig is.</span></div>
-                <div><strong>3. Zonder back-up doorgaan</strong><span>Alleen na een extra risicobevestiging; nooit de standaardkeuze.</span></div>
+                <div><strong>1. Volledige back-up starten</strong><span>De app bewaart het unieke Supervisor-taaknummer bij de actie.</span></div>
+                <div><strong>2. Voltooiing verifiëren</strong><span>Taakstatus én de specifieke back-upmetadata moeten beschikbaar en foutvrij zijn.</span></div>
+                <div><strong>3. Uitvoering pas daarna</strong><span>Handmatige bevestiging of doorgaan zonder back-up is niet toegestaan.</span></div>
               </div>
             </section>
           </div>
@@ -335,7 +336,7 @@
         <div class="eyebrow">IMPACTANALYSE</div>
         <h2>Bekijk het veilige opruimplan</h2>
         <p>Het plan legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering blijft vergrendeld</strong><p>Vóór een toekomstige echte cleanup wordt opnieuw gecontroleerd en is een voltooide back-up verplicht.</p></div></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Na dit plan wordt ieder bestand opnieuw gecontroleerd en is een door Home Assistant voltooide back-up verplicht.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
         <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Opruimplan opslaan</button></div>
       </form>
@@ -383,8 +384,22 @@
         <div class="eyebrow">OPGESLAGEN OPRUIMPLAN</div>
         <h2>Impact- en herstelplan gereed</h2>
         <p id="plan-dialog-summary"></p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is vergrendeld</strong><p>Het plan beschrijft de verwachte voor- en nasituatie, gevolgen en herstelstappen. Er is niets gewijzigd.</p></div></div>
-        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-primary plan-download" data-format="md">Markdown downloaden</button></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Eerst back-upverificatie</strong><p>Het plan heeft nog niets gewijzigd. Alleen bewezen veilige bestanden kunnen na een voltooide back-up naar quarantaine.</p></div></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-ghost plan-download" data-format="md">Markdown downloaden</button><button class="button button-primary" id="open-quarantine-execution">Naar quarantaine</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="quarantine-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="quarantine-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">VEILIGE UITVOERING</div>
+        <h2>Back-up verifiëren en verplaatsen</h2>
+        <p>De volledige selectie wordt vlak vóór uitvoering opnieuw gecontroleerd. Bij één afwijking stopt de hele batch.</p>
+        <button class="button button-ghost" id="quarantine-backup-button">Volledige back-up starten</button>
+        <button class="button button-ghost" id="quarantine-verify-button" disabled>Back-upstatus controleren</button>
+        <p id="quarantine-backup-status">Nog geen back-up aangevraagd.</p>
+        <label class="field confirmation-field"><span>Typ <strong>QUARANTAINE</strong> ter bevestiging</span><input type="text" id="quarantine-confirmation" autocomplete="off" spellcheck="false"></label>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="quarantine-dialog">Annuleren</button><button class="button button-primary" id="confirm-quarantine" disabled>Veilig verplaatsen</button></div>
       </div>
     </dialog>
 

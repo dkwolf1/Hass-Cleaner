@@ -56,7 +56,7 @@ class PlanManager:
                 {
                     "id": item.id,
                     "path": item.path,
-                    "before": {"exists": True, "size_bytes": item.size_bytes, "category": item.category},
+                    "before": {"exists": True, "size_bytes": item.size_bytes, "category": item.category, "sha256": item.sha256},
                     "proposed_action": requested_action,
                     "after": {
                         "source_exists": False,
@@ -64,7 +64,7 @@ class PlanManager:
                         "retention_days": settings.retention_days if settings.deletion_mode == "quarantine" else 0,
                     },
                     "advice": item.advice,
-                    "execution_allowed": False,
+                    "execution_allowed": settings.deletion_mode == "quarantine",
                 }
             )
         bundles = []
@@ -112,8 +112,8 @@ class PlanManager:
             "id": plan_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "scan_id": scan.id,
-            "status": "dry_run_only",
-            "execution_locked": True,
+            "status": "awaiting_verified_backup" if files else "research_only",
+            "execution_locked": not bool(files),
             "backup_choice": backup_choice,
             "settings": settings.public_dict(),
             "files": files,
@@ -124,7 +124,7 @@ class PlanManager:
                 "bundle_count": len(bundles),
                 "entity_count": len(entities),
                 "planned_bytes": sum(item["before"]["size_bytes"] for item in files),
-                "executable_actions": 0,
+                "executable_actions": len(files) if settings.deletion_mode == "quarantine" else 0,
             },
             "global_recovery": [
                 "Annuleer bij twijfel; dit plan voert zelf niets uit.",
@@ -143,6 +143,18 @@ class PlanManager:
         path = self._path(plan_id, extension)
         return path if path.is_file() else None
 
+    def get(self, plan_id: str) -> dict[str, Any]:
+        path = self.path(plan_id, "json")
+        if path is None:
+            raise PlanError("Plan niet gevonden")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PlanError("Plan kan niet veilig worden gelezen") from exc
+        if not isinstance(value, dict):
+            raise PlanError("Plan heeft een ongeldig formaat")
+        return value
+
     def _path(self, plan_id: str, extension: str) -> Path:
         return self.root / f"hass-cleaner-plan-{plan_id}.{extension}"
 
@@ -152,7 +164,7 @@ def _markdown(plan: dict[str, Any]) -> str:
     lines = [
         "# Hass-Cleaner - impact- en herstelplan",
         "",
-        "> VEILIG OPRUIMPLAN: dit plan heeft niets gewijzigd en kan niet worden uitgevoerd.",
+        "> VEILIG OPRUIMPLAN: dit plan heeft niets gewijzigd. Alleen bewezen veilige bestanden kunnen na back-upverificatie naar quarantaine.",
         "",
         f"- Plan-ID: `{plan['id']}`",
         f"- Scan-ID: `{plan['scan_id']}`",

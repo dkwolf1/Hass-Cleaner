@@ -292,6 +292,19 @@ def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:
                 "title": "Uitzonderlijk grote groep apparaten zonder entiteiten",
                 "summary": f"{len(orphan_devices)} van {len(bundle.devices)} apparaten hebben geen entiteiten; {len(anonymous_devices)} zijn volledig anoniem.",
                 "counts": {"devices": len(bundle.devices), "orphans": len(orphan_devices), "anonymous": len(anonymous_devices)},
+                "evidence_level": "insufficient",
+                "evidence_summary": "De omvang, ontbrekende entities en anonieme apparaatmetadata zijn aangetoond; ouderdom en actief gebruik zijn niet beschikbaar in het apparaatregister.",
+                "sample_device_ids": [str(item.get("device_id", "")) for item in orphan_devices[:10]],
+                "risk_summary": "Een grote groep zonder entities kan registervervuiling zijn, maar ook door een integratie beheerde apparaatadministratie.",
+                "possible_consequences": [
+                    "Verwijderen kan de integratie dwingen apparaten opnieuw aan te maken.",
+                    "Apparaatrelaties, ruimtes en toekomstige entities kunnen verloren gaan.",
+                ],
+                "recovery_steps": [
+                    "Maak en controleer eerst een volledige Home Assistant-back-up.",
+                    "Herstel de back-up of laad de betrokken integratie opnieuw als apparaten of entities verdwijnen.",
+                ],
+                "recommended_first_step": "Controleer voorbeeld-ID's, de officiële config-entryrelaties en het gedrag van de integratie; verwijder niets op basis van alleen deze telling.",
                 "execution_allowed": False,
             })
         if bundle.review_count:
@@ -304,6 +317,16 @@ def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:
                 "title": "Registerverwijzingen vereisen controle",
                 "summary": f"Deze bundel bevat {bundle.review_count} bevindingen die handmatig onderzocht moeten worden.",
                 "counts": {"findings": bundle.review_count},
+                "evidence_level": "insufficient",
+                "evidence_summary": "De ontbrekende registerverwijzingen zijn read-only vastgesteld; de oorzaak en het actuele gebruik zijn nog niet bewezen.",
+                "risk_summary": "Wijzigen zonder relatiecontrole kan nog gebruikte entities of apparaten beschadigen.",
+                "possible_consequences": [
+                    "Dashboards, automatiseringen en integraties kunnen naar ontbrekende onderdelen blijven verwijzen.",
+                ],
+                "recovery_steps": [
+                    "Herstel de volledige Home Assistant-back-up als een registerwijziging onverwachte gevolgen heeft.",
+                ],
+                "recommended_first_step": "Controleer iedere bevinding en de officiële relaties voordat een wijziging buiten Hass-Cleaner wordt overwogen.",
                 "execution_allowed": False,
             })
     return sorted(anomalies, key=lambda item: -sum(item["counts"].values()))

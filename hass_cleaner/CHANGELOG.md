@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.0
+
+- Werkende quarantaine voor uitsluitend opnieuw gevalideerde veilige bestanden uit de laatste scan.
+- Verplichte verificatie van de specifieke Home Assistant-back-uptaak en back-upmetadata.
+- SHA-256-manifest, bewaartermijn, volledige auditgegevens en herstel zonder overschrijven.
+- Niet-destructieve hersteltest die leesbaarheid en checksum van ieder quarantainebestand controleert.
+- Release-candidatebeveiliging: permanente bestandsverwijdering en registermutaties blijven geblokkeerd.
+
+## 0.8.0
+
+- Interne quarantaine-engine met batchvalidatie, veilige kopie, checksumcontrole en terugplaatsing.
+
+## 0.7.3
+
+- Zet **Alleen actie nodig** als veilige standaardweergave; tijdelijke signalen blijven bereikbaar via een duidelijke doorklik.
+- Bundelt tijdelijke en langdurige entitysignalen compact per integratie en apparaat, met afzonderlijke aantallen voor `unavailable`, `unknown` en `problem`.
+- Toont meetbewijs als eerste meting, gevolgde uren/dagen, aantal scans en scanvergelijking zonder een status als verwijderbewijs te behandelen.
+- Voegt compacte `signal_groups` toe aan JSON en Markdown voor controle per integratie en apparaat.
+- Breidt registerafwijkingen uit met bewijsgrenzen, risico, mogelijke gevolgen, herstelstappen, eerste advies en maximaal tien voorbeeld-ID's.
+- Begrenst zeer grote apparaatlijsten in de interface tot 100 regels; de volledige inventaris blijft in JSON en CSV beschikbaar.
+- Rapportformaat verhoogd naar schema 10; bestands-, entity- en apparaatverwijdering blijft technisch afwezig.
+
 ## 0.7.2
 
 - Vervangt misleidende `0 dagen` door **Eerste meting**, **< 24 uur** of een onderbouwde meetduur uit Home Assistant en opeenvolgende scans.

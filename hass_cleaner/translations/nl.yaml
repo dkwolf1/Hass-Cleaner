@@ -6,11 +6,11 @@ configuration:
     name: Minimumleeftijd oude logs
     description: Jongere logbestanden blijven uitgesloten.
   deletion_mode:
-    name: Toekomstig verwijderbeleid
-    description: Beleid in dry-runplannen; bestandsuitvoering blijft vergrendeld.
+    name: Verwijderbeleid
+    description: Veilige bestanden kunnen naar quarantaine; directe permanente verwijdering blijft geblokkeerd.
   retention_days:
     name: Bewaartermijn quarantaine
-    description: Dagen dat bestanden in een toekomstige cleanup herstelbaar blijven.
+    description: Dagen dat bestanden herstelbaar in quarantaine blijven voordat expliciete verwijdering mogelijk wordt.
   advanced_mode:
     name: Geavanceerde inventaris
     description: Toon technische details zonder veiligheidsregels te omzeilen.

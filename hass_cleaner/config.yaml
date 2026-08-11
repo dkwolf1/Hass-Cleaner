@@ -1,5 +1,5 @@
 name: Hass-Cleaner
-version: "0.7.2"
+version: "0.9.0"
 slug: hass_cleaner
 description: Veilige audit en gecontroleerde opschoning voor Home Assistant OS
 url: https://github.com/dkwolf1/Hass-Cleaner
@@ -16,7 +16,7 @@ hassio_api: true
 hassio_role: backup
 map:
   - type: homeassistant_config
-    read_only: true
+    read_only: false
 options:
   min_temp_age_days: 30
   min_log_age_days: 14
