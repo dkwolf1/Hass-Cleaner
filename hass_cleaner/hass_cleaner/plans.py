@@ -35,13 +35,15 @@ class PlanManager:
         unknown_bundles = [item_id for item_id in selected_bundle_ids if item_id not in bundle_map]
         if unknown_files or unknown_bundles:
             raise PlanError("De selectie hoort niet meer bij de laatste scan; scan opnieuw")
+        if any(file_map[item_id].risk != "safe" for item_id in selected_ids):
+            raise PlanError("Alleen bestanden die de volledige bewijspoort halen mogen in een bestandsplan")
         if not selected_ids and not selected_bundle_ids:
             raise PlanError("Selecteer minimaal één bestand of bundel")
 
         files = []
         for item_id in selected_ids:
             item = file_map[item_id]
-            requested_action = settings.deletion_mode if item.risk == "safe" else "manual_review_only"
+            requested_action = settings.deletion_mode
             files.append(
                 {
                     "id": item.id,
@@ -49,8 +51,8 @@ class PlanManager:
                     "before": {"exists": True, "size_bytes": item.size_bytes, "category": item.category},
                     "proposed_action": requested_action,
                     "after": {
-                        "source_exists": False if item.risk == "safe" else True,
-                        "quarantine_copy": item.risk == "safe" and settings.deletion_mode == "quarantine",
+                        "source_exists": False,
+                        "quarantine_copy": settings.deletion_mode == "quarantine",
                         "retention_days": settings.retention_days if settings.deletion_mode == "quarantine" else 0,
                     },
                     "advice": item.advice,

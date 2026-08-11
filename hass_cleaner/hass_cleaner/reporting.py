@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 4
+REPORT_SCHEMA_VERSION = 5
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -37,6 +37,7 @@ def build_report(scan: ScanResult, settings: Settings) -> dict[str, object]:
             "registry_review_findings": registry_summary.get("review_findings", 0),
             "registry_informational_findings": registry_summary.get("informational_findings", 0),
         },
+        "cleanup_guidance": scan_data.get("cleanup_guidance", {}),
         "scan": scan_data,
     }
 
@@ -178,14 +179,24 @@ def _markdown(report: dict[str, object]) -> str:
         f"- Handmatig beoordelen: {summary.get('requires_manual_review_count')} bestanden",
         f"- Beschermd: {summary.get('protected_count')} bestanden",
         "",
-        "## Voorgesteld voor cleanup",
+        "## Beginnersadvies - opruimrecepten",
         "",
     ]
+    guidance = report.get("cleanup_guidance", {})
+    if isinstance(guidance, dict):
+        lines.extend(_markdown_recipes(guidance.get("safe_recipes", []), "Volledig bewezen"))
+        lines.extend(["", "### Eerst nader onderzoeken", ""])
+        lines.extend(_markdown_recipes(guidance.get("investigation_recipes", []), "Geblokkeerd"))
+        lines.extend(["", "### Systeeminventaris - behouden", ""])
+        lines.extend(_markdown_inventory(guidance.get("inventory", [])))
+    lines.extend([
+        "",
+        "> De volledige afzonderlijke bestandsinventaris staat in de JSON- en CSV-export.",
+        "",
+        "## Voorgesteld voor cleanup",
+        "",
+    ])
     lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "safe"]))
-    lines.extend(["", "## Handmatig beoordelen", ""])
-    lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "review"]))
-    lines.extend(["", "## Beschermd - nooit wijzigen", ""])
-    lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "protected"]))
     lines.extend(["", "## Home Assistant-registercontrole", ""])
     registry_status = registry.get("status")
     if registry_status == "completed":
@@ -251,6 +262,32 @@ def _markdown_table(items: list[dict[str, object]]) -> list[str]:
                 recovery=_advice_join(item, "recovery_steps"),
             )
         )
+    return lines
+
+
+def _markdown_recipes(value: object, status: str) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return ["Geen recepten gevonden."]
+    lines = ["| Recept | Producer | Bestanden | Grootte | Bewijspoort | Advies |", "|---|---|---:|---:|---|---|"]
+    for recipe in value:
+        if not isinstance(recipe, dict):
+            continue
+        lines.append("| {title} | {producer} | {count} | {size} B | {status} | {advice} |".format(
+            title=str(recipe.get("title", "")).replace("|", "\\|"),
+            producer=str(recipe.get("producer", "")).replace("|", "\\|"),
+            count=recipe.get("file_count", 0), size=recipe.get("size_bytes", 0), status=status,
+            advice=str(recipe.get("recommendation", "")).replace("|", "\\|"),
+        ))
+    return lines
+
+
+def _markdown_inventory(value: object) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return ["Geen beschermde systeeminventaris gevonden."]
+    lines = ["| Categorie | Bestanden | Grootte |", "|---|---:|---:|"]
+    for item in value:
+        if isinstance(item, dict):
+            lines.append(f"| {str(item.get('category', '')).replace('|', '\\|')} | {item.get('count', 0)} | {item.get('size_bytes', 0)} B |")
     return lines
 
 

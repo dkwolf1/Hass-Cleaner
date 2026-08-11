@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from hass_cleaner.reporting import write_report_files
@@ -19,6 +21,8 @@ class ReportingTests(unittest.TestCase):
             cache = source / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
             cache.parent.mkdir(parents=True)
             cache.write_bytes(b"cache")
+            old = (datetime.now(timezone.utc) - timedelta(days=40)).timestamp()
+            os.utime(cache, (old, old))
             (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
             (source / "secrets.yaml").write_text("api_token: ultra-private-report-value", encoding="utf-8")
             result = scan_tree(source, Settings())

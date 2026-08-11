@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- Beginnersmodus met gebundelde opruimrecepten toegevoegd.
+- Generieke producentherkenning toegevoegd voor cache van integraties, camera's, NVR's en andere toepassingen.
+- Strenge bewijspoort toegevoegd: alleen bekende inactieve logs, oude herbouwbare Python-cache en editorrestanten kunnen in een dry-run.
+- Minimumleeftijd wordt nu ook op Python-cache toegepast.
+- Custom-integratiecode, HACS/frontendbestanden, dashboardbestanden, configuratie, databases en `.storage` zijn systeeminventaris en worden behouden.
+- Opnames, snapshots en timelapses worden als persoonlijke inhoud behandeld, nooit als cache.
+- Cache-achtige paden blijven geblokkeerd totdat verwijzingen en automatische herbouw bewezen zijn.
+- De server weigert review- en protected-bestanden ook bij een rechtstreeks API-verzoek.
+
 ## 0.5.0
 
 - Inhoudsbewuste impactanalyse aan ieder gevonden bestand en iedere integratiebundel toegevoegd.

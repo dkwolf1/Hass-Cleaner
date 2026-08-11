@@ -64,6 +64,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "impact_advice_available": True,
                     "advanced_review_available": True,
                     "plan_download_available": True,
+                    "beginner_recipes_available": True,
+                    "evidence_gate_enforced": True,
                 }
             )
         elif path == "/api/settings":

@@ -3,6 +3,7 @@ const state = {
   items: [],
   settings: null,
   registryAudit: null,
+  guidance: null,
   status: null,
   activeBundle: null,
   latestPlan: null,
@@ -62,7 +63,10 @@ function categoryLabel(category) {
     temporary_or_backup: "Tijdelijk / back-up",
     old_log: "Oud logbestand",
     custom_components: "Custom component",
-    www_assets: "WWW-asset",
+    frontend_package: "HACS/frontendpakket",
+    www_asset_inventory: "Dashboard-/webbestand",
+    integration_cache_candidate: "Mogelijke integratiecache",
+    personal_media: "Persoonlijke media",
     database: "Database",
     core_configuration: "Kernconfiguratie",
     home_assistant_storage: ".storage",
@@ -109,6 +113,7 @@ async function loadSettings() {
   const selected = $(`input[name="deletion-mode"][value="${state.settings.deletion_mode}"]`);
   if (selected) selected.checked = true;
   $("#advanced-mode").checked = Boolean(state.settings.advanced_mode);
+  renderAdvancedVisibility();
   updateRetentionVisibility();
   renderPolicy();
 }
@@ -118,6 +123,12 @@ function renderPolicy() {
   const quarantine = state.settings.deletion_mode === "quarantine";
   $("#policy-title").textContent = quarantine ? `${state.settings.retention_days} dagen herstelbaar` : "Direct permanent verwijderen";
   $("#policy-description").textContent = quarantine ? "Verplaatsen naar beveiligde quarantaine" : "Extra waarschuwing en back-upvraag verplicht";
+}
+
+function renderAdvancedVisibility() {
+  const visible = Boolean(state.settings?.advanced_mode || $("#advanced-mode")?.checked);
+  $(".raw-inventory")?.classList.toggle("hidden", !visible);
+  $$(".technical-action").forEach((item) => item.classList.toggle("hidden", !visible));
 }
 
 async function startScan() {
@@ -169,24 +180,63 @@ function finishScan(scan) {
   }
   state.items = scan.items || [];
   state.registryAudit = scan.registry_audit || null;
+  state.guidance = scan.cleanup_guidance || null;
   $$(".report-action").forEach((button) => button.classList.remove("hidden"));
   $("#scan-state").textContent = "Voltooid";
   $("#scan-empty strong").textContent = `${scan.visited_files} bestanden gecontroleerd`;
   $("#scan-empty p").textContent = `${state.items.length} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. De scan heeft niets gewijzigd.`;
   renderMetrics(scan);
+  renderRecipes();
   renderResults();
   renderRegistryAudit();
   showToast("Veilige scan voltooid");
 }
 
 function renderMetrics(scan) {
-  $("#safe-size").textContent = formatBytes(scan.totals.safe);
-  $("#review-size").textContent = formatBytes(scan.totals.review);
-  $("#protected-size").textContent = formatBytes(scan.totals.protected);
-  $("#total-size").textContent = formatBytes(scan.totals.safe + scan.totals.review);
-  $("#safe-count").textContent = `${scan.counts.safe} kandidaten`;
-  $("#review-count").textContent = `${scan.counts.review} handmatig beoordelen`;
-  $("#protected-count").textContent = `${scan.counts.protected} beschermd`;
+  const guidance = scan.cleanup_guidance || {};
+  const safeRecipes = guidance.safe_recipes || [];
+  const investigate = guidance.investigation_recipes || [];
+  $("#safe-size").textContent = formatBytes(guidance.safe_total_bytes || 0);
+  $("#review-size").textContent = formatBytes(guidance.investigation_total_bytes || 0);
+  $("#protected-size").textContent = formatBytes(guidance.inventory_total_bytes || 0);
+  $("#total-size").textContent = formatBytes(guidance.safe_total_bytes || 0);
+  $("#safe-count").textContent = `${safeRecipes.length} veilige recepten`;
+  $("#review-count").textContent = `${investigate.length} eerst onderzoeken`;
+  $("#protected-count").textContent = "Systeeminventaris · behouden";
+}
+
+function renderRecipes() {
+  const list = $("#recipe-list");
+  const guidance = state.guidance;
+  if (!guidance) {
+    list.innerHTML = '<div class="table-empty panel">Voer eerst een scan uit.</div>';
+    return;
+  }
+  const recipes = [...(guidance.safe_recipes || []), ...(guidance.investigation_recipes || [])];
+  list.innerHTML = recipes.length ? recipes.map((recipe) => {
+    const passed = Boolean(recipe.gate_passed);
+    const gates = (recipe.gates || []).map((gate) => `<li class="${gate.passed ? "passed" : "failed"}"><strong>${gate.passed ? "✓" : "!"}</strong><span>${escapeHtml(gate.explanation)}</span></li>`).join("");
+    const samples = (recipe.sample_paths || []).map((path) => `<li>${escapeHtml(path)}</li>`).join("");
+    return `<article class="panel recipe-card ${passed ? "recipe-safe" : "recipe-review"}">
+      <div class="recipe-main"><div class="eyebrow">${passed ? "VEILIG RECEPT" : recipe.kind === "personal" ? "PERSOONLIJKE INHOUD" : "EERST ONDERZOEKEN"}</div><h3>${escapeHtml(recipe.title)}</h3><p>${escapeHtml(recipe.description)}</p><small>${recipe.file_count} bestanden · ${formatBytes(recipe.size_bytes)} · producer: ${escapeHtml(recipe.producer)}</small></div>
+      <div class="recipe-gates"><strong>Veiligheidscontrole</strong><ul>${gates}</ul></div>
+      <details><summary>Voorbeelden en advies</summary><ul class="sample-paths">${samples}</ul><p>${escapeHtml(recipe.recommendation)}</p></details>
+      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "4/4 bewezen" : "geblokkeerd"}</span><button class="button ${passed ? "button-primary recipe-select" : "button-ghost"}" data-recipe-id="${escapeHtml(recipe.id)}" ${passed ? "" : "disabled"}>${passed ? "Aan dry-run toevoegen" : "Meer bewijs nodig"}</button></div>
+    </article>`;
+  }).join("") : '<div class="table-empty panel">Geen opruimrecepten gevonden. Je systeeminventaris blijft behouden.</div>';
+  $$(".recipe-select", list).forEach((button) => button.addEventListener("click", () => selectRecipe(button.dataset.recipeId, button)));
+  const inventory = guidance.inventory || [];
+  $("#inventory-summary").innerHTML = inventory.length ? inventory.map((item) => `<span><strong>${item.count}</strong> ${escapeHtml(categoryLabel(item.category))} · ${formatBytes(item.size_bytes)}</span>`).join("") : "Geen beschermde inventaris gevonden.";
+}
+
+function selectRecipe(recipeId, button) {
+  const recipes = [...(state.guidance?.safe_recipes || []), ...(state.guidance?.investigation_recipes || [])];
+  const recipe = recipes.find((item) => item.id === recipeId);
+  if (!recipe?.selectable_for_dry_run) return;
+  const allSelected = recipe.item_ids.every((id) => state.selected.has(id));
+  recipe.item_ids.forEach((id) => allSelected ? state.selected.delete(id) : state.selected.add(id));
+  button.textContent = allSelected ? "Aan dry-run toevoegen" : "Uit dry-run verwijderen";
+  renderResults();
 }
 
 function renderResults() {
@@ -199,8 +249,7 @@ function renderResults() {
     return;
   }
   body.innerHTML = items.map((item) => {
-    const advanced = Boolean(state.settings?.advanced_mode || $("#advanced-mode").checked);
-    const disabled = item.risk === "protected" || (item.risk === "review" && !advanced) ? "disabled" : "";
+    const disabled = item.risk === "safe" ? "" : "disabled";
     const checked = state.selected.has(item.id) ? "checked" : "";
     return `<label class="result-row">
       <input type="checkbox" data-item-id="${item.id}" ${disabled} ${checked} aria-label="Selecteer ${escapeHtml(item.path)}">
@@ -527,6 +576,7 @@ function bindEvents() {
       state.items.filter((item) => item.risk === "review").forEach((item) => state.selected.delete(item.id));
     }
     renderResults();
+    renderAdvancedVisibility();
   });
   $$(".plan-download").forEach((button) => button.addEventListener("click", () => downloadPlan(button.dataset.format)));
   $$('[data-close-dialog]').forEach((button) => button.addEventListener("click", () => $("#" + button.dataset.closeDialog).close()));

@@ -128,9 +128,9 @@
 
         <section class="view" id="view-results">
           <div class="section-heading">
-            <div><div class="eyebrow">AUDITRESULTATEN</div><h2>Gevonden bestanden</h2></div>
+            <div><div class="eyebrow">BEGINNERSMODUS</div><h2>Opruimrecepten</h2></div>
             <div class="section-actions">
-              <select id="risk-filter" aria-label="Filter op risico">
+              <select id="risk-filter" class="technical-action" aria-label="Filter op risico">
                 <option value="all">Alle categorieën</option>
                 <option value="safe">Veilig</option>
                 <option value="review">Beoordeling</option>
@@ -140,16 +140,19 @@
               <button class="button button-primary" id="prepare-button" disabled>Dry-run voorbereiden</button>
             </div>
           </div>
-          <div class="notice notice-warning">
-            <div class="notice-icon">!</div>
-            <div><strong>Niets is vooraf geselecteerd</strong><p>Kies bewust welke veilige kandidaten in een dry-runplan komen. Beschermde bestanden zijn niet selecteerbaar.</p></div>
+          <div class="notice notice-info">
+            <div class="notice-icon">i</div>
+            <div><strong>Bewijspoort actief</strong><p>Alleen recepten waarvan leeftijd, bestandstype, bescherming en herstel zijn bewezen kunnen aan een dry-run worden toegevoegd. Twijfelgevallen blijven geblokkeerd.</p></div>
           </div>
-          <div class="results-table panel">
-            <div class="table-head"><span></span><span>Bestand</span><span>Categorie</span><span>Risico</span><span>Grootte</span></div>
-            <div id="results-body" class="table-body">
-              <div class="table-empty">Voer eerst een scan uit.</div>
+          <div id="recipe-list" class="recipe-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
+          <details class="panel findings-panel raw-inventory">
+            <summary>Technische inventaris en afzonderlijke bestanden</summary>
+            <div class="inventory-summary" id="inventory-summary"></div>
+            <div class="results-table">
+              <div class="table-head"><span></span><span>Bestand</span><span>Categorie</span><span>Risico</span><span>Grootte</span></div>
+              <div id="results-body" class="table-body"><div class="table-empty">Voer eerst een scan uit.</div></div>
             </div>
-          </div>
+          </details>
         </section>
 
         <section class="view" id="view-registry">
@@ -252,8 +255,8 @@
 
             <section class="panel settings-card full-width">
               <div class="panel-heading"><div><div class="eyebrow">GEAVANCEERDE BEOORDELING</div><h3>Ook buiten de veilige marges onderzoeken</h3></div><span class="soft-pill">Uitvoering blijft vergrendeld</span></div>
-              <label class="toggle-row"><span><strong>Review-items selecteerbaar maken voor het adviesplan</strong><small>Toont gevolgen, bewijs en herstel voor twijfelgevallen. Beschermde bestanden blijven altijd geblokkeerd en er wordt niets verwijderd.</small></span><input type="checkbox" id="advanced-mode"></label>
-              <div class="notice notice-warning advanced-notice"><div class="notice-icon">!</div><div><strong>Geen algemene waarschuwingen omzeilen</strong><p>Ieder geselecteerd review-item blijft afzonderlijk herkenbaar in het voor/na-plan. Een groen label wordt hierdoor nooit afgedwongen.</p></div></div>
+              <label class="toggle-row"><span><strong>Technische bestandsinventaris tonen</strong><small>Toont afzonderlijke bestanden, gevolgen, bewijs en herstel. Alleen volledig bewezen recepten zijn selecteerbaar; twijfelgevallen blijven ook hier geblokkeerd.</small></span><input type="checkbox" id="advanced-mode"></label>
+              <div class="notice notice-warning advanced-notice"><div class="notice-icon">!</div><div><strong>Geen veiligheidsregels omzeilen</strong><p>Deze instelling verandert alleen wat zichtbaar is. De server blijft ieder review- of protected-bestand voor een bestandsplan weigeren.</p></div></div>
             </section>
 
             <section class="panel settings-card full-width">

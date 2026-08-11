@@ -17,6 +17,8 @@ class ScannerTests(unittest.TestCase):
             cache = root / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
             cache.parent.mkdir(parents=True)
             cache.write_bytes(b"cache")
+            old = (datetime.now(timezone.utc) - timedelta(days=40)).timestamp()
+            os.utime(cache, (old, old))
             source = cache.parent.parent / "demo.py"
             source.write_text("# source", encoding="utf-8")
             protected = root / "secrets.yaml"
@@ -30,7 +32,7 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(before, after)
             self.assertEqual(3, result.visited_files)
             risks = {item.risk for item in result.items}
-            self.assertEqual({"safe", "review", "protected"}, risks)
+            self.assertEqual({"safe", "protected"}, risks)
 
     def test_python_cache_without_source_requires_review(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
@@ -38,6 +40,8 @@ class ScannerTests(unittest.TestCase):
             cache = root / "custom_components" / "demo" / "__pycache__" / "missing.cpython-314.pyc"
             cache.parent.mkdir(parents=True)
             cache.write_bytes(b"cache")
+            old = (datetime.now(timezone.utc) - timedelta(days=40)).timestamp()
+            os.utime(cache, (old, old))
 
             result = scan_tree(root, Settings())
 

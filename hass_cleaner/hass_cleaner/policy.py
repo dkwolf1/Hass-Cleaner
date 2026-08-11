@@ -10,16 +10,12 @@ RISK_SAFE = "safe"
 RISK_REVIEW = "review"
 RISK_PROTECTED = "protected"
 
-CORE_FILES = {
-    "automations.yaml",
-    "configuration.yaml",
-    "scenes.yaml",
-    "scripts.yaml",
-    "secrets.yaml",
-}
+CORE_FILES = {"automations.yaml", "configuration.yaml", "scenes.yaml", "scripts.yaml", "secrets.yaml"}
 DATABASE_SUFFIXES = (".db", ".db-shm", ".db-wal")
 EDITOR_NAMES = {".DS_Store", "Thumbs.db"}
 REVIEW_SUFFIXES = {".tmp", ".bak", ".old", ".orig"}
+CACHE_DIRECTORY_NAMES = {"cache", "caches", ".cache", "thumbs", "thumbnail", "thumbnails", "tmp", "temp"}
+PERSONAL_MEDIA_DIRECTORY_NAMES = {"recording", "recordings", "snapshot", "snapshots", "timelapse", "timelapses"}
 
 
 @dataclass(frozen=True)
@@ -36,22 +32,14 @@ def age_days(modified: float, *, now: datetime | None = None) -> int:
     return max(0, int((current - changed).total_seconds() // 86400))
 
 
-def classify(
-    root: Path,
-    path: Path,
-    mode: int,
-    modified: float,
-    *,
-    min_temp_age_days: int,
-    min_log_age_days: int,
-    now: datetime | None = None,
-) -> Classification | None:
+def classify(root: Path, path: Path, mode: int, modified: float, *, min_temp_age_days: int, min_log_age_days: int, now: datetime | None = None) -> Classification | None:
     try:
         relative = path.relative_to(root)
     except ValueError:
         return Classification("outside_root", RISK_PROTECTED, "Pad ligt buiten de toegestane root", "none")
 
     parts = relative.parts
+    lowered_parts = {part.lower() for part in parts}
     name = path.name
     lower_name = name.lower()
     suffix = path.suffix.lower()
@@ -69,14 +57,23 @@ def classify(
         return Classification("database", RISK_PROTECTED, "Databases vallen buiten scope", "none")
 
     in_custom_components = "custom_components" in parts
-    in_python_cache = "__pycache__" in parts
-    if in_python_cache and suffix in {".pyc", ".pyo"}:
-        return Classification("python_cache", RISK_SAFE, "Gegenereerde Python-bytecode in __pycache__", "delete")
+    if "__pycache__" in parts and suffix in {".pyc", ".pyo"}:
+        if item_age >= min_temp_age_days:
+            return Classification("python_cache", RISK_SAFE, f"Gegenereerde Python-bytecode van {item_age} dagen oud", "delete")
+        return None
     if in_custom_components:
-        return Classification("custom_components", RISK_REVIEW, "Integratiebroncode wordt alleen geïnventariseerd", "review")
+        return Classification("custom_components", RISK_PROTECTED, "Geïnstalleerde integratiebroncode wordt behouden", "none")
     if "www" in parts:
-        return Classification("www_assets", RISK_REVIEW, "Gebruik van www-bestanden is niet betrouwbaar vast te stellen", "review")
+        if "community" in lowered_parts:
+            return Classification("frontend_package", RISK_PROTECTED, "HACS/frontendpakket wordt behouden", "none")
+        if lowered_parts & CACHE_DIRECTORY_NAMES and item_age >= min_temp_age_days:
+            return Classification("integration_cache_candidate", RISK_REVIEW, f"Cache-achtig pad van {item_age} dagen oud; actief gebruik is onbekend", "review")
+        if lowered_parts & PERSONAL_MEDIA_DIRECTORY_NAMES:
+            return Classification("personal_media", RISK_REVIEW, "Opname, snapshot of timelapse is persoonlijke inhoud", "review")
+        return Classification("www_asset_inventory", RISK_PROTECTED, "Dashboard- of webbestand wordt behouden tenzij ongebruik aantoonbaar is", "none")
 
+    if lowered_parts & CACHE_DIRECTORY_NAMES and item_age >= min_temp_age_days:
+        return Classification("integration_cache_candidate", RISK_REVIEW, f"Cache-achtig pad van {item_age} dagen oud; eigenaar en gebruik moeten worden bewezen", "review")
     if name in EDITOR_NAMES or name.endswith("~"):
         if item_age >= min_temp_age_days:
             return Classification("editor_artifact", RISK_SAFE, f"Bekend editorrestant van {item_age} dagen oud", "delete")
@@ -89,8 +86,4 @@ def classify(
 
 
 def _is_known_old_log(name: str) -> bool:
-    return (
-        name == "home-assistant.log.old"
-        or name.startswith("home-assistant.log.")
-        or name.endswith(".fault")
-    )
+    return name == "home-assistant.log.old" or name.startswith("home-assistant.log.") or name.endswith(".fault")

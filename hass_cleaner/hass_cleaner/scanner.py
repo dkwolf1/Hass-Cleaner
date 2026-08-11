@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .policy import Classification, RISK_PROTECTED, RISK_REVIEW, RISK_SAFE, classify
 from .impact import analyze_file
+from .guidance import build_cleanup_guidance
 from .registry_audit import RegistryAudit, scan_home_assistant_registries
 from .settings import Settings
 
@@ -60,6 +61,7 @@ class ScanResult:
         if include_items:
             payload["items"] = [asdict(item) for item in self.items]
         payload["registry_audit"] = self.registry_audit.to_dict()
+        payload["cleanup_guidance"] = build_cleanup_guidance(self.items)
         return payload
 
 

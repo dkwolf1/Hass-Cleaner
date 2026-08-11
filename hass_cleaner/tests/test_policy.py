@@ -43,14 +43,28 @@ class PolicyTests(unittest.TestCase):
         decision = self.classify_file("home-assistant_v2.db-wal")
         self.assertEqual(RISK_PROTECTED, decision.risk)
 
-    def test_custom_component_source_is_review_only(self) -> None:
+    def test_custom_component_source_is_protected_inventory(self) -> None:
         decision = self.classify_file("custom_components/example/__init__.py")
-        self.assertEqual(RISK_REVIEW, decision.risk)
+        self.assertEqual(RISK_PROTECTED, decision.risk)
 
     def test_python_cache_inside_custom_component_is_safe(self) -> None:
         decision = self.classify_file("custom_components/example/__pycache__/code.cpython-313.pyc")
         self.assertEqual(RISK_SAFE, decision.risk)
         self.assertEqual("python_cache", decision.category)
+
+    def test_recent_python_cache_is_ignored(self) -> None:
+        decision = self.classify_file("custom_components/example/__pycache__/code.cpython-314.pyc", old=False)
+        self.assertIsNone(decision)
+
+    def test_hacs_frontend_file_is_protected_inventory(self) -> None:
+        decision = self.classify_file("www/community/example/example.js")
+        self.assertEqual(RISK_PROTECTED, decision.risk)
+        self.assertEqual("frontend_package", decision.category)
+
+    def test_generic_old_cache_requires_investigation(self) -> None:
+        decision = self.classify_file("www/media/camera/cache/preview.jpg")
+        self.assertEqual(RISK_REVIEW, decision.risk)
+        self.assertEqual("integration_cache_candidate", decision.category)
 
     def test_tmp_is_never_marked_safe(self) -> None:
         decision = self.classify_file("downloads/firmware.tmp")

@@ -73,6 +73,10 @@ class ServerTests(unittest.TestCase):
         cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
         cache.parent.mkdir(parents=True)
         cache.write_bytes(b"cache")
+        old = time.time() - 40 * 86400
+        cache.touch()
+        import os
+        os.utime(cache, (old, old))
         (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
         _, started = self.request("/api/scans", "POST", {})
         for _ in range(50):
@@ -95,6 +99,24 @@ class ServerTests(unittest.TestCase):
             markdown = response.read().decode("utf-8")
         self.assertIn("impact- en herstelplan", markdown)
 
+    def test_plan_endpoint_rejects_review_file_even_when_called_directly(self) -> None:
+        candidate = Path(self.config_temp.name) / "downloads" / "firmware.tmp"
+        candidate.parent.mkdir(parents=True)
+        candidate.write_bytes(b"unknown")
+        old = time.time() - 40 * 86400
+        import os
+        os.utime(candidate, (old, old))
+        _, started = self.request("/api/scans", "POST", {})
+        for _ in range(50):
+            _, scan = self.request(f"/api/scans/{started['id']}")
+            if scan["status"] == "completed":
+                break
+            time.sleep(0.02)
+        review_id = next(item["id"] for item in scan["items"] if item["risk"] == "review")
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request("/api/plans/preview", "POST", {"selected_ids": [review_id]})
+        self.assertEqual(400, raised.exception.code)
+
     def test_recorder_purge_requires_backup_and_exact_confirmation(self) -> None:
         calls = []
         self.server.state.purge_manager.purge_caller = lambda days, repack, apply_filter: calls.append((days, repack, apply_filter))
@@ -113,6 +135,9 @@ class ServerTests(unittest.TestCase):
         cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
         cache.parent.mkdir(parents=True)
         cache.write_bytes(b"cache")
+        old = time.time() - 40 * 86400
+        import os
+        os.utime(cache, (old, old))
         (cache.parent.parent / "demo.py").write_text("# source", encoding="utf-8")
         _, started = self.request("/api/scans", "POST", {})
         scan_id = started["id"]
