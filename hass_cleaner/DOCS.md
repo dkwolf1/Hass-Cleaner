@@ -1,5 +1,7 @@
 # Hass-Cleaner
 
+Versie 0.7.1 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. `0 dagen` betekent korter dan 24 uur of een eerste waarneming; langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Markdown is een compacte beoordeling, terwijl JSON en CSV de volledige inventaris bevatten. Alle bestands- en entityacties blijven geblokkeerd.
+
 Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 
 ## Veiligheidswaarborg

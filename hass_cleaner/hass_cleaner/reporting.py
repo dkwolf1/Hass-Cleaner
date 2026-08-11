@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 7
+REPORT_SCHEMA_VERSION = 8
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -155,8 +155,6 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                 ]
             )
         for entity in scan.registry_audit.entity_workspace.get("items", []):
-            if not entity.get("attention"):
-                continue
             writer.writerow(
                 [
                     "entity_health",
@@ -166,7 +164,7 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     entity.get("entity_id", ""),
                     entity.get("name", ""),
                     entity.get("status", ""),
-                    "review",
+                    "review" if entity.get("attention") else "info",
                     "no",
                     "manual_review",
                     0,
@@ -181,6 +179,7 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                         "integration": entity.get("integration", ""),
                         "device": entity.get("device_name", ""),
                         "area": entity.get("area_name", ""),
+                        "registry_entry": entity.get("registry_entry", True),
                     }, ensure_ascii=False),
                 ]
             )
@@ -242,14 +241,15 @@ def _markdown(report: dict[str, object]) -> str:
         lines.extend(_markdown_recipes(guidance.get("investigation_recipes", []), "Geblokkeerd"))
         lines.extend(["", "### Systeeminventaris - behouden", ""])
         lines.extend(_markdown_inventory(guidance.get("inventory", [])))
+    safe_items = [item for item in items if isinstance(item, dict) and item.get("risk") == "safe"]
     lines.extend([
         "",
-        "> De volledige afzonderlijke bestandsinventaris staat in de JSON- en CSV-export.",
+        "## Afzonderlijke bestanden",
         "",
-        "## Voorgesteld voor cleanup",
+        f"{len(safe_items)} bestanden voldoen aan een bewezen veilig recept. Het Markdownrapport toont bewust geen duizenden losse paden.",
         "",
+        "> De volledige bestandsinventaris en alle technische details staan in de JSON- en CSV-export.",
     ])
-    lines.extend(_markdown_table([item for item in items if isinstance(item, dict) and item.get("risk") == "safe"]))
     lines.extend(["", "## Home Assistant-registercontrole", ""])
     registry_status = registry.get("status")
     if registry_status == "completed":
@@ -260,6 +260,7 @@ def _markdown(report: dict[str, object]) -> str:
         lines.extend(
             [
                 f"- Entities: {registry_summary.get('entities_total', 0)}",
+                f"- Runtime-only states zonder entityregister-item: {registry_summary.get('state_only_entities', 0)} (informatief)",
                 f"- Apparaten: {registry_summary.get('devices_total', 0)}",
                 f"- Entities zonder apparaat: {registry_summary.get('entities_without_device', 0)} (informatief)",
                 f"- Gebroken registerverwijzingen: {registry_summary.get('broken_references', 0)}",
@@ -282,19 +283,42 @@ def _markdown(report: dict[str, object]) -> str:
                 "",
             ]
         )
-        lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "review"]))
-        lines.extend(["", "### Informatief - nooit automatisch opruimen", ""])
-        lines.extend(_markdown_registry_table([item for item in findings if isinstance(item, dict) and item.get("severity") == "info"]))
+        review_findings = [item for item in findings if isinstance(item, dict) and item.get("severity") == "review"]
+        lines.extend(_markdown_registry_table(review_findings[:100]))
+        if len(review_findings) > 100:
+            lines.append(f"\nNog {len(review_findings) - 100} aandachtspunten staan in JSON en CSV.")
+        lines.extend(["", "### Informatieve registerbevindingen - samenvatting", ""])
+        lines.extend(_markdown_finding_summary([item for item in findings if isinstance(item, dict) and item.get("severity") == "info"]))
         bundles = registry.get("bundles", [])
         assert isinstance(bundles, list)
-        lines.extend(["", "### Bundels per integratie", ""])
-        lines.extend(_markdown_bundle_table([item for item in bundles if isinstance(item, dict)]))
+        warning_bundles = [item for item in bundles if isinstance(item, dict) and int(item.get("review_count", 0)) > 0]
+        lines.extend(["", "### Bundels met waarschuwingen", ""])
+        lines.extend(_markdown_bundle_table(warning_bundles[:50]))
+        if len(warning_bundles) > 50:
+            lines.append(f"\nNog {len(warning_bundles) - 50} bundels staan in JSON en CSV.")
         workspace = registry.get("entity_workspace", {})
         if isinstance(workspace, dict):
             entity_items = workspace.get("items", [])
+            entity_summary = workspace.get("summary", {})
+            if isinstance(entity_summary, dict):
+                lines.extend([
+                    "",
+                    "### Entity-onderzoek",
+                    "",
+                    f"- Geregistreerd: {entity_summary.get('registered_total', 0)}",
+                    f"- Runtime-only: {entity_summary.get('state_only_total', 0)}",
+                    f"- Statusproblemen: {entity_summary.get('attention', 0)}",
+                    f"- Uitgeschakeld (informatief): {entity_summary.get('disabled', 0)}",
+                    f"- Selecteerbaar voor geblokkeerd onderzoek: {entity_summary.get('selectable_for_plan', 0)}",
+                ])
+                lines.extend(["", "#### Statusverdeling", ""])
+                lines.extend(_markdown_status_summary(entity_summary.get("by_status", {})))
             if isinstance(entity_items, list):
-                lines.extend(["", "### Entiteiten met aandacht", ""])
-                lines.extend(_markdown_entity_table([item for item in entity_items if isinstance(item, dict) and item.get("attention")]))
+                selectable = [item for item in entity_items if isinstance(item, dict) and item.get("selectable_for_plan")]
+                lines.extend(["", "#### Selecteerbaar voor onderzoek", ""])
+                lines.extend(_markdown_entity_table(selectable[:100]))
+                if len(selectable) > 100:
+                    lines.append(f"\nNog {len(selectable) - 100} entities staan in JSON en CSV.")
     else:
         lines.append(f"Registerscan niet beschikbaar: {registry.get('error') or registry_status}.")
     lines.extend(
@@ -312,6 +336,26 @@ def _markdown(report: dict[str, object]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _markdown_finding_summary(items: list[dict[str, object]]) -> list[str]:
+    if not items:
+        return ["Geen informatieve registerbevindingen gevonden."]
+    counts: dict[str, int] = {}
+    for item in items:
+        category = str(item.get("category", "onbekend"))
+        counts[category] = counts.get(category, 0) + 1
+    lines = ["| Categorie | Aantal |", "|---|---:|"]
+    lines.extend(f"| {_md(category)} | {count} |" for category, count in sorted(counts.items()))
+    return lines
+
+
+def _markdown_status_summary(value: object) -> list[str]:
+    if not isinstance(value, dict) or not value:
+        return ["Geen entity-statussen gevonden."]
+    lines = ["| Status | Aantal |", "|---|---:|"]
+    lines.extend(f"| {_md(status)} | {count} |" for status, count in sorted(value.items()))
+    return lines
 
 
 def _markdown_table(items: list[dict[str, object]]) -> list[str]:

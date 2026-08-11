@@ -53,6 +53,14 @@ class ReportingTests(unittest.TestCase):
                         informational_count=1,
                     )
                 ],
+                entity_workspace={"items": [{
+                    "entity_id": "sensor.runtime_only",
+                    "name": "Runtime only",
+                    "status": "available",
+                    "attention": False,
+                    "registry_entry": False,
+                    "reason": "Runtime-state zonder registeritem",
+                }]},
             )
 
             paths = write_report_files(result, Settings(), Path(output_folder))
@@ -67,11 +75,12 @@ class ReportingTests(unittest.TestCase):
             markdown = paths["md"].read_text(encoding="utf-8")
             self.assertNotIn("ultra-private-report-value", markdown)
             self.assertIn("AUDIT-ONLY", markdown)
-            self.assertIn("/homeassistant/custom_components/demo/__pycache__/demo.cpython-313.pyc", markdown)
+            self.assertNotIn("/homeassistant/custom_components/demo/__pycache__/demo.cpython-313.pyc", markdown)
+            self.assertIn("volledige bestandsinventaris", markdown)
             self.assertIn("Home Assistant-registercontrole", markdown)
-            self.assertIn("sensor.helper", markdown)
-            self.assertIn("Bundels per integratie", markdown)
-            self.assertIn("Demo integration", markdown)
+            self.assertIn("entity_without_device", markdown)
+            self.assertIn("Bundels met waarschuwingen", markdown)
+            self.assertNotIn("Demo integration", markdown)
             self.assertIn("Concrete aandachtspunten", markdown)
             with paths["csv"].open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream, delimiter=";"))
@@ -85,6 +94,9 @@ class ReportingTests(unittest.TestCase):
             self.assertNotEqual("delete", registry_row["recommended_action"])
             bundle_row = next(row for row in rows if row["record_type"] == "bundle")
             self.assertEqual("Demo integration", bundle_row["name"])
+            runtime_row = next(row for row in rows if row["record_type"] == "entity_health")
+            self.assertEqual("info", runtime_row["risk"])
+            self.assertIn('"registry_entry": false', runtime_row["content_preview"])
 
     def test_manifest_mount_is_read_only(self) -> None:
         manifest = (Path(__file__).resolve().parents[1] / "config.yaml").read_text(encoding="utf-8")

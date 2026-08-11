@@ -178,6 +178,7 @@
               <option value="problem">Probleemstatus</option>
               <option value="not_loaded">Niet geladen</option>
               <option value="disabled">Uitgeschakeld</option>
+              <option value="state_only">Alleen runtime-only</option>
               <option value="broken_reference">Kapotte verwijzing</option>
               <option value="all">Alle entiteiten</option>
             </select>
@@ -191,11 +192,13 @@
               <option value="none">Niet groeperen</option>
             </select>
           </section>
+          <div class="entity-duration-note" id="entity-duration-note">0 dagen betekent: korter dan 24 uur of pas voor het eerst waargenomen.</div>
           <section class="metric-grid entity-metrics" aria-label="Entiteitenoverzicht">
-            <article class="metric-card total"><div class="metric-top"><span>TOTAAL</span></div><strong id="entity-total">-</strong><p>In het register</p></article>
-            <article class="metric-card review"><div class="metric-top"><span>AANDACHT</span></div><strong id="entity-attention">-</strong><p>Controleren, niet automatisch verwijderen</p></article>
-            <article class="metric-card protected"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="entity-unavailable">-</strong><p>Tijdelijk en langdurig</p></article>
-            <article class="metric-card safe"><div class="metric-top"><span>UNKNOWN</span></div><strong id="entity-unknown">-</strong><p>Geen bruikbare waarde</p></article>
+            <article class="metric-card total"><div class="metric-top"><span>GEREGISTREERD</span></div><strong id="entity-registered">-</strong><p>In het entityregister</p></article>
+            <article class="metric-card protected"><div class="metric-top"><span>RUNTIME-ONLY</span></div><strong id="entity-state-only">-</strong><p>State zonder registeritem</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>STATUSPROBLEMEN</span></div><strong id="entity-attention">-</strong><p>Controleren, niet automatisch verwijderen</p></article>
+            <article class="metric-card safe"><div class="metric-top"><span>UITGESCHAKELD</span></div><strong id="entity-disabled">-</strong><p>Informatief, meestal normaal</p></article>
+            <article class="metric-card total"><div class="metric-top"><span>ONDERZOEK</span></div><strong id="entity-selectable">-</strong><p>Alleen in geblokkeerd plan</p></article>
           </section>
           <div class="entity-result-summary" id="entity-result-summary">Voer eerst een scan uit.</div>
           <div id="entity-list" class="entity-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>

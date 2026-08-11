@@ -51,6 +51,7 @@ class RegistryAudit:
     bundles: list[RegistryBundle] = field(default_factory=list)
     anomalies: list[dict[str, Any]] = field(default_factory=list)
     entity_workspace: dict[str, Any] = field(default_factory=dict)
+    state_only_entities: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -61,6 +62,7 @@ class RegistryAudit:
             "bundles": [asdict(item) for item in self.bundles],
             "anomalies": self.anomalies,
             "entity_workspace": self.entity_workspace,
+            "state_only_entities": self.state_only_entities,
             "error": self.error,
             "audit_only": True,
             "destructive_actions_available": False,
@@ -147,6 +149,9 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
     config_entry_ids.discard("")
     state_ids = {_identifier(item, "entity_id") for item in states}
     state_ids.discard("")
+    registered_entity_ids = {_identifier(item, "entity_id") for item in entities}
+    registered_entity_ids.discard("")
+    state_only_entities = _build_state_only_entities(states, registered_entity_ids)
 
     findings: list[RegistryFinding] = []
     entities_by_device: dict[str, int] = {}
@@ -210,6 +215,7 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
         "areas_total": len(areas),
         "config_entries_total": len(config_entries),
         "states_total": len(states),
+        "state_only_entities": len(state_only_entities),
         "entities_without_device": _count(findings, "entity_without_device"),
         "broken_references": sum(1 for item in findings if item.category.startswith("missing_")),
         "entities_not_loaded": _count(findings, "entity_not_loaded"),
@@ -225,7 +231,45 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
     summary["bundles_total"] = len(bundles)
     anomalies = _detect_anomalies(bundles)
     summary["anomalies_total"] = len(anomalies)
-    return RegistryAudit(status="completed", summary=summary, findings=findings, bundles=bundles, anomalies=anomalies)
+    return RegistryAudit(
+        status="completed",
+        summary=summary,
+        findings=findings,
+        bundles=bundles,
+        anomalies=anomalies,
+        state_only_entities=state_only_entities,
+    )
+
+
+def _build_state_only_entities(
+    states: list[dict[str, Any]], registered_entity_ids: set[str]
+) -> list[dict[str, Any]]:
+    """Keep only non-sensitive metadata for runtime states without registry entry."""
+    result: list[dict[str, Any]] = []
+    for state in states:
+        entity_id = _identifier(state, "entity_id")
+        if not entity_id or entity_id in registered_entity_ids:
+            continue
+        attributes = state.get("attributes", {})
+        friendly_name = attributes.get("friendly_name") if isinstance(attributes, dict) else None
+        connectivity = {
+            key: attributes[key]
+            for key in ("reachable", "connected", "online")
+            if isinstance(attributes, dict)
+            and key in attributes
+            and isinstance(attributes[key], (bool, int, float, str))
+        }
+        result.append({
+            "entity_id": entity_id,
+            "name": str(friendly_name) if isinstance(friendly_name, str) and friendly_name else entity_id,
+            "platform": entity_id.partition(".")[0],
+            "loaded": True,
+            "state": state.get("state"),
+            "last_changed": _identifier(state, "last_changed"),
+            "connectivity_signals": connectivity,
+            "registry_entry": False,
+        })
+    return sorted(result, key=lambda item: item["entity_id"])
 
 
 def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:

@@ -301,7 +301,7 @@ function renderRegistryAudit() {
 
   const summary = audit.summary || {};
   $("#registry-state").textContent = "Voltooid";
-  $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd. ${summary.long_unavailable_entities || 0} langdurig onbeschikbaar; ${summary.temporarily_unavailable_entities || 0} voorlopig alleen informatief.`;
+  $("#registry-message").textContent = `${summary.entities_total || 0} geregistreerde entities, ${summary.state_only_entities || 0} runtime-only states en ${summary.devices_total || 0} apparaten read-only gecontroleerd. ${summary.long_unavailable_entities || 0} langdurig onbeschikbaar; ${summary.temporarily_unavailable_entities || 0} voorlopig alleen informatief.`;
   $("#registry-entities-total").textContent = summary.entities_total || 0;
   $("#registry-unlinked-total").textContent = summary.bundles_total || 0;
   $("#registry-review-total").textContent = summary.anomalies_total || 0;
@@ -372,8 +372,9 @@ function filteredEntities() {
     if (statusFilter === "unavailable" && !status.includes("unavailable")) return false;
     if (statusFilter === "unknown" && !status.includes("unknown")) return false;
     if (statusFilter === "disabled" && !status.startsWith("disabled_by_")) return false;
+    if (statusFilter === "state_only" && item.registry_entry !== false) return false;
     if (statusFilter === "problem" && !status.includes("problem")) return false;
-    if (!["all", "attention", "unavailable", "unknown", "problem", "disabled"].includes(statusFilter) && status !== statusFilter) return false;
+    if (!["all", "attention", "unavailable", "unknown", "problem", "disabled", "state_only"].includes(statusFilter) && status !== statusFilter) return false;
     if (integration !== "all" && item.integration !== integration) return false;
     if (area !== "all" && (item.area_name || item.area_id) !== area) return false;
     if ((item.duration_days || 0) < days) return false;
@@ -396,11 +397,13 @@ function renderEntities() {
     list.innerHTML = '<div class="table-empty panel">Voer eerst een scan uit.</div>';
     return;
   }
-  const counts = workspace.summary?.by_status || {};
-  $("#entity-total").textContent = workspace.summary?.total || 0;
+  $("#entity-registered").textContent = workspace.summary?.registered_total || 0;
+  $("#entity-state-only").textContent = workspace.summary?.state_only_total || 0;
   $("#entity-attention").textContent = workspace.summary?.attention || 0;
-  $("#entity-unavailable").textContent = (counts.temporarily_unavailable || 0) + (counts.long_unavailable || 0);
-  $("#entity-unknown").textContent = (counts.temporarily_unknown || 0) + (counts.long_unknown || 0);
+  $("#entity-disabled").textContent = workspace.summary?.disabled || 0;
+  $("#entity-selectable").textContent = workspace.summary?.selectable_for_plan || 0;
+  const thresholds = workspace.persistence_thresholds || {};
+  $("#entity-duration-note").textContent = `0 dagen betekent: korter dan 24 uur of pas voor het eerst waargenomen. Langdurig betekent minimaal ${thresholds.long_days || 30} dagen, of ${thresholds.repeated_observations || 3} scans verspreid over minimaal ${thresholds.repeated_days || 7} dagen.`;
   const items = filteredEntities();
   state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
   $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · verwijderen blijft geblokkeerd`;
@@ -423,7 +426,7 @@ function renderEntities() {
       <input type="checkbox" data-entity-id="${escapeHtml(item.entity_id)}" ${item.selectable_for_plan ? "" : "disabled"} ${state.selectedEntities.has(item.entity_id) ? "checked" : ""}>
       <button type="button" class="entity-detail" data-entity-detail="${escapeHtml(item.entity_id)}"><strong>${escapeHtml(item.name || item.entity_id)}</strong><small>${escapeHtml(item.entity_id)}</small></button>
       <span><strong>${escapeHtml(item.device_name || "Zonder apparaat")}</strong><small>${escapeHtml(item.integration || "Onbekende integratie")}${item.area_name ? ` · ${escapeHtml(item.area_name)}` : ""}</small></span>
-      <span class="risk-chip ${item.attention ? "review" : "info"}">${escapeHtml(entityStatusLabel(item.status))}</span>
+      <span class="risk-chip ${item.attention ? "review" : "info"}">${escapeHtml(entityStatusLabel(item.status))}<small>${item.registry_entry === false ? "runtime-only" : ""}</small></span>
       <span class="entity-duration">${item.duration_days || 0} dagen<small>rauw: ${escapeHtml(item.raw_state ?? "geen state")}</small></span>
     </label>`).join("");
     return `<article class="panel entity-group"><header><div><h3>${escapeHtml(title)}</h3><p>${members.length} entiteiten · ${selectable.length} te onderzoeken</p></div><button class="link-button entity-group-toggle" data-group="${escapeHtml(title)}" ${selectable.length ? "" : "disabled"}>${allSelected ? "Groep wissen" : "Groep selecteren"}</button></header>${rows}</article>`;
@@ -453,9 +456,9 @@ async function openEntity(entityId) {
   if (!item) return;
   state.activeEntity = item;
   $("#entity-dialog-title").textContent = item.name || item.entity_id;
-  $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${item.duration_days || 0} dagen`;
+  $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${item.duration_days || 0} dagen${item.registry_entry === false ? " · runtime-only" : ""}`;
   const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
-  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>Laatste wijziging: ${escapeHtml(item.last_changed || "onbekend")}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
+  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>Laatste wijziging: ${escapeHtml(item.last_changed || "onbekend")}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
   $("#entity-dialog").showModal();
   try {
     const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });

@@ -64,6 +64,7 @@ class RegistryAuditTests(unittest.TestCase):
             "states": [
                 {"entity_id": "sensor.normal", "state": "ok"},
                 {"entity_id": "sensor.helper", "state": "unavailable"},
+                {"entity_id": "sensor.runtime_only", "state": "idle", "attributes": {"friendly_name": "Runtime", "reachable": True, "secret": "never-copy"}},
             ],
         }
 
@@ -84,6 +85,10 @@ class RegistryAuditTests(unittest.TestCase):
         self.assertEqual(1, len(demo.devices))
         self.assertEqual(3, len(demo.entities))
         self.assertEqual(["sensor.normal"], demo.devices[0]["entity_ids"])
+        self.assertEqual(1, audit.summary["state_only_entities"])
+        self.assertEqual("sensor.runtime_only", audit.state_only_entities[0]["entity_id"])
+        self.assertEqual({"reachable": True}, audit.state_only_entities[0]["connectivity_signals"])
+        self.assertNotIn("secret", json.dumps(audit.to_dict()))
 
     def test_related_search_uses_official_read_only_command(self) -> None:
         connection = FakeConnection([

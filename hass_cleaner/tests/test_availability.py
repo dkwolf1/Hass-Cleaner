@@ -88,6 +88,37 @@ class AvailabilityTests(unittest.TestCase):
         self.assertEqual("long_problem", items["binary_sensor.problem"]["status"])
         self.assertTrue(items["binary_sensor.problem"]["selectable_for_plan"])
 
+    def test_disabled_and_runtime_only_entities_are_separated_from_status_problems(self) -> None:
+        now = datetime(2026, 8, 11, tzinfo=timezone.utc)
+        audit = audit_registry_snapshot({
+            "entities": [
+                {"entity_id": "sensor.registered", "config_entry_id": "entry-1", "platform": "example"},
+                {"entity_id": "sensor.disabled", "config_entry_id": "entry-1", "platform": "example", "disabled_by": "integration"},
+            ],
+            "devices": [], "areas": [],
+            "config_entries": [{"entry_id": "entry-1", "title": "Example", "domain": "example"}],
+            "states": [
+                {"entity_id": "sensor.registered", "state": "ok", "last_changed": now.isoformat()},
+                {"entity_id": "sensor.runtime_ok", "state": "idle", "last_changed": now.isoformat()},
+                {"entity_id": "sensor.runtime_bad", "state": "unavailable", "last_changed": now.isoformat()},
+            ],
+        })
+        with tempfile.TemporaryDirectory() as folder:
+            apply_availability_history(audit, Path(folder) / "history.json", now=now)
+
+        items = {item["entity_id"]: item for item in audit.entity_workspace["items"]}
+        summary = audit.entity_workspace["summary"]
+        self.assertEqual(2, summary["registered_total"])
+        self.assertEqual(2, summary["state_only_total"])
+        self.assertEqual(1, summary["attention"])
+        self.assertEqual(1, summary["disabled"])
+        self.assertFalse(items["sensor.disabled"]["attention"])
+        self.assertTrue(items["sensor.disabled"]["informational"])
+        self.assertFalse(items["sensor.runtime_ok"]["registry_entry"])
+        self.assertFalse(items["sensor.runtime_ok"]["attention"])
+        self.assertTrue(items["sensor.runtime_bad"]["attention"])
+        self.assertFalse(items["sensor.runtime_bad"]["selectable_for_plan"])
+
 
 if __name__ == "__main__":
     unittest.main()

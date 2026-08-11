@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+- Scheidt echte statusproblemen van informatief uitgeschakelde entities.
+- Neemt runtime-only Home Assistant-states zonder entityregister-item veilig mee in het entityonderzoek.
+- Legt in de interface uit wat `0 dagen` en de grens voor langdurige problemen betekenen.
+- Voegt filters en kengetallen toe voor runtime-only, uitgeschakelde en onderzoekbare entities.
+- Maakt het Markdownrapport compact; JSON en CSV blijven de volledige technische exports.
+- Verwijdering blijft geblokkeerd en runtime-only states zijn nooit selecteerbaar voor verwijdering.
+
 ## 0.7.0
 
 - Aparte tab **Entiteiten** toegevoegd met zoeken en filters op status, minimumduur, integratie en ruimte.
