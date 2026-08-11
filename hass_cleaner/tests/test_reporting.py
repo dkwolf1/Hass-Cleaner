@@ -114,6 +114,19 @@ class ReportingTests(unittest.TestCase):
         self.assertIn('image: "ghcr.io/dkwolf1/hass-cleaner"', app_manifest)
         self.assertFalse((app_root / "build.yaml").exists())
 
+    def test_manifest_uses_native_container_healthcheck_and_normalized_version(self) -> None:
+        app_root = Path(__file__).resolve().parents[1]
+        repository_root = app_root.parent
+        app_manifest = (app_root / "config.yaml").read_text(encoding="utf-8")
+        dockerfile = (app_root / "Dockerfile").read_text(encoding="utf-8")
+        workflow = (repository_root / ".github" / "workflows" / "build-app.yaml").read_text(encoding="utf-8")
+
+        self.assertNotIn("watchdog:", app_manifest)
+        self.assertNotIn("ingress_port:", app_manifest)
+        self.assertIn("HEALTHCHECK", dockerfile)
+        self.assertIn("version: ${{ steps.normalize.outputs.version }}", workflow)
+        self.assertIn('echo "version=${version}"', workflow)
+
     def test_report_retention_only_removes_owned_old_report_sets(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
