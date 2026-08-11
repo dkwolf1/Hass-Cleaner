@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 8
+REPORT_SCHEMA_VERSION = 9
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -62,6 +62,31 @@ def report_path(output_dir: Path, scan_id: str, extension: str) -> Path | None:
         return None
     path = output_dir / f"hass-cleaner-audit-{scan_id}.{extension}"
     return path if path.is_file() else None
+
+
+def prune_report_files(output_dir: Path, keep_scans: int) -> list[str]:
+    """Remove only old Hass-Cleaner-owned report sets from the app data directory."""
+    if not output_dir.is_dir():
+        return []
+    grouped: dict[str, list[Path]] = {}
+    for path in output_dir.glob("hass-cleaner-audit-*.*"):
+        match = path.name.removeprefix("hass-cleaner-audit-").rsplit(".", 1)
+        if len(match) == 2 and match[0].isalnum() and match[1] in REPORT_EXTENSIONS:
+            grouped.setdefault(match[0], []).append(path)
+    ordered = sorted(
+        grouped.items(),
+        key=lambda entry: max((item.stat().st_mtime for item in entry[1]), default=0),
+        reverse=True,
+    )
+    removed: list[str] = []
+    for scan_id, paths in ordered[max(1, keep_scans):]:
+        for path in paths:
+            try:
+                path.unlink()
+            except OSError:
+                continue
+        removed.append(scan_id)
+    return removed
 
 
 def _write_csv(scan: ScanResult, path: Path) -> None:

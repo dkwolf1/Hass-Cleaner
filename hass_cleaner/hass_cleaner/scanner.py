@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import threading
 import uuid
+import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -184,9 +185,11 @@ class ScanManager:
             if self.report_dir is not None:
                 apply_availability_history(completed.registry_audit, self.report_dir.parent / "availability-history.json")
         if completed.status == "completed" and self.report_dir is not None:
-            from .reporting import write_report_files
+            from .reporting import prune_report_files, write_report_files
 
             write_report_files(completed, settings, self.report_dir)
+            prune_report_files(self.report_dir, settings.report_retention_count)
+            self._append_history(completed)
         with self._lock:
             self._scans[scan_id] = completed
 
@@ -197,3 +200,34 @@ class ScanManager:
     def latest(self) -> ScanResult | None:
         with self._lock:
             return self._scans.get(self._latest_id) if self._latest_id else None
+
+    def history(self) -> list[dict[str, object]]:
+        if self.report_dir is None:
+            return []
+        path = self.report_dir.parent / "scan-history.json"
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            return value if isinstance(value, list) else []
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return []
+
+    def _append_history(self, scan: ScanResult) -> None:
+        if self.report_dir is None:
+            return
+        workspace = scan.registry_audit.entity_workspace
+        record = {
+            "id": scan.id,
+            "started_at": scan.started_at,
+            "finished_at": scan.finished_at,
+            "visited_files": scan.visited_files,
+            "reported_files": len(scan.items),
+            "entity_summary": workspace.get("summary", {}),
+            "entity_changes": workspace.get("changes", {}),
+        }
+        history = self.history()
+        history.insert(0, record)
+        path = self.report_dir.parent / "scan-history.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(history[:50], ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)

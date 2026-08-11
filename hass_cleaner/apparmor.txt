@@ -1,0 +1,41 @@
+#include <tunables/global>
+
+profile hass-cleaner flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+  signal (receive),
+
+  network inet stream,
+  network inet6 stream,
+  network unix stream,
+
+  # S6 Overlay and the app entrypoint.
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+  /usr/lib/bashio/** ix,
+
+  # Python application and libraries.
+  /usr/lib/python3.*/** mr,
+  /app/** r,
+  /run.sh rix,
+
+  # Read-only Home Assistant inventory and app-owned persistent data.
+  /etc/** r,
+  /proc/** r,
+  /sys/** r,
+  /homeassistant/** r,
+  /data/** rw,
+  /tmp/** rwk,
+}

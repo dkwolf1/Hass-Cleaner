@@ -1,0 +1,19 @@
+configuration:
+  min_temp_age_days:
+    name: Minimum age for temporary files
+    description: Files younger than this remain excluded from safe cleanup recipes.
+  min_log_age_days:
+    name: Minimum age for old logs
+    description: Log files younger than this remain excluded.
+  deletion_mode:
+    name: Future deletion policy
+    description: Policy shown in dry-run plans; file execution remains locked.
+  retention_days:
+    name: Quarantine retention
+    description: Days files should remain recoverable in a future cleanup release.
+  advanced_mode:
+    name: Advanced inventory
+    description: Show technical details without bypassing safety gates.
+  report_retention_count:
+    name: Reports to retain
+    description: Complete scan report sets kept in app data.

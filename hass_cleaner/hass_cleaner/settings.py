@@ -13,6 +13,7 @@ class Settings:
     deletion_mode: str = "quarantine"
     retention_days: int = 7
     advanced_mode: bool = False
+    report_retention_count: int = 10
 
     def validated(self) -> "Settings":
         if not 1 <= self.min_temp_age_days <= 365:
@@ -25,6 +26,8 @@ class Settings:
             raise ValueError("retention_days moet tussen 1 en 10 liggen")
         if not isinstance(self.advanced_mode, bool):
             raise ValueError("advanced_mode moet true of false zijn")
+        if not 1 <= self.report_retention_count <= 50:
+            raise ValueError("report_retention_count moet tussen 1 en 50 liggen")
         return self
 
     def public_dict(self) -> dict[str, object]:
@@ -55,6 +58,7 @@ def load_settings(data_root: Path) -> Settings:
         deletion_mode=str(values.get("deletion_mode", "quarantine")),
         retention_days=int(values.get("retention_days", 7)),
         advanced_mode=advanced_value if isinstance(advanced_value, bool) else False,
+        report_retention_count=int(values.get("report_retention_count", 10)),
     ).validated()
 
 

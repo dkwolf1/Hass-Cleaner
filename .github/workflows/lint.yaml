@@ -1,0 +1,24 @@
+name: Home Assistant app lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 0 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Hass-Cleaner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7.0.1
+      - name: Run Home Assistant app lint
+        uses: frenck/action-addon-linter@v2.21
+        with:
+          path: ./hass_cleaner

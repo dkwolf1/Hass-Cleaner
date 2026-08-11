@@ -11,6 +11,7 @@ from .registry_audit import RegistryAudit
 LONG_UNAVAILABLE_DAYS = 30
 REPEATED_OBSERVATION_DAYS = 7
 REQUIRED_OBSERVATIONS = 3
+DECISION_ACTIONS = {"follow", "expected", "snooze_7", "snooze_30", "snooze_90", "clear"}
 
 
 def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetime | None = None) -> None:
@@ -19,6 +20,10 @@ def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetim
         return
     current = now or datetime.now(timezone.utc)
     previous = _load(path)
+    snapshot_path = path.with_name("entity-snapshot.json")
+    decisions_path = path.with_name("entity-decisions.json")
+    previous_snapshot = _load(snapshot_path)
+    decisions = _load(decisions_path)
     observations: dict[str, dict[str, Any]] = {}
 
     entities = [entity for bundle in audit.bundles for entity in bundle.entities]
@@ -31,6 +36,9 @@ def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetim
     _save(path, observations)
     _append_bundle_anomalies(audit)
     audit.entity_workspace = _build_entity_workspace(audit)
+    _apply_decisions(audit.entity_workspace, decisions, current)
+    _apply_scan_diff(audit.entity_workspace, previous_snapshot)
+    _save(snapshot_path, _workspace_snapshot(audit.entity_workspace))
 
 
 def _annotate_entity(
@@ -38,35 +46,49 @@ def _annotate_entity(
 ) -> dict[str, Any] | None:
     entity_id = str(entity.get("entity_id", ""))
     disabled_by = entity.get("disabled_by")
+    entity["ha_last_changed"] = entity.get("last_changed", "")
     if disabled_by is not None:
         entity["availability_status"] = f"disabled_by_{disabled_by}"
         entity["health_duration_days"] = 0
         entity["cleanup_candidate"] = False
+        entity["health_observations"] = 0
         return None
     if not entity.get("loaded"):
         entity["availability_status"] = "not_loaded"
-        entity["health_duration_days"] = 0
-        entity["cleanup_candidate"] = False
-        return None
-    raw_state = str(entity.get("state", ""))
-    if raw_state not in {"unavailable", "unknown", "problem"}:
-        entity["availability_status"] = "available"
-        entity["health_duration_days"] = 0
-        entity["cleanup_candidate"] = False
-        return None
+        raw_state = "not_loaded"
+    else:
+        raw_state = str(entity.get("state", ""))
+        if raw_state not in {"unavailable", "unknown", "problem"}:
+            entity["availability_status"] = "available"
+            entity["health_duration_days"] = 0
+            entity["health_duration_seconds"] = 0
+            entity["health_observations"] = 0
+            entity["cleanup_candidate"] = False
+            return None
 
     prior = previous.get(entity_id, {})
     if prior.get("kind") != raw_state:
         prior = {}
-    first_seen = _parse(str(prior.get("first_seen", ""))) or _parse(str(entity.get("last_changed", ""))) or current
+    ha_last_changed = _parse(str(entity.get("last_changed", "")))
+    first_seen = _parse(str(prior.get("first_seen", ""))) or current
+    duration_anchor = ha_last_changed or first_seen
     scans = int(prior.get("observations", 0)) + 1
-    duration_days = max(0, int((current - first_seen).total_seconds() // 86400))
+    duration_seconds = max(0, int((current - duration_anchor).total_seconds()))
+    duration_days = duration_seconds // 86400
     persistent = duration_days >= LONG_UNAVAILABLE_DAYS or (
         scans >= REQUIRED_OBSERVATIONS and duration_days >= REPEATED_OBSERVATION_DAYS
     )
-    entity["availability_status"] = f"long_{raw_state}" if persistent else f"temporarily_{raw_state}"
+    if raw_state == "not_loaded":
+        entity["availability_status"] = "not_loaded"
+    else:
+        entity["availability_status"] = f"long_{raw_state}" if persistent else f"temporarily_{raw_state}"
     entity["health_duration_days"] = duration_days
+    entity["health_duration_seconds"] = duration_seconds
     entity["health_observations"] = scans
+    entity["health_first_seen"] = first_seen.isoformat()
+    entity["health_last_seen"] = current.isoformat()
+    entity["health_duration_source"] = "home_assistant" if ha_last_changed else "hass_cleaner"
+    entity["persistent_issue"] = persistent
     entity["cleanup_candidate"] = False
     return {
         "kind": raw_state,
@@ -130,12 +152,11 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
                 status = "broken_reference"
             signal = dict(entity.get("connectivity_signals", {}))
             signal_problem = any(value is False or str(value).lower() in {"false", "offline", "disconnected", "unreachable"} for value in signal.values())
-            attention = status in {
-                "temporarily_unavailable", "long_unavailable", "temporarily_unknown",
-                "long_unknown", "temporarily_problem", "long_problem", "not_loaded",
-                "broken_reference",
-            }
-            selectable_for_plan = status in {"long_unavailable", "long_unknown", "long_problem", "not_loaded", "broken_reference"}
+            watch = status.startswith("temporarily_") or (status == "not_loaded" and not entity.get("persistent_issue"))
+            attention = status in {"long_unavailable", "long_unknown", "long_problem", "broken_reference"} or (
+                status == "not_loaded" and bool(entity.get("persistent_issue"))
+            )
+            selectable_for_plan = attention
             items.append({
                 "entity_id": entity_id,
                 "name": entity.get("name", entity_id),
@@ -152,7 +173,11 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
                 "status": status,
                 "raw_state": entity.get("state"),
                 "duration_days": entity.get("health_duration_days", 0),
+                "duration_seconds": entity.get("health_duration_seconds", 0),
                 "observations": entity.get("health_observations", 0),
+                "first_observed": entity.get("health_first_seen", ""),
+                "last_observed": entity.get("health_last_seen", ""),
+                "duration_source": entity.get("health_duration_source", ""),
                 "last_changed": entity.get("last_changed", ""),
                 "disabled_by": entity.get("disabled_by"),
                 "loaded": bool(entity.get("loaded")),
@@ -160,7 +185,8 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
                 "integration_signal_problem": signal_problem,
                 "registry_entry": True,
                 "attention": attention,
-                "informational": not attention and (status.startswith("disabled_by_") or signal_problem),
+                "watch": watch,
+                "informational": not attention and not watch,
                 "selectable_for_plan": selectable_for_plan,
                 "execution_allowed": False,
                 "reason": _entity_reason(status, signal_problem),
@@ -173,7 +199,8 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             value is False or str(value).lower() in {"false", "offline", "disconnected", "unreachable"}
             for value in signal.values()
         )
-        attention = status != "available"
+        watch = status.startswith("temporarily_") or status == "not_loaded"
+        attention = False
         reason = _entity_reason(status, signal_problem)
         if status == "available":
             reason = "Actieve runtime-state zonder entity-registry-item; dit kan normaal zijn voor entities zonder unique_id."
@@ -195,7 +222,11 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             "status": status,
             "raw_state": entity.get("state"),
             "duration_days": entity.get("health_duration_days", 0),
+            "duration_seconds": entity.get("health_duration_seconds", 0),
             "observations": entity.get("health_observations", 0),
+            "first_observed": entity.get("health_first_seen", ""),
+            "last_observed": entity.get("health_last_seen", ""),
+            "duration_source": entity.get("health_duration_source", ""),
             "last_changed": entity.get("last_changed", ""),
             "disabled_by": None,
             "loaded": True,
@@ -203,7 +234,8 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             "integration_signal_problem": signal_problem,
             "registry_entry": False,
             "attention": attention,
-            "informational": not attention,
+            "watch": watch,
+            "informational": not watch,
             "selectable_for_plan": False,
             "execution_allowed": False,
             "reason": reason,
@@ -218,6 +250,7 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             "registered_total": sum(1 for item in items if item["registry_entry"]),
             "state_only_total": sum(1 for item in items if not item["registry_entry"]),
             "attention": sum(1 for item in items if item["attention"]),
+            "temporary_signals": sum(1 for item in items if item["watch"]),
             "informational": sum(1 for item in items if item["informational"]),
             "disabled": sum(1 for item in items if str(item["status"]).startswith("disabled_by_")),
             "selectable_for_plan": sum(1 for item in items if item["selectable_for_plan"]),
@@ -232,6 +265,104 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
         "integration_signals_are_informational": True,
         "execution_locked": True,
     }
+
+
+def update_entity_decision(
+    path: Path, entity_id: str, action: str, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """Store a local triage choice; this never writes to Home Assistant."""
+    if action not in DECISION_ACTIONS:
+        raise ValueError("Ongeldige entitykeuze")
+    if not entity_id or len(entity_id) > 255:
+        raise ValueError("Ongeldige entity-id")
+    decisions = _load(path)
+    if action == "clear":
+        decisions.pop(entity_id, None)
+        _save(path, decisions)
+        return {"entity_id": entity_id, "action": "clear"}
+    current = now or datetime.now(timezone.utc)
+    days = {"snooze_7": 7, "snooze_30": 30, "snooze_90": 90}.get(action)
+    until = ""
+    if days:
+        from datetime import timedelta
+
+        until = (current + timedelta(days=days)).isoformat()
+    record = {"action": action, "set_at": current.isoformat(), "until": until}
+    decisions[entity_id] = record
+    _save(path, decisions)
+    return {"entity_id": entity_id, **record}
+
+
+def apply_saved_decisions(workspace: dict[str, Any], path: Path, *, now: datetime | None = None) -> None:
+    _apply_decisions(workspace, _load(path), now or datetime.now(timezone.utc))
+
+
+def _apply_decisions(workspace: dict[str, Any], decisions: dict[str, Any], current: datetime) -> None:
+    for item in workspace.get("items", []):
+        record = decisions.get(str(item.get("entity_id", "")), {})
+        if not isinstance(record, dict):
+            record = {}
+        action = str(record.get("action", "follow"))
+        until = _parse(str(record.get("until", "")))
+        if action.startswith("snooze_") and (until is None or until <= current):
+            action = "follow"
+        item["decision"] = action
+        item["decision_until"] = until.isoformat() if until else ""
+        item["muted_by_decision"] = action == "expected" or action.startswith("snooze_")
+    _refresh_workspace_summary(workspace)
+
+
+def _apply_scan_diff(workspace: dict[str, Any], previous: dict[str, Any]) -> None:
+    items = workspace.get("items", [])
+    baseline = not bool(previous)
+    counts = {"new": 0, "changed": 0, "recovered": 0, "unchanged": 0, "removed": 0}
+    current_ids: set[str] = set()
+    for item in items:
+        entity_id = str(item.get("entity_id", ""))
+        current_ids.add(entity_id)
+        old = previous.get(entity_id)
+        if baseline or not isinstance(old, dict):
+            diff = "baseline" if baseline else "new"
+        elif _is_problem_status(str(old.get("status", ""))) and not _is_problem_status(str(item.get("status", ""))):
+            diff = "recovered"
+        elif old.get("status") != item.get("status") or old.get("raw_state") != item.get("raw_state"):
+            diff = "changed"
+        else:
+            diff = "unchanged"
+        item["diff_status"] = diff
+        if diff in counts:
+            counts[diff] += 1
+    removed = sorted(entity_id for entity_id in previous if entity_id not in current_ids)
+    counts["removed"] = len(removed)
+    workspace["changes"] = {"baseline": baseline, "counts": counts, "removed_entity_ids": removed[:100]}
+
+
+def _workspace_snapshot(workspace: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(item.get("entity_id", "")): {
+            "status": item.get("status", ""),
+            "raw_state": item.get("raw_state"),
+            "registry_entry": item.get("registry_entry", True),
+        }
+        for item in workspace.get("items", [])
+        if item.get("entity_id")
+    }
+
+
+def _refresh_workspace_summary(workspace: dict[str, Any]) -> None:
+    items = workspace.get("items", [])
+    summary = workspace.setdefault("summary", {})
+    summary["muted"] = sum(1 for item in items if item.get("muted_by_decision"))
+    summary["attention_visible"] = sum(
+        1 for item in items if item.get("attention") and not item.get("muted_by_decision")
+    )
+    summary["temporary_visible"] = sum(
+        1 for item in items if item.get("watch") and not item.get("muted_by_decision")
+    )
+
+
+def _is_problem_status(status: str) -> bool:
+    return status.startswith(("temporarily_", "long_")) or status in {"not_loaded", "broken_reference"}
 
 
 def _entity_reason(status: str, signal_problem: bool) -> str:

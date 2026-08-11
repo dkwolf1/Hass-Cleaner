@@ -12,6 +12,10 @@ const state = {
   selectedEntities: new Set(),
   visibleEntityIds: [],
   pollTimer: null,
+  csrfToken: "",
+  backupEvidenceToken: "",
+  scanFullLoaded: false,
+  fullScanPromise: null,
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -24,9 +28,14 @@ function apiUrl(path) {
 }
 
 async function api(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
   const response = await fetch(apiUrl(path), {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(method !== "GET" && state.csrfToken ? { "X-Hass-Cleaner-CSRF": state.csrfToken } : {}),
+      ...(options.headers || {}),
+    },
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
@@ -44,6 +53,7 @@ function showToast(message, error = false) {
 function activateTab(name) {
   $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
   $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${name}`));
+  if (["results", "entities", "registry"].includes(name)) loadFullScan();
 }
 
 function formatBytes(bytes) {
@@ -96,6 +106,7 @@ async function loadStatus() {
   try {
     const status = await api("api/status");
     state.status = status;
+    state.csrfToken = status.csrf_token || "";
     const pill = $("#mode-pill");
     pill.classList.add("online");
     pill.innerHTML = `<i></i>${status.mode === "home_assistant" ? "Home Assistant verbonden" : "Lokale ontwikkelmodus"}`;
@@ -117,6 +128,7 @@ async function loadSettings() {
   const selected = $(`input[name="deletion-mode"][value="${state.settings.deletion_mode}"]`);
   if (selected) selected.checked = true;
   $("#advanced-mode").checked = Boolean(state.settings.advanced_mode);
+  $("#report-retention-count").value = state.settings.report_retention_count || 10;
   renderAdvancedVisibility();
   updateRetentionVisibility();
   renderPolicy();
@@ -138,6 +150,7 @@ function renderAdvancedVisibility() {
 async function startScan() {
   try {
     state.selected.clear();
+    state.scanFullLoaded = false;
     const scan = await api("api/scans", { method: "POST", body: "{}" });
     state.scan = scan;
     showScanProgress(scan);
@@ -172,7 +185,7 @@ function pollScan(id) {
   }, 450);
 }
 
-function finishScan(scan) {
+function finishScan(scan, showCompletionToast = true) {
   $("#scan-progress").classList.add("hidden");
   $("#scan-empty").classList.remove("hidden");
   if (scan.status === "failed") {
@@ -183,6 +196,8 @@ function finishScan(scan) {
     return;
   }
   state.items = scan.items || [];
+  state.scan = scan;
+  state.scanFullLoaded = true;
   state.registryAudit = scan.registry_audit || null;
   state.guidance = scan.cleanup_guidance || null;
   $$(".report-action").forEach((button) => button.classList.remove("hidden"));
@@ -196,7 +211,39 @@ function finishScan(scan) {
   populateEntityFilters();
   renderEntities();
   $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
-  showToast("Veilige scan voltooid");
+  loadScanHistory();
+  if (showCompletionToast) showToast("Veilige scan voltooid");
+}
+
+function finishScanSummary(scan) {
+  state.scan = scan;
+  state.scanFullLoaded = false;
+  state.registryAudit = scan.registry_audit || null;
+  state.guidance = scan.cleanup_guidance || null;
+  $("#scan-progress").classList.add("hidden");
+  $("#scan-empty").classList.remove("hidden");
+  $$(".report-action").forEach((button) => button.classList.remove("hidden"));
+  $("#scan-state").textContent = "Voltooid";
+  $("#scan-empty strong").textContent = `${scan.visited_files || 0} bestanden gecontroleerd`;
+  const reported = Object.values(scan.counts || {}).reduce((total, value) => total + Number(value || 0), 0);
+  $("#scan-empty p").textContent = `${reported} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. Details worden pas geopend wanneer nodig.`;
+  renderMetrics(scan);
+}
+
+async function loadFullScan() {
+  if (!state.scan?.id || state.scanFullLoaded || state.scan.status !== "completed") return;
+  if (state.fullScanPromise) return state.fullScanPromise;
+  state.fullScanPromise = (async () => {
+    try {
+      const full = await api(`api/scans/${state.scan.id}`);
+      finishScan(full, false);
+    } catch (error) {
+      showToast(error.message, true);
+    } finally {
+      state.fullScanPromise = null;
+    }
+  })();
+  return state.fullScanPromise;
 }
 
 function renderMetrics(scan) {
@@ -344,6 +391,25 @@ function entityStatusLabel(status) {
   }[status] || status;
 }
 
+function entityDurationLabel(item) {
+  if (item.status === "broken_reference") return "Direct aangetoond";
+  if (!item.watch && !item.attention) return "Niet van toepassing";
+  if ((item.observations || 0) <= 1 && (item.duration_seconds || 0) <= 0) return "Eerste meting";
+  if ((item.duration_seconds || 0) < 86400) return "< 24 uur";
+  return `${item.duration_days || 0} dagen`;
+}
+
+function renderEntityChanges(changes) {
+  const target = $("#entity-change-summary");
+  if (!target) return;
+  if (changes.baseline) {
+    target.textContent = "Deze scan is de nulmeting. Vanaf de volgende scan worden nieuw, hersteld en gewijzigd apart getoond.";
+    return;
+  }
+  const counts = changes.counts || {};
+  target.textContent = `${counts.new || 0} nieuw · ${counts.changed || 0} gewijzigd · ${counts.recovered || 0} hersteld · ${counts.removed || 0} verdwenen`;
+}
+
 function populateEntityFilters() {
   const items = state.registryAudit?.entity_workspace?.items || [];
   const integration = $("#entity-integration-filter");
@@ -368,13 +434,16 @@ function filteredEntities() {
   const days = Math.max(0, Number($("#entity-days-filter").value) || 0);
   return (workspace.items || []).filter((item) => {
     const status = String(item.status);
+    if (statusFilter === "problems" && ((!item.attention && !item.watch) || item.muted_by_decision)) return false;
     if (statusFilter === "attention" && !item.attention) return false;
+    if (statusFilter === "watch" && !item.watch) return false;
+    if (statusFilter === "muted" && !item.muted_by_decision) return false;
     if (statusFilter === "unavailable" && !status.includes("unavailable")) return false;
     if (statusFilter === "unknown" && !status.includes("unknown")) return false;
     if (statusFilter === "disabled" && !status.startsWith("disabled_by_")) return false;
     if (statusFilter === "state_only" && item.registry_entry !== false) return false;
     if (statusFilter === "problem" && !status.includes("problem")) return false;
-    if (!["all", "attention", "unavailable", "unknown", "problem", "disabled", "state_only"].includes(statusFilter) && status !== statusFilter) return false;
+    if (!["all", "problems", "attention", "watch", "muted", "unavailable", "unknown", "problem", "disabled", "state_only"].includes(statusFilter) && status !== statusFilter) return false;
     if (integration !== "all" && item.integration !== integration) return false;
     if (area !== "all" && (item.area_name || item.area_id) !== area) return false;
     if ((item.duration_days || 0) < days) return false;
@@ -399,11 +468,12 @@ function renderEntities() {
   }
   $("#entity-registered").textContent = workspace.summary?.registered_total || 0;
   $("#entity-state-only").textContent = workspace.summary?.state_only_total || 0;
-  $("#entity-attention").textContent = workspace.summary?.attention || 0;
+  $("#entity-attention").textContent = workspace.summary?.attention_visible ?? workspace.summary?.attention ?? 0;
   $("#entity-disabled").textContent = workspace.summary?.disabled || 0;
-  $("#entity-selectable").textContent = workspace.summary?.selectable_for_plan || 0;
+  $("#entity-selectable").textContent = workspace.summary?.temporary_visible ?? workspace.summary?.temporary_signals ?? 0;
   const thresholds = workspace.persistence_thresholds || {};
-  $("#entity-duration-note").textContent = `0 dagen betekent: korter dan 24 uur of pas voor het eerst waargenomen. Langdurig betekent minimaal ${thresholds.long_days || 30} dagen, of ${thresholds.repeated_observations || 3} scans verspreid over minimaal ${thresholds.repeated_days || 7} dagen.`;
+  $("#entity-duration-note").textContent = `De duur gebruikt Home Assistant last_changed wanneer beschikbaar; anders start Hass-Cleaner een eigen meting. Actie nodig volgt na ${thresholds.long_days || 30} dagen, of ${thresholds.repeated_observations || 3} scans verspreid over minimaal ${thresholds.repeated_days || 7} dagen.`;
+  renderEntityChanges(workspace.changes || {});
   const items = filteredEntities();
   state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
   $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · verwijderen blijft geblokkeerd`;
@@ -426,8 +496,8 @@ function renderEntities() {
       <input type="checkbox" data-entity-id="${escapeHtml(item.entity_id)}" ${item.selectable_for_plan ? "" : "disabled"} ${state.selectedEntities.has(item.entity_id) ? "checked" : ""}>
       <button type="button" class="entity-detail" data-entity-detail="${escapeHtml(item.entity_id)}"><strong>${escapeHtml(item.name || item.entity_id)}</strong><small>${escapeHtml(item.entity_id)}</small></button>
       <span><strong>${escapeHtml(item.device_name || "Zonder apparaat")}</strong><small>${escapeHtml(item.integration || "Onbekende integratie")}${item.area_name ? ` · ${escapeHtml(item.area_name)}` : ""}</small></span>
-      <span class="risk-chip ${item.attention ? "review" : "info"}">${escapeHtml(entityStatusLabel(item.status))}<small>${item.registry_entry === false ? "runtime-only" : ""}</small></span>
-      <span class="entity-duration">${item.duration_days || 0} dagen<small>rauw: ${escapeHtml(item.raw_state ?? "geen state")}</small></span>
+      <span class="risk-chip ${item.attention ? "review" : "info"}">${escapeHtml(entityStatusLabel(item.status))}<small>${item.registry_entry === false ? "runtime-only" : item.muted_by_decision ? "lokaal gedempt" : ""}</small></span>
+      <span class="entity-duration">${escapeHtml(entityDurationLabel(item))}<small>${item.observations || 0} meting(en) · ${escapeHtml(item.diff_status || "")}</small></span>
     </label>`).join("");
     return `<article class="panel entity-group"><header><div><h3>${escapeHtml(title)}</h3><p>${members.length} entiteiten · ${selectable.length} te onderzoeken</p></div><button class="link-button entity-group-toggle" data-group="${escapeHtml(title)}" ${selectable.length ? "" : "disabled"}>${allSelected ? "Groep wissen" : "Groep selecteren"}</button></header>${rows}</article>`;
   }).join("");
@@ -456,9 +526,9 @@ async function openEntity(entityId) {
   if (!item) return;
   state.activeEntity = item;
   $("#entity-dialog-title").textContent = item.name || item.entity_id;
-  $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${item.duration_days || 0} dagen${item.registry_entry === false ? " · runtime-only" : ""}`;
+  $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${entityDurationLabel(item)}${item.registry_entry === false ? " · runtime-only" : ""}`;
   const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
-  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>Laatste wijziging: ${escapeHtml(item.last_changed || "onbekend")}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
+  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString("nl-NL"))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString("nl-NL") : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString("nl-NL") : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
   $("#entity-dialog").showModal();
   try {
     const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });
@@ -466,6 +536,21 @@ async function openEntity(entityId) {
     $("#entity-related").innerHTML = `<h3>Officiële relaties</h3>${groups.length ? `<ul>${groups.map(([type, ids]) => `<li>${escapeHtml(type)}: ${escapeHtml(ids.slice(0, 12).join(", "))}${ids.length > 12 ? " …" : ""}</li>`).join("")}</ul>` : "<p>Geen relaties gevonden. Dat is nog geen verwijderbewijs.</p>"}`;
   } catch (error) {
     $("#entity-related").innerHTML = `<h3>Officiële relaties</h3><p>Niet beschikbaar: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function saveEntityDecision(action) {
+  if (!state.activeEntity) return;
+  try {
+    const result = await api("api/entity-decisions", {method: "POST", body: JSON.stringify({entity_id: state.activeEntity.entity_id, action})});
+    state.activeEntity.decision = action;
+    state.activeEntity.muted_by_decision = action === "expected" || action.startsWith("snooze_");
+    if (result.summary) state.scan.registry_audit.entity_workspace.summary = result.summary;
+    $("#entity-dialog").close();
+    renderEntities();
+    showToast("Lokale entitykeuze opgeslagen; Home Assistant is niet gewijzigd");
+  } catch (error) {
+    showToast(error.message, true);
   }
 }
 
@@ -638,9 +723,11 @@ async function startPurgeBackup() {
   const button = $("#purge-backup-button");
   button.disabled = true;
   try {
-    await api("api/backups", { method: "POST", body: "{}" });
-    showToast("Back-up gestart. Wacht op voltooiing in Home Assistant en vink daarna de bevestiging aan.");
-    button.textContent = "Back-up gestart - controleer voltooiing";
+    const response = await api("api/backups", { method: "POST", body: "{}" });
+    state.backupEvidenceToken = response.evidence?.token || "";
+    $("#purge-backup-confirmed").checked = false;
+    showToast("Aanvraag geaccepteerd. Controleer in Home Assistant of de back-up voltooid en bruikbaar is.");
+    button.textContent = "Aanvraag geaccepteerd — controleer back-up";
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -658,6 +745,7 @@ async function executePurge() {
       repack: $("#purge-repack").checked,
       apply_filter: $("#purge-apply-filter").checked,
       backup_confirmed: $("#purge-backup-confirmed").checked,
+      backup_evidence_token: state.backupEvidenceToken,
       confirmation: $("#purge-confirmation").value,
     }) });
     $("#purge-dialog").close();
@@ -675,6 +763,21 @@ function updatePrepareButton() {
   const button = $("#prepare-button");
   button.disabled = state.selected.size === 0;
   button.textContent = state.selected.size ? `Opruimplan bekijken (${state.selected.size})` : "Opruimplan bekijken";
+}
+
+async function loadScanHistory() {
+  const target = $("#scan-history");
+  if (!target) return;
+  try {
+    const response = await api("api/scans/history");
+    const items = response.items || [];
+    target.innerHTML = items.length ? items.map((item) => {
+      const changes = item.entity_changes?.counts || {};
+      return `<div class="history-row"><span class="risk-chip info">Scan</span><div><strong>${item.visited_files || 0} bestanden · ${item.entity_summary?.attention_visible || 0} actie nodig</strong><small>${new Date(item.finished_at).toLocaleString("nl-NL")} · ${changes.new || 0} nieuw · ${changes.recovered || 0} hersteld · ${changes.changed || 0} gewijzigd</small></div></div>`;
+    }).join("") : '<div class="table-empty">Nog geen voltooide scans opgeslagen.</div>';
+  } catch (error) {
+    target.innerHTML = `<div class="table-empty">${escapeHtml(error.message)}</div>`;
+  }
 }
 
 function downloadReport(extension) {
@@ -697,6 +800,7 @@ async function saveSettings() {
     deletion_mode: $('input[name="deletion-mode"]:checked').value,
     retention_days: Number($("#retention-days").value),
     advanced_mode: $("#advanced-mode").checked,
+    report_retention_count: Number($("#report-retention-count").value),
   };
   try {
     state.settings = await api("api/settings", { method: "POST", body: JSON.stringify(payload) });
@@ -769,6 +873,7 @@ function bindEvents() {
   $("#open-purge-dialog").addEventListener("click", openPurgeDialog);
   $("#purge-backup-button").addEventListener("click", startPurgeBackup);
   $("#confirm-purge").addEventListener("click", executePurge);
+  $$(".entity-decision").forEach((button) => button.addEventListener("click", () => saveEntityDecision(button.dataset.decision)));
   $("#advanced-mode").addEventListener("change", () => {
     if (!$("#advanced-mode").checked) {
       state.items.filter((item) => item.risk === "review").forEach((item) => state.selected.delete(item.id));
@@ -789,16 +894,17 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
-  await Promise.allSettled([loadStatus(), loadSettings(), loadPurgeHistory()]);
+  await loadStatus();
+  await Promise.allSettled([loadSettings(), loadPurgeHistory(), loadScanHistory()]);
   try {
-    const latest = await api("api/scans/latest");
+    const latest = await api("api/scans/latest?summary=1");
     if (latest.status && latest.status !== "never_run") {
       state.scan = latest;
       if (latest.status === "queued" || latest.status === "running") {
         showScanProgress(latest);
         pollScan(latest.id);
       } else {
-        finishScan(latest);
+        finishScanSummary(latest);
       }
     }
   } catch (error) {

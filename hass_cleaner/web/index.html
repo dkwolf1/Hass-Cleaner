@@ -172,7 +172,10 @@
           <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
             <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
             <select id="entity-status-filter" aria-label="Filter op status">
-              <option value="attention" selected>Alle aandachtspunten</option>
+              <option value="problems" selected>Alle tijdelijke en langdurige signalen</option>
+              <option value="attention">Alleen actie nodig</option>
+              <option value="watch">Alleen tijdelijk volgen</option>
+              <option value="muted">Genegeerd of verwacht</option>
               <option value="unavailable">Onbeschikbaar</option>
               <option value="unknown">Onbekende waarde</option>
               <option value="problem">Probleemstatus</option>
@@ -192,13 +195,14 @@
               <option value="none">Niet groeperen</option>
             </select>
           </section>
-          <div class="entity-duration-note" id="entity-duration-note">0 dagen betekent: korter dan 24 uur of pas voor het eerst waargenomen.</div>
+          <div class="entity-duration-note" id="entity-duration-note">De duur komt uit Home Assistant wanneer beschikbaar; anders begint Hass-Cleaner met een eigen eerste meting.</div>
+          <section class="panel entity-change-panel" id="entity-change-panel"><strong>Scanvergelijking</strong><span id="entity-change-summary">De eerste scan vormt de nulmeting.</span></section>
           <section class="metric-grid entity-metrics" aria-label="Entiteitenoverzicht">
             <article class="metric-card total"><div class="metric-top"><span>GEREGISTREERD</span></div><strong id="entity-registered">-</strong><p>In het entityregister</p></article>
             <article class="metric-card protected"><div class="metric-top"><span>RUNTIME-ONLY</span></div><strong id="entity-state-only">-</strong><p>State zonder registeritem</p></article>
-            <article class="metric-card review"><div class="metric-top"><span>STATUSPROBLEMEN</span></div><strong id="entity-attention">-</strong><p>Controleren, niet automatisch verwijderen</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>ACTIE NODIG</span></div><strong id="entity-attention">-</strong><p>Langdurig of concreet aangetoond</p></article>
             <article class="metric-card safe"><div class="metric-top"><span>UITGESCHAKELD</span></div><strong id="entity-disabled">-</strong><p>Informatief, meestal normaal</p></article>
-            <article class="metric-card total"><div class="metric-top"><span>ONDERZOEK</span></div><strong id="entity-selectable">-</strong><p>Alleen in geblokkeerd plan</p></article>
+            <article class="metric-card total"><div class="metric-top"><span>TIJDELIJK VOLGEN</span></div><strong id="entity-selectable">-</strong><p>Nog geen verwijderbewijs</p></article>
           </section>
           <div class="entity-result-summary" id="entity-result-summary">Voer eerst een scan uit.</div>
           <div id="entity-list" class="entity-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
@@ -271,7 +275,7 @@
 
         <section class="view" id="view-history">
           <div class="section-heading"><div><div class="eyebrow">AUDIT-LOG</div><h2>Historie</h2></div></div>
-          <div class="empty-state panel"><div class="empty-icon">≡</div><h3>Lokale sessiehistorie</h3><p>Voltooide scans verschijnen hier zodra persistente SQLite-opslag in de volgende bouwstap is aangesloten.</p></div>
+          <div id="scan-history" class="history-list panel"><div class="table-empty">Nog geen voltooide scans opgeslagen.</div></div>
         </section>
 
         <section class="view" id="view-settings">
@@ -300,6 +304,7 @@
               <div class="panel-heading"><div><div class="eyebrow">SELECTIEREGELS</div><h3>Minimumleeftijd</h3></div></div>
               <label class="field"><span>Tijdelijke- en editorbestanden</span><div><input type="number" id="min-temp-age" min="1" max="365" value="30"><span>dagen</span></div></label>
               <label class="field"><span>Oude logbestanden</span><div><input type="number" id="min-log-age" min="1" max="365" value="14"><span>dagen</span></div></label>
+              <label class="field"><span>Aantal scanrapporten bewaren</span><div><input type="number" id="report-retention-count" min="1" max="50" value="10"><span>scans</span></div></label>
               <div class="inline-note"><span>i</span><p>Een bestandsnaam alleen is nooit voldoende. Pad, type, leeftijd en beschermingsregels worden altijd gecombineerd.</p></div>
             </section>
 
@@ -313,7 +318,7 @@
               <div class="panel-heading"><div><div class="eyebrow">HOME ASSISTANT-BACK-UP</div><h3>Verplichte vraag vóór cleanup</h3></div><span class="soft-pill success">Altijd actief</span></div>
               <p class="settings-intro">Voor elke destructieve uitvoering moet de gebruiker kiezen:</p>
               <div class="backup-options">
-                <div><strong>1. Nu volledige back-up maken</strong><span>De app start een officiële Home Assistant-back-up en wacht in een latere versie op voltooiing.</span></div>
+                <div><strong>1. Nu volledige back-up maken</strong><span>De app vraagt een officiële Home Assistant-back-up aan en bewaart het back-upbewijs bij de actie.</span></div>
                 <div><strong>2. Recente back-up bevestigd</strong><span>De gebruiker bevestigt bewust dat een bruikbare back-up aanwezig is.</span></div>
                 <div><strong>3. Zonder back-up doorgaan</strong><span>Alleen na een extra risicobevestiging; nooit de standaardkeuze.</span></div>
               </div>
@@ -367,6 +372,7 @@
         <h2 id="entity-dialog-title">Entity</h2>
         <p id="entity-dialog-summary"></p>
         <div id="entity-dialog-content" class="advice-stack"></div>
+        <div class="entity-decision-actions"><button class="button button-ghost entity-decision" data-decision="follow">Blijven volgen</button><button class="button button-ghost entity-decision" data-decision="expected">Verwacht gedrag</button><button class="button button-ghost entity-decision" data-decision="snooze_7">7 dagen negeren</button><button class="button button-ghost entity-decision" data-decision="snooze_30">30 dagen negeren</button></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="entity-dialog">Sluiten</button></div>
       </div>
     </dialog>

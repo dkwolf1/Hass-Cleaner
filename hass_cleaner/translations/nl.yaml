@@ -1,0 +1,19 @@
+configuration:
+  min_temp_age_days:
+    name: Minimumleeftijd tijdelijke bestanden
+    description: Jongere bestanden blijven uitgesloten van veilige opruimrecepten.
+  min_log_age_days:
+    name: Minimumleeftijd oude logs
+    description: Jongere logbestanden blijven uitgesloten.
+  deletion_mode:
+    name: Toekomstig verwijderbeleid
+    description: Beleid in dry-runplannen; bestandsuitvoering blijft vergrendeld.
+  retention_days:
+    name: Bewaartermijn quarantaine
+    description: Dagen dat bestanden in een toekomstige cleanup herstelbaar blijven.
+  advanced_mode:
+    name: Geavanceerde inventaris
+    description: Toon technische details zonder veiligheidsregels te omzeilen.
+  report_retention_count:
+    name: Rapporten bewaren
+    description: Volledige scanrapportsets die in appdata bewaard blijven.

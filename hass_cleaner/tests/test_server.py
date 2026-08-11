@@ -153,6 +153,15 @@ class ServerTests(unittest.TestCase):
             self.assertEqual("attachment", response.headers["Content-Disposition"].split(";", 1)[0])
         self.assertTrue(payload["audit_only"])
         self.assertTrue(payload["execution_locked"])
+        _, summary = self.request(f"/api/scans/{scan_id}/summary")
+        self.assertNotIn("items", summary)
+        _, latest_summary = self.request("/api/scans/latest?summary=1")
+        self.assertNotIn("items", latest_summary)
+        _, page = self.request(f"/api/scans/{scan_id}/files?limit=1")
+        self.assertEqual(1, page["limit"])
+        self.assertLessEqual(len(page["items"]), 1)
+        _, history = self.request("/api/scans/history")
+        self.assertEqual(scan_id, history["items"][0]["id"])
 
 
 if __name__ == "__main__":

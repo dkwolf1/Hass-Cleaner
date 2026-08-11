@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from hass_cleaner.reporting import write_report_files
+from hass_cleaner.reporting import prune_report_files, write_report_files
 from hass_cleaner.registry_audit import RegistryAudit, RegistryBundle, RegistryFinding
 from hass_cleaner.scanner import scan_tree
 from hass_cleaner.settings import Settings
@@ -67,6 +67,7 @@ class ReportingTests(unittest.TestCase):
 
             self.assertEqual({"json", "csv", "md"}, set(paths))
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
+            self.assertEqual(9, payload["schema_version"])
             self.assertNotIn("ultra-private-report-value", paths["json"].read_text(encoding="utf-8"))
             self.assertTrue(payload["audit_only"])
             self.assertTrue(payload["execution_locked"])
@@ -106,12 +107,30 @@ class ReportingTests(unittest.TestCase):
     def test_build_uses_published_multi_arch_python_tag(self) -> None:
         app_root = Path(__file__).resolve().parents[1]
         expected = "ghcr.io/home-assistant/base-python:3.13-alpine3.24"
-        build_manifest = (app_root / "build.yaml").read_text(encoding="utf-8")
         dockerfile = (app_root / "Dockerfile").read_text(encoding="utf-8")
+        app_manifest = (app_root / "config.yaml").read_text(encoding="utf-8")
 
-        self.assertEqual(2, build_manifest.count(expected))
         self.assertIn(f"ARG BUILD_FROM={expected}", dockerfile)
-        self.assertNotIn("amd64-base-python:3.13\n", build_manifest)
+        self.assertIn('image: "ghcr.io/dkwolf1/hass-cleaner"', app_manifest)
+        self.assertFalse((app_root / "build.yaml").exists())
+
+    def test_report_retention_only_removes_owned_old_report_sets(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for index, scan_id in enumerate(("oldscan", "middlescan", "newscan")):
+                for extension in ("json", "csv", "md"):
+                    path = root / f"hass-cleaner-audit-{scan_id}.{extension}"
+                    path.write_text(scan_id, encoding="utf-8")
+                    os.utime(path, (100 + index, 100 + index))
+            foreign = root / "gebruikersrapport.json"
+            foreign.write_text("behouden", encoding="utf-8")
+
+            removed = prune_report_files(root, 2)
+
+            self.assertEqual(["oldscan"], removed)
+            self.assertFalse((root / "hass-cleaner-audit-oldscan.json").exists())
+            self.assertTrue((root / "hass-cleaner-audit-middlescan.json").exists())
+            self.assertEqual("behouden", foreign.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

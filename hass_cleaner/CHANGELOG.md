@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.2
+
+- Vervangt misleidende `0 dagen` door **Eerste meting**, **< 24 uur** of een onderbouwde meetduur uit Home Assistant en opeenvolgende scans.
+- Scheidt tijdelijke signalen om te volgen van concrete, langdurige aandachtspunten; tijdelijke runtime-only states zijn nooit selecteerbaar.
+- Slaat per entity lokale keuzes op: volgen, verwacht en 7/30/90 dagen uitstellen, zonder Home Assistant te wijzigen.
+- Vergelijkt scans en toont nieuwe, gewijzigde, herstelde en verdwenen entitysignalen.
+- Voegt scan-historie, compacte scan-samenvattingen en gepagineerde API-routes voor bestanden, entities en bundels toe.
+- Voegt een instelbare rapportretentie van 1 tot 50 scans toe en verwijdert uitsluitend eigen oude rapportsets.
+- Legt geaccepteerde Supervisor-back-upverzoeken en de Ingress-gebruiker bij Recorder-purge vast; voltooiing blijft een expliciete gebruikerscontrole.
+- Beperkt de webapp tot Home Assistant Ingress, voegt CSRF-controle, snelheidsbegrenzing en een AppArmor-profiel toe.
+- Markeert deze reeks als experimenteel en voegt Nederlands/Engels, icon/logo, licentie, bijdrage- en beveiligingsdocumentatie toe.
+- Voegt CI, Home Assistant app-linting en officiële multi-architecture GHCR-builds voor `amd64` en `aarch64` toe.
+- Rapportformaat verhoogd naar schema 9; bestands-, entity- en apparaatverwijdering blijft technisch afwezig.
+
 ## 0.7.1
 
 - Scheidt echte statusproblemen van informatief uitgeschakelde entities.

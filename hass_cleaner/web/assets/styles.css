@@ -198,6 +198,10 @@ select, input[type="number"], input[type="search"], input[type="text"] { color: 
 .entity-filter-panel { display: grid; grid-template-columns: minmax(220px,1.5fr) repeat(3,minmax(135px,1fr)) auto minmax(145px,1fr); gap: 9px; padding: 14px; margin-bottom: 14px; }
 .entity-filter-panel input, .entity-filter-panel select { min-width: 0; }
 .entity-duration-note { margin: -5px 0 14px; color: var(--muted); font-size: 9px; }
+.entity-change-panel { display: flex; justify-content: space-between; gap: 15px; padding: 12px 15px; margin-bottom: 14px; font-size: 10px; }
+.entity-change-panel span { color: var(--muted); text-align: right; }
+.entity-decision-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; }
+.risk-chip small { display: block; margin-top: 2px; font-size: 7px; opacity: .8; }
 .entity-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .compact-field { display: flex; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 9px; }
 .compact-field input { width: 55px; padding: 7px 4px; border: 0; text-align: center; }

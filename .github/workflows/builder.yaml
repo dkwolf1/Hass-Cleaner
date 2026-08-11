@@ -1,0 +1,23 @@
+name: Builder
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Hass-Cleaner
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/build-app.yaml
+    with:
+      app: hass_cleaner
+      publish: ${{ github.event_name == 'push' }}
+    secrets: inherit

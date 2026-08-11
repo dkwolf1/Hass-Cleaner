@@ -21,6 +21,8 @@ class PurgeRecord:
     apply_filter: bool
     backup_confirmed: bool
     status: str
+    requested_by: str = ""
+    backup_evidence: str = "manual-confirmation"
     error: str | None = None
 
 
@@ -85,7 +87,8 @@ class PurgeManager:
         except (FileNotFoundError, OSError, json.JSONDecodeError):
             return []
 
-    def execute(self, *, keep_days: int, repack: bool, apply_filter: bool, backup_confirmed: bool, confirmation: str) -> PurgeRecord:
+    def execute(self, *, keep_days: int, repack: bool, apply_filter: bool, backup_confirmed: bool,
+                confirmation: str, requested_by: str = "", backup_evidence: str = "manual-confirmation") -> PurgeRecord:
         if not 1 <= keep_days <= 365:
             raise ValueError("Dagen om te bewaren moet tussen 1 en 365 liggen")
         if not backup_confirmed:
@@ -102,6 +105,8 @@ class PurgeManager:
                 "repack": repack,
                 "apply_filter": apply_filter,
                 "backup_confirmed": True,
+                "requested_by": requested_by,
+                "backup_evidence": backup_evidence,
             }
             try:
                 self.purge_caller(keep_days, repack, apply_filter)

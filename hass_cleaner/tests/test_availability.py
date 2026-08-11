@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from hass_cleaner.availability import apply_availability_history
+from hass_cleaner.availability import apply_availability_history, apply_saved_decisions, update_entity_decision
 from hass_cleaner.registry_audit import audit_registry_snapshot
 
 
@@ -34,6 +34,10 @@ class AvailabilityTests(unittest.TestCase):
         self.assertEqual(3, anomaly["counts"]["long_unavailable"])
         self.assertFalse(anomaly["execution_allowed"])
         self.assertTrue(all(not item["cleanup_candidate"] for item in audit.bundles[0].entities))
+        workspace_item = audit.entity_workspace["items"][0]
+        self.assertEqual(40, workspace_item["duration_days"])
+        self.assertEqual("home_assistant", workspace_item["duration_source"])
+        self.assertEqual(now.isoformat(), workspace_item["first_observed"])
 
     def test_disabled_entities_never_become_availability_candidates(self) -> None:
         now = datetime(2026, 8, 11, tzinfo=timezone.utc)
@@ -110,14 +114,45 @@ class AvailabilityTests(unittest.TestCase):
         summary = audit.entity_workspace["summary"]
         self.assertEqual(2, summary["registered_total"])
         self.assertEqual(2, summary["state_only_total"])
-        self.assertEqual(1, summary["attention"])
+        self.assertEqual(0, summary["attention"])
+        self.assertEqual(1, summary["temporary_signals"])
         self.assertEqual(1, summary["disabled"])
         self.assertFalse(items["sensor.disabled"]["attention"])
         self.assertTrue(items["sensor.disabled"]["informational"])
         self.assertFalse(items["sensor.runtime_ok"]["registry_entry"])
         self.assertFalse(items["sensor.runtime_ok"]["attention"])
-        self.assertTrue(items["sensor.runtime_bad"]["attention"])
+        self.assertFalse(items["sensor.runtime_bad"]["attention"])
+        self.assertTrue(items["sensor.runtime_bad"]["watch"])
         self.assertFalse(items["sensor.runtime_bad"]["selectable_for_plan"])
+
+    def test_first_measurement_and_saved_choice_are_explicit(self) -> None:
+        now = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
+        audit = audit_registry_snapshot(snapshot(now.isoformat(), count=1))
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apply_availability_history(audit, root / "availability-history.json", now=now)
+            item = audit.entity_workspace["items"][0]
+            self.assertEqual(0, item["duration_seconds"])
+            self.assertEqual(1, item["observations"])
+            self.assertEqual("baseline", item["diff_status"])
+            update_entity_decision(root / "entity-decisions.json", item["entity_id"], "expected", now=now)
+            apply_saved_decisions(audit.entity_workspace, root / "entity-decisions.json", now=now)
+            self.assertTrue(item["muted_by_decision"])
+            self.assertEqual(0, audit.entity_workspace["summary"]["temporary_visible"])
+
+    def test_scan_diff_marks_recovery_without_deleting_anything(self) -> None:
+        start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "availability-history.json"
+            first = audit_registry_snapshot(snapshot(start.isoformat(), count=1))
+            apply_availability_history(first, path, now=start)
+            recovered_snapshot = snapshot((start + timedelta(days=1)).isoformat(), count=1)
+            recovered_snapshot["states"][0]["state"] = "ok"
+            recovered = audit_registry_snapshot(recovered_snapshot)
+            apply_availability_history(recovered, path, now=start + timedelta(days=1))
+            item = recovered.entity_workspace["items"][0]
+            self.assertEqual("recovered", item["diff_status"])
+            self.assertEqual(1, recovered.entity_workspace["changes"]["counts"]["recovered"])
 
 
 if __name__ == "__main__":
