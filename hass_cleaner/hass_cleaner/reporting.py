@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 5
+REPORT_SCHEMA_VERSION = 6
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -36,6 +36,7 @@ def build_report(scan: ScanResult, settings: Settings) -> dict[str, object]:
             "requires_manual_review_bytes": sum(item.size_bytes for item in review_items),
             "registry_review_findings": registry_summary.get("review_findings", 0),
             "registry_informational_findings": registry_summary.get("informational_findings", 0),
+            "registry_anomalies": registry_summary.get("anomalies_total", 0),
         },
         "cleanup_guidance": scan_data.get("cleanup_guidance", {}),
         "scan": scan_data,
@@ -153,6 +154,28 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     json.dumps(bundle.advice.get("content_preview", {}), ensure_ascii=False),
                 ]
             )
+        for anomaly in scan.registry_audit.anomalies:
+            writer.writerow(
+                [
+                    "registry_anomaly",
+                    anomaly.get("id", ""),
+                    "",
+                    "integration_bundle",
+                    anomaly.get("bundle_id", ""),
+                    anomaly.get("title", ""),
+                    anomaly.get("category", ""),
+                    anomaly.get("severity", "review"),
+                    "no",
+                    "manual_review",
+                    0,
+                    "",
+                    anomaly.get("summary", ""),
+                    "insufficient",
+                    "Geen verwijdering zonder aanvullende controle",
+                    "Herstel via volledige Home Assistant-back-up",
+                    json.dumps(anomaly.get("counts", {}), ensure_ascii=False),
+                ]
+            )
 
 
 def _markdown(report: dict[str, object]) -> str:
@@ -212,6 +235,14 @@ def _markdown(report: dict[str, object]) -> str:
                 f"- Gebroken registerverwijzingen: {registry_summary.get('broken_references', 0)}",
                 f"- Ingeschakelde entities zonder actuele state: {registry_summary.get('entities_not_loaded', 0)}",
                 f"- Onbeschikbare states: {registry_summary.get('unavailable_states', 0)} (alleen geteld)",
+                "",
+                "### Concrete aandachtspunten",
+                "",
+            ]
+        )
+        lines.extend(_markdown_anomalies(registry.get("anomalies", [])))
+        lines.extend(
+            [
                 "",
                 "### Handmatig beoordelen",
                 "",
@@ -306,6 +337,20 @@ def _markdown_registry_table(items: list[dict[str, object]]) -> list[str]:
         lines.append(
             "| {subject_type} | {name} | `{subject_id}` | {category} | `{related_id}` | {reason} |".format(**values)
         )
+    return lines
+
+
+def _markdown_anomalies(value: object) -> list[str]:
+    if not isinstance(value, list) or not value:
+        return ["Geen concrete registry-afwijkingen gevonden."]
+    lines = ["| Aandachtspunt | Integratie | Samenvatting | Uitvoering |", "|---|---|---|---|"]
+    for item in value:
+        if isinstance(item, dict):
+            lines.append("| {title} | `{domain}` | {summary} | Geblokkeerd |".format(
+                title=str(item.get("title", "")).replace("|", "\\|"),
+                domain=str(item.get("domain", "")).replace("|", "\\|"),
+                summary=str(item.get("summary", "")).replace("|", "\\|"),
+            ))
     return lines
 
 

@@ -56,6 +56,11 @@ def classify(root: Path, path: Path, mode: int, modified: float, *, min_temp_age
     if lower_name.endswith(DATABASE_SUFFIXES):
         return Classification("database", RISK_PROTECTED, "Databases vallen buiten scope", "none")
 
+    if len(parts) >= 2 and parts[0].lower() == ".cache" and parts[1].lower() == "brands":
+        if item_age >= min_temp_age_days:
+            return Classification("brand_cache", RISK_SAFE, f"Home Assistant-pictogramcache van {item_age} dagen oud", "delete")
+        return None
+
     in_custom_components = "custom_components" in parts
     if "__pycache__" in parts and suffix in {".pyc", ".pyo"}:
         if item_age >= min_temp_age_days:

@@ -137,12 +137,13 @@
                 <option value="protected">Beschermd</option>
               </select>
               <button class="button button-ghost report-action hidden" data-report="csv">CSV export</button>
-              <button class="button button-primary" id="prepare-button" disabled>Dry-run voorbereiden</button>
+              <button class="button button-ghost" id="select-all-safe" disabled>Alles veilig selecteren</button>
+              <button class="button button-primary" id="prepare-button" disabled>Opruimplan bekijken</button>
             </div>
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Bewijspoort actief</strong><p>Alleen recepten waarvan leeftijd, bestandstype, bescherming en herstel zijn bewezen kunnen aan een dry-run worden toegevoegd. Twijfelgevallen blijven geblokkeerd.</p></div>
+            <div><strong>Bewijspoort actief</strong><p>Alleen recepten waarvan leeftijd, bestandstype, bescherming en herstel zijn bewezen kunnen aan een veilig opruimplan worden toegevoegd. Twijfelgevallen blijven geblokkeerd.</p></div>
           </div>
           <div id="recipe-list" class="recipe-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
           <details class="panel findings-panel raw-inventory">
@@ -161,6 +162,7 @@
             <div class="section-actions">
               <input type="search" id="bundle-search" placeholder="Zoek integratie, apparaat of entity" aria-label="Zoek bundels">
               <select id="registry-severity-filter" aria-label="Filter bundels">
+                <option value="attention" selected>Alleen aandachtspunten</option>
                 <option value="all">Alle bundels</option>
                 <option value="review">Met waarschuwingen</option>
                 <option value="devices">Met apparaten</option>
@@ -176,7 +178,7 @@
           <section class="metric-grid registry-metrics" aria-label="Registeroverzicht">
             <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">-</strong><p>In het entityregister</p></article>
             <article class="metric-card protected"><div class="metric-top"><span>BUNDELS</span></div><strong id="registry-unlinked-total">-</strong><p>Integraties en losse platformen</p></article>
-            <article class="metric-card review"><div class="metric-top"><span>BEOORDELEN</span></div><strong id="registry-review-total">-</strong><p>Gebroken verwijzingen of niet geladen</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>AANDACHTSPUNTEN</span></div><strong id="registry-review-total">-</strong><p>Concrete registerafwijkingen</p></article>
             <article class="metric-card safe"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="registry-unavailable-total">-</strong><p>Alleen geteld, nooit opgeschoond</p></article>
           </section>
           <div id="bundle-list" class="bundle-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
@@ -278,11 +280,11 @@
         <button class="dialog-close" value="cancel" aria-label="Sluiten">×</button>
         <div class="dialog-icon">i</div>
         <div class="eyebrow">IMPACTANALYSE</div>
-        <h2>Maak een niet-uitvoerbaar dry-runplan</h2>
+        <h2>Bekijk het veilige opruimplan</h2>
         <p>Het plan legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering blijft vergrendeld</strong><p>Vóór een toekomstige echte cleanup wordt opnieuw gecontroleerd en is een voltooide back-up verplicht.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
-        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Dry-runplan maken</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Opruimplan opslaan</button></div>
       </form>
     </dialog>
 
@@ -306,14 +308,14 @@
         <div id="bundle-advice" class="advice-content"></div>
         <div id="bundle-related" class="related-list"></div>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Verwijderen vergrendeld</strong><p>Je kunt de volledige bundel in één keer beoordelen. Uitvoering wordt pas toegevoegd nadat de relaties in echte rapporten zijn gecontroleerd.</p></div></div>
-        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan dry-run toevoegen</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan opruimplan toevoegen</button></div>
       </div>
     </dialog>
 
     <dialog id="plan-dialog">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="plan-dialog" aria-label="Sluiten">&times;</button>
-        <div class="eyebrow">OPGESLAGEN DRY-RUN</div>
+        <div class="eyebrow">OPGESLAGEN OPRUIMPLAN</div>
         <h2>Impact- en herstelplan gereed</h2>
         <p id="plan-dialog-summary"></p>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is vergrendeld</strong><p>Het plan beschrijft de verwachte voor- en nasituatie, gevolgen en herstelstappen. Er is niets gewijzigd.</p></div></div>

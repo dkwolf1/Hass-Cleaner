@@ -16,6 +16,7 @@ SAFE_TITLES = {
     "old_log": ("Oude logbestanden", "Oude diagnosegegevens die niet meer actief worden geschreven."),
     "python_cache": ("Tijdelijke Python-cache", "Gegenereerde bytecode; Home Assistant maakt deze zo nodig opnieuw."),
     "editor_artifact": ("Editor- en systeemrestanten", "Bekende restbestanden zonder Home Assistant-functie."),
+    "brand_cache": ("Home Assistant pictogramcache", "Gegenereerde integratiepictogrammen; Home Assistant kan deze opnieuw ophalen."),
 }
 
 INVENTORY_CATEGORIES = {
@@ -42,7 +43,8 @@ def build_cleanup_guidance(items: Iterable[ScannedFile]) -> dict[str, object]:
             kind = "personal"
         else:
             kind = "advanced"
-        grouped[(kind, item.category, _producer(item.path))].append(item)
+        producer = _producer(item.path)
+        grouped[(kind, item.category, "all" if kind == "safe" else producer)].append(item)
 
     recipes = [_recipe(kind, category, producer, members) for (kind, category, producer), members in grouped.items()]
     order = {"safe": 0, "investigate": 1, "personal": 2, "advanced": 3}
@@ -62,16 +64,26 @@ def build_cleanup_guidance(items: Iterable[ScannedFile]) -> dict[str, object]:
 
 
 def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile]) -> dict[str, object]:
+    producer_groups: dict[str, dict[str, int]] = defaultdict(lambda: {"file_count": 0, "size_bytes": 0})
+    for item in members:
+        item_producer = _producer(item.path)
+        producer_groups[item_producer]["file_count"] += 1
+        producer_groups[item_producer]["size_bytes"] += item.size_bytes
+    producer_details = [
+        {"producer": name, **values}
+        for name, values in sorted(producer_groups.items(), key=lambda pair: (-pair[1]["size_bytes"], pair[0]))
+    ]
+    display_producer = producer_details[0]["producer"] if len(producer_details) == 1 else "Meerdere integraties"
     if category in SAFE_TITLES:
         title, description = SAFE_TITLES[category]
     elif category == "integration_cache_candidate":
-        title = f"Mogelijke cache van {producer}"
+        title = f"Mogelijke cache van {display_producer}"
         description = "De mapnaam wijst op cache, maar actief gebruik en automatische herbouw zijn nog niet bewezen."
     elif category == "personal_media":
-        title = f"Persoonlijke media van {producer}"
+        title = f"Persoonlijke media van {display_producer}"
         description = "Opnames, timelapses of snapshots zijn gebruikersdata en worden nooit als cache aangenomen."
     else:
-        title = f"Nader beoordelen: {producer}"
+        title = f"Nader beoordelen: {display_producer}"
         description = "Niet genoeg bewijs voor een veilig opruimadvies."
 
     safe = kind == "safe"
@@ -85,7 +97,8 @@ def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile])
         "id": f"{kind}:{category}:{_slug(producer)}",
         "kind": kind,
         "category": category,
-        "producer": producer,
+        "producer": display_producer,
+        "producer_groups": producer_details,
         "title": title,
         "description": description,
         "file_count": len(members),
@@ -94,7 +107,7 @@ def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile])
         "sample_paths": [item.path for item in sorted(members, key=lambda item: item.size_bytes, reverse=True)[:3]],
         "gate_passed": all(bool(gate["passed"]) for gate in gates),
         "gates": gates,
-        "recommendation": "Kan aan een dry-run worden toegevoegd; uitvoering blijft vergrendeld." if safe else "Niet verwijderen; controleer eerst verwijzingen en gedrag van de producerende integratie.",
+        "recommendation": "Kan aan een veilig opruimplan worden toegevoegd; uitvoering blijft vergrendeld." if safe else "Niet verwijderen; controleer eerst verwijzingen en gedrag van de producerende integratie.",
         "selectable_for_dry_run": safe,
         "execution_allowed": False,
     }

@@ -72,6 +72,7 @@ class ReportingTests(unittest.TestCase):
             self.assertIn("sensor.helper", markdown)
             self.assertIn("Bundels per integratie", markdown)
             self.assertIn("Demo integration", markdown)
+            self.assertIn("Concrete aandachtspunten", markdown)
             with paths["csv"].open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream, delimiter=";"))
             self.assertTrue(all(None not in row for row in rows))

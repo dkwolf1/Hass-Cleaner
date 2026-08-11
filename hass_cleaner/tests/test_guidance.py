@@ -44,6 +44,16 @@ class GuidanceTests(unittest.TestCase):
         self.assertEqual([], guidance["investigation_recipes"])
         self.assertEqual(50, guidance["inventory_total_bytes"])
 
+    def test_safe_python_cache_is_one_recipe_with_producer_groups(self) -> None:
+        guidance = build_cleanup_guidance([
+            Item("1", "/homeassistant/custom_components/one/__pycache__/a.cpython-314.pyc", "python_cache", "safe", 100),
+            Item("2", "/homeassistant/custom_components/two/__pycache__/b.cpython-314.pyc", "python_cache", "safe", 200),
+        ])
+        self.assertEqual(1, len(guidance["safe_recipes"]))
+        recipe = guidance["safe_recipes"][0]
+        self.assertEqual("Meerdere integraties", recipe["producer"])
+        self.assertEqual(["two", "one"], [group["producer"] for group in recipe["producer_groups"]])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -96,6 +96,22 @@ class RegistryAuditTests(unittest.TestCase):
         self.assertEqual("search/related", connection.sent[-1]["type"])
         self.assertEqual("config_entry", connection.sent[-1]["item_type"])
 
+    def test_large_orphan_group_becomes_one_generic_anomaly(self) -> None:
+        devices = [
+            {"id": f"device-{index}", "name": f"device-{index}", "config_entries": ["entry-1"]}
+            for index in range(120)
+        ]
+        audit = audit_registry_snapshot({
+            "entities": [], "devices": devices, "areas": [],
+            "config_entries": [{"entry_id": "entry-1", "title": "Any integration", "domain": "example"}],
+            "states": [],
+        })
+        self.assertEqual(1, audit.summary["anomalies_total"])
+        anomaly = audit.anomalies[0]
+        self.assertEqual("large_orphan_device_group", anomaly["category"])
+        self.assertEqual(120, anomaly["counts"]["orphans"])
+        self.assertFalse(anomaly["execution_allowed"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -119,7 +119,7 @@ def _markdown(plan: dict[str, Any]) -> str:
     lines = [
         "# Hass-Cleaner - impact- en herstelplan",
         "",
-        "> DRY-RUN: dit plan heeft niets gewijzigd en kan niet worden uitgevoerd.",
+        "> VEILIG OPRUIMPLAN: dit plan heeft niets gewijzigd en kan niet worden uitgevoerd.",
         "",
         f"- Plan-ID: `{plan['id']}`",
         f"- Scan-ID: `{plan['scan_id']}`",

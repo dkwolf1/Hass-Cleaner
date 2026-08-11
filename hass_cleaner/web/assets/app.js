@@ -66,6 +66,7 @@ function categoryLabel(category) {
     frontend_package: "HACS/frontendpakket",
     www_asset_inventory: "Dashboard-/webbestand",
     integration_cache_candidate: "Mogelijke integratiecache",
+    brand_cache: "Home Assistant-pictogramcache",
     personal_media: "Persoonlijke media",
     database: "Database",
     core_configuration: "Kernconfiguratie",
@@ -189,6 +190,7 @@ function finishScan(scan) {
   renderRecipes();
   renderResults();
   renderRegistryAudit();
+  $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
   showToast("Veilige scan voltooid");
 }
 
@@ -215,13 +217,15 @@ function renderRecipes() {
   const recipes = [...(guidance.safe_recipes || []), ...(guidance.investigation_recipes || [])];
   list.innerHTML = recipes.length ? recipes.map((recipe) => {
     const passed = Boolean(recipe.gate_passed);
+    const selectedAll = recipe.item_ids?.length && recipe.item_ids.every((id) => state.selected.has(id));
     const gates = (recipe.gates || []).map((gate) => `<li class="${gate.passed ? "passed" : "failed"}"><strong>${gate.passed ? "✓" : "!"}</strong><span>${escapeHtml(gate.explanation)}</span></li>`).join("");
     const samples = (recipe.sample_paths || []).map((path) => `<li>${escapeHtml(path)}</li>`).join("");
+    const producers = (recipe.producer_groups || []).map((group) => `<li><strong>${escapeHtml(group.producer)}</strong><span>${group.file_count} bestanden · ${formatBytes(group.size_bytes)}</span></li>`).join("");
     return `<article class="panel recipe-card ${passed ? "recipe-safe" : "recipe-review"}">
       <div class="recipe-main"><div class="eyebrow">${passed ? "VEILIG RECEPT" : recipe.kind === "personal" ? "PERSOONLIJKE INHOUD" : "EERST ONDERZOEKEN"}</div><h3>${escapeHtml(recipe.title)}</h3><p>${escapeHtml(recipe.description)}</p><small>${recipe.file_count} bestanden · ${formatBytes(recipe.size_bytes)} · producer: ${escapeHtml(recipe.producer)}</small></div>
       <div class="recipe-gates"><strong>Veiligheidscontrole</strong><ul>${gates}</ul></div>
-      <details><summary>Voorbeelden en advies</summary><ul class="sample-paths">${samples}</ul><p>${escapeHtml(recipe.recommendation)}</p></details>
-      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "4/4 bewezen" : "geblokkeerd"}</span><button class="button ${passed ? "button-primary recipe-select" : "button-ghost"}" data-recipe-id="${escapeHtml(recipe.id)}" ${passed ? "" : "disabled"}>${passed ? "Aan dry-run toevoegen" : "Meer bewijs nodig"}</button></div>
+      <details><summary>Producenten, voorbeelden en advies</summary><ul class="producer-groups">${producers}</ul><ul class="sample-paths">${samples}</ul><p>${escapeHtml(recipe.recommendation)}</p></details>
+      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "4/4 bewezen" : "geblokkeerd"}</span><button class="button ${passed ? "button-primary recipe-select" : "button-ghost"}" data-recipe-id="${escapeHtml(recipe.id)}" ${passed ? "" : "disabled"}>${passed ? selectedAll ? "Uit opruimplan verwijderen" : "Aan opruimplan toevoegen" : "Meer bewijs nodig"}</button></div>
     </article>`;
   }).join("") : '<div class="table-empty panel">Geen opruimrecepten gevonden. Je systeeminventaris blijft behouden.</div>';
   $$(".recipe-select", list).forEach((button) => button.addEventListener("click", () => selectRecipe(button.dataset.recipeId, button)));
@@ -235,7 +239,16 @@ function selectRecipe(recipeId, button) {
   if (!recipe?.selectable_for_dry_run) return;
   const allSelected = recipe.item_ids.every((id) => state.selected.has(id));
   recipe.item_ids.forEach((id) => allSelected ? state.selected.delete(id) : state.selected.add(id));
-  button.textContent = allSelected ? "Aan dry-run toevoegen" : "Uit dry-run verwijderen";
+  button.textContent = allSelected ? "Aan opruimplan toevoegen" : "Uit opruimplan verwijderen";
+  renderResults();
+}
+
+function selectAllSafe() {
+  const ids = (state.guidance?.safe_recipes || []).flatMap((recipe) => recipe.item_ids || []);
+  const allSelected = ids.length && ids.every((id) => state.selected.has(id));
+  ids.forEach((id) => allSelected ? state.selected.delete(id) : state.selected.add(id));
+  $("#select-all-safe").textContent = allSelected ? "Alles veilig selecteren" : "Veilige selectie wissen";
+  renderRecipes();
   renderResults();
 }
 
@@ -286,7 +299,7 @@ function renderRegistryAudit() {
   $("#registry-message").textContent = `${summary.entities_total || 0} entities en ${summary.devices_total || 0} apparaten read-only gecontroleerd.`;
   $("#registry-entities-total").textContent = summary.entities_total || 0;
   $("#registry-unlinked-total").textContent = summary.bundles_total || 0;
-  $("#registry-review-total").textContent = summary.review_findings || 0;
+  $("#registry-review-total").textContent = summary.anomalies_total || 0;
   $("#registry-unavailable-total").textContent = summary.unavailable_states || 0;
 
   renderBundles();
@@ -313,7 +326,10 @@ function renderBundles() {
   const list = $("#bundle-list");
   const filter = $("#registry-severity-filter").value;
   const query = $("#bundle-search").value.trim().toLowerCase();
+  const anomalies = state.registryAudit?.anomalies || [];
+  const anomalyByBundle = new Map(anomalies.map((item) => [item.bundle_id, item]));
   const bundles = (state.registryAudit?.bundles || []).filter((bundle) => {
+    if (filter === "attention" && !anomalyByBundle.has(bundle.id)) return false;
     if (filter === "review" && !bundle.review_count) return false;
     if (filter === "devices" && !bundle.devices.length) return false;
     if (filter === "entities" && !bundle.entities.length) return false;
@@ -322,18 +338,21 @@ function renderBundles() {
     return haystack.includes(query);
   });
   if (!bundles.length) {
-    list.innerHTML = '<div class="table-empty panel">Geen bundels binnen dit filter.</div>';
+    list.innerHTML = '<div class="table-empty panel">Geen concrete aandachtspunten gevonden. Gezonde bundels staan onder “Alle bundels”.</div>';
     return;
   }
   list.innerHTML = bundles.map((bundle) => {
+    const anomaly = anomalyByBundle.get(bundle.id);
     const devicePreview = bundle.devices.slice(0, 3).map((item) => `<span>${escapeHtml(item.name)}</span>`).join("");
-    const warning = bundle.review_count
+    const warning = anomaly
+      ? `<span class="risk-chip review">Aandachtspunt</span>`
+      : bundle.review_count
       ? `<span class="risk-chip review">${bundle.review_count} beoordelen</span>`
       : `<span class="risk-chip info">${escapeHtml(bundle.advice?.evidence_label || "Meer bewijs nodig")}</span>`;
     return `<article class="panel bundle-card">
       <div class="bundle-main">
         <div class="bundle-icon">${escapeHtml((bundle.domain || "?").slice(0, 2).toUpperCase())}</div>
-        <div class="bundle-copy"><div class="eyebrow">${escapeHtml(bundle.domain || "ONBEKEND")} · ${escapeHtml(bundle.state)}</div><h3>${escapeHtml(bundle.title)}</h3><p>${bundle.devices.length} apparaten · ${bundle.entities.length} entities</p><div class="device-preview">${devicePreview}${bundle.devices.length > 3 ? `<span>+${bundle.devices.length - 3}</span>` : ""}</div></div>
+        <div class="bundle-copy"><div class="eyebrow">${escapeHtml(bundle.domain || "ONBEKEND")} · ${escapeHtml(bundle.state)}</div><h3>${escapeHtml(bundle.title)}</h3><p>${bundle.devices.length} apparaten · ${bundle.entities.length} entities</p>${anomaly ? `<p class="bundle-anomaly">${escapeHtml(anomaly.summary)}</p>` : ""}<div class="device-preview">${devicePreview}${bundle.devices.length > 3 ? `<span>+${bundle.devices.length - 3}</span>` : ""}</div></div>
       </div>
       <div class="bundle-actions">${warning}<button class="button button-primary bundle-review" data-bundle-id="${escapeHtml(bundle.id)}">Bundel beoordelen</button></div>
     </article>`;
@@ -410,7 +429,7 @@ function showPlan(response) {
   const summary = response.plan?.summary || {};
   $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden en ${summary.bundle_count || 0} bundels vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
   $("#plan-dialog").showModal();
-  showToast(response.message || "Dry-runplan opgeslagen");
+  showToast(response.message || "Veilig opruimplan opgeslagen");
 }
 
 function downloadPlan(format) {
@@ -485,7 +504,7 @@ async function executePurge() {
 function updatePrepareButton() {
   const button = $("#prepare-button");
   button.disabled = state.selected.size === 0;
-  button.textContent = state.selected.size ? `Dry-run voorbereiden (${state.selected.size})` : "Dry-run voorbereiden";
+  button.textContent = state.selected.size ? `Opruimplan bekijken (${state.selected.size})` : "Opruimplan bekijken";
 }
 
 function downloadReport(extension) {
@@ -521,7 +540,7 @@ async function saveSettings() {
 function openCleanupDialog() {
   const chosen = state.items.filter((item) => state.selected.has(item.id));
   const reviewCount = chosen.filter((item) => item.risk === "review").length;
-  const text = `${chosen.length} bestanden in dry-run · ${reviewCount} buiten de veilige marge · 0 uitvoerbare acties`;
+  const text = `${chosen.length} bestanden in het veilige opruimplan · ${reviewCount} buiten de veilige marge · 0 uitvoerbare acties`;
   $("#dialog-summary").textContent = text;
   $("#cleanup-dialog").showModal();
 }
@@ -530,7 +549,7 @@ async function confirmPlan() {
   const button = $("#confirm-plan");
   button.disabled = true;
   try {
-    button.textContent = "Dry-run voorbereiden...";
+    button.textContent = "Opruimplan voorbereiden...";
     const plan = await api("api/plans/preview", {
       method: "POST",
       body: JSON.stringify({
@@ -546,7 +565,7 @@ async function confirmPlan() {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
-    button.textContent = "Dry-runplan maken";
+    button.textContent = "Opruimplan opslaan";
   }
 }
 
@@ -565,6 +584,7 @@ function bindEvents() {
   $("#registry-severity-filter").addEventListener("change", renderBundles);
   $("#bundle-search").addEventListener("input", renderBundles);
   $("#prepare-button").addEventListener("click", openCleanupDialog);
+  $("#select-all-safe").addEventListener("click", selectAllSafe);
   $("#save-settings").addEventListener("click", saveSettings);
   $("#confirm-plan").addEventListener("click", confirmPlan);
   $("#bundle-plan-button").addEventListener("click", addBundleToPlan);

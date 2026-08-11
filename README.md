@@ -4,11 +4,11 @@ Git-installatieklare Home Assistant App-repository voor een veilige opslag-audit
 
 ## Huidige veiligheidsstatus
 
-Versie 0.6.0 houdt bestands- en registeropschoning technisch **audit-only**:
+Versie 0.6.1 houdt bestands- en registeropschoning technisch **audit-only**:
 
 - `/homeassistant` wordt door Supervisor read-only gemount;
 - er bestaat geen verwijder- of verplaatsendpoint voor bestanden, entities of apparaten;
-- de UI kan uitsluitend scannen, filteren, exporteren en een dry-runplan tonen;
+- de UI kan uitsluitend scannen, filteren, exporteren en een veilig opruimplan tonen;
 - iedere scan schrijft JSON, CSV en Markdown naar `/data/reports`;
 - entities, apparaten, gebieden, config-entries en actuele states worden read-only via de officiële Home Assistant WebSocket API vergeleken;
 - entities zonder apparaat zijn uitsluitend informatief; gebroken registerverwijzingen zijn nooit automatisch selecteerbaar;
@@ -18,7 +18,7 @@ Versie 0.6.0 houdt bestands- en registeropschoning technisch **audit-only**:
 - een Recorder-purge vereist back-upbevestiging, het woord `PURGE` en wordt in een lokaal auditlog opgenomen.
 - ieder bestand en iedere bundel bevat bewijsniveau, mogelijke gevolgen en herstelstappen;
 - inhoudspreviews tonen alleen structuur en sleutelnamen; gevoelige waarden worden gemaskeerd of geheel weggelaten;
-- geavanceerde beoordeling maakt twijfelgevallen alleen selecteerbaar voor een niet-uitvoerbaar dry-runplan;
+- geavanceerde beoordeling toont technische details zonder de bewijspoort te omzeilen;
 - ieder impactplan wordt als JSON en Markdown opgeslagen met een expliciete voor/na-snapshot.
 - de standaardweergave bundelt bestanden tot begrijpelijke opruimrecepten per type en producerende integratie;
 - een bewijspoort vereist een herkend bestandstype, minimumleeftijd, afwezigheid van beschermde scope en een bekende herstelroute;

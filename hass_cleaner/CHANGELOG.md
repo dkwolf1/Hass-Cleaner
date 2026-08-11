@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1
+
+- `Dry-run` in de interface vervangen door het duidelijkere `Veilig opruimplan`.
+- Veilige Python-cache tot één hoofdrecept gebundeld met details per producerende integratie.
+- Knop toegevoegd om alle volledig bewezen veilige recepten in één keer te selecteren.
+- Het exacte Home Assistant-pad `.cache/brands` als herbouwbare pictogramcache herkend; onbekende cache blijft geblokkeerd.
+- Generieke registry-afwijkingsdetectie toegevoegd voor grote orphan-groepen en gebroken verwijzingen.
+- Bundelscherm toont standaard alleen concrete aandachtspunten; gezonde integraties blijven opvraagbaar.
+- Detectieregels zijn integratie-onafhankelijk en bevatten geen HASS.Agent-specifieke uitzonderingen.
+
 ## 0.6.0
 
 - Beginnersmodus met gebundelde opruimrecepten toegevoegd.

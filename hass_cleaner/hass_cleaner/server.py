@@ -36,7 +36,7 @@ class AppState:
 
 
 class CleanupHandler(BaseHTTPRequestHandler):
-    server_version = "HassCleaner/0.5"
+    server_version = "HassCleaner/0.6.1"
 
     @property
     def state(self) -> AppState:

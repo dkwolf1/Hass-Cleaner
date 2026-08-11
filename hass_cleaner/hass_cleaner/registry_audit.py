@@ -49,6 +49,7 @@ class RegistryAudit:
     summary: dict[str, int] = field(default_factory=dict)
     findings: list[RegistryFinding] = field(default_factory=list)
     bundles: list[RegistryBundle] = field(default_factory=list)
+    anomalies: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
     def to_dict(self) -> dict[str, object]:
@@ -57,6 +58,7 @@ class RegistryAudit:
             "summary": self.summary,
             "findings": [asdict(item) for item in self.findings],
             "bundles": [asdict(item) for item in self.bundles],
+            "anomalies": self.anomalies,
             "error": self.error,
             "audit_only": True,
             "destructive_actions_available": False,
@@ -218,7 +220,46 @@ def audit_registry_snapshot(snapshot: dict[str, list[dict[str, Any]]]) -> Regist
     }
     bundles = _build_bundles(entities, devices, config_entries, findings)
     summary["bundles_total"] = len(bundles)
-    return RegistryAudit(status="completed", summary=summary, findings=findings, bundles=bundles)
+    anomalies = _detect_anomalies(bundles)
+    summary["anomalies_total"] = len(anomalies)
+    return RegistryAudit(status="completed", summary=summary, findings=findings, bundles=bundles, anomalies=anomalies)
+
+
+def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:
+    anomalies: list[dict[str, Any]] = []
+    for bundle in bundles:
+        orphan_devices = [item for item in bundle.devices if not item.get("entity_ids")]
+        anonymous_devices = [
+            item for item in orphan_devices
+            if item.get("name") == item.get("device_id")
+            and not item.get("manufacturer") and not item.get("model") and not item.get("area_id")
+        ]
+        orphan_ratio = len(orphan_devices) / len(bundle.devices) if bundle.devices else 0
+        if len(orphan_devices) >= 100 and orphan_ratio >= 0.8:
+            anomalies.append({
+                "id": f"large-orphan-group:{bundle.id}",
+                "category": "large_orphan_device_group",
+                "severity": "review",
+                "bundle_id": bundle.id,
+                "domain": bundle.domain,
+                "title": "Uitzonderlijk grote groep apparaten zonder entiteiten",
+                "summary": f"{len(orphan_devices)} van {len(bundle.devices)} apparaten hebben geen entiteiten; {len(anonymous_devices)} zijn volledig anoniem.",
+                "counts": {"devices": len(bundle.devices), "orphans": len(orphan_devices), "anonymous": len(anonymous_devices)},
+                "execution_allowed": False,
+            })
+        if bundle.review_count:
+            anomalies.append({
+                "id": f"broken-references:{bundle.id}",
+                "category": "registry_reference_problem",
+                "severity": "review",
+                "bundle_id": bundle.id,
+                "domain": bundle.domain,
+                "title": "Registerverwijzingen vereisen controle",
+                "summary": f"Deze bundel bevat {bundle.review_count} bevindingen die handmatig onderzocht moeten worden.",
+                "counts": {"findings": bundle.review_count},
+                "execution_allowed": False,
+            })
+    return sorted(anomalies, key=lambda item: -sum(item["counts"].values()))
 
 
 def fetch_related(

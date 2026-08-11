@@ -66,6 +66,15 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(RISK_REVIEW, decision.risk)
         self.assertEqual("integration_cache_candidate", decision.category)
 
+    def test_exact_home_assistant_brand_cache_is_safe(self) -> None:
+        decision = self.classify_file(".cache/brands/integrations/demo/icon.png")
+        self.assertEqual(RISK_SAFE, decision.risk)
+        self.assertEqual("brand_cache", decision.category)
+
+    def test_recent_home_assistant_brand_cache_is_ignored(self) -> None:
+        decision = self.classify_file(".cache/brands/integrations/demo/icon.png", old=False)
+        self.assertIsNone(decision)
+
     def test_tmp_is_never_marked_safe(self) -> None:
         decision = self.classify_file("downloads/firmware.tmp")
         self.assertEqual(RISK_REVIEW, decision.risk)

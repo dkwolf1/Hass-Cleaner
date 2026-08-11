@@ -13,7 +13,7 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 - Entities, apparaten, gebieden en config-entries kunnen niet vanuit Hass-Cleaner worden gewijzigd.
 - Alleen `recorder.purge` is uitvoerbaar, na expliciete back-up- en tekstbevestiging.
 - Inhoudsadvies toont nooit ruwe geheime waarden en verandert geen bestanden.
-- Geavanceerde beoordeling ontgrendelt alleen analyse en dry-runselectie, geen uitvoering.
+- Geavanceerde beoordeling toont alleen technische analyse, geen uitvoering.
 
 ## Gebruik
 
