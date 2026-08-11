@@ -14,7 +14,7 @@ REQUIRED_OBSERVATIONS = 3
 
 
 def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetime | None = None) -> None:
-    """Annotate availability conservatively and persist only non-sensitive counters."""
+    """Classify entity health conservatively and persist only non-sensitive counters."""
     if audit.status != "completed":
         return
     current = now or datetime.now(timezone.utc)
@@ -27,27 +27,34 @@ def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetim
             disabled_by = entity.get("disabled_by")
             if disabled_by is not None:
                 entity["availability_status"] = f"disabled_by_{disabled_by}"
+                entity["health_duration_days"] = 0
                 entity["cleanup_candidate"] = False
                 continue
             if not entity.get("loaded"):
                 entity["availability_status"] = "not_loaded"
+                entity["health_duration_days"] = 0
                 entity["cleanup_candidate"] = False
                 continue
-            if entity.get("state") != "unavailable":
+            raw_state = str(entity.get("state", ""))
+            if raw_state not in {"unavailable", "unknown", "problem"}:
                 entity["availability_status"] = "available"
+                entity["health_duration_days"] = 0
                 entity["cleanup_candidate"] = False
                 continue
 
             prior = previous.get(entity_id, {})
+            if prior.get("kind") != raw_state:
+                prior = {}
             first_seen = _parse(str(prior.get("first_seen", ""))) or _parse(str(entity.get("last_changed", ""))) or current
             scans = int(prior.get("observations", 0)) + 1
-            unavailable_days = max(0, int((current - first_seen).total_seconds() // 86400))
-            persistent = unavailable_days >= LONG_UNAVAILABLE_DAYS or (scans >= REQUIRED_OBSERVATIONS and unavailable_days >= REPEATED_OBSERVATION_DAYS)
-            entity["availability_status"] = "long_unavailable" if persistent else "temporarily_unavailable"
-            entity["unavailable_days"] = unavailable_days
-            entity["unavailable_observations"] = scans
+            duration_days = max(0, int((current - first_seen).total_seconds() // 86400))
+            persistent = duration_days >= LONG_UNAVAILABLE_DAYS or (scans >= REQUIRED_OBSERVATIONS and duration_days >= REPEATED_OBSERVATION_DAYS)
+            entity["availability_status"] = f"long_{raw_state}" if persistent else f"temporarily_{raw_state}"
+            entity["health_duration_days"] = duration_days
+            entity["health_observations"] = scans
             entity["cleanup_candidate"] = False
             observations[entity_id] = {
+                "kind": raw_state,
                 "first_seen": first_seen.isoformat(),
                 "last_seen": current.isoformat(),
                 "observations": scans,
@@ -55,15 +62,22 @@ def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetim
 
     _save(path, observations)
     _append_bundle_anomalies(audit)
+    audit.entity_workspace = _build_entity_workspace(audit)
 
 
 def _append_bundle_anomalies(audit: RegistryAudit) -> None:
     long_total = 0
     temporary_total = 0
+    long_unknown_total = 0
+    temporary_unknown_total = 0
+    problem_total = 0
     for bundle in audit.bundles:
         enabled = [item for item in bundle.entities if item.get("disabled_by") is None]
         long_items = [item for item in enabled if item.get("availability_status") == "long_unavailable"]
         temporary_total += sum(1 for item in enabled if item.get("availability_status") == "temporarily_unavailable")
+        long_unknown_total += sum(1 for item in enabled if item.get("availability_status") == "long_unknown")
+        temporary_unknown_total += sum(1 for item in enabled if item.get("availability_status") == "temporarily_unknown")
+        problem_total += sum(1 for item in enabled if str(item.get("availability_status", "")).endswith("_problem"))
         long_total += len(long_items)
         ratio = len(long_items) / len(enabled) if enabled else 0
         if len(long_items) >= 3 or (len(long_items) >= 2 and ratio >= 0.5):
@@ -82,7 +96,92 @@ def _append_bundle_anomalies(audit: RegistryAudit) -> None:
     audit.anomalies.sort(key=lambda item: -sum(value for value in item.get("counts", {}).values() if isinstance(value, int)))
     audit.summary["long_unavailable_entities"] = long_total
     audit.summary["temporarily_unavailable_entities"] = temporary_total
+    audit.summary["long_unknown_entities"] = long_unknown_total
+    audit.summary["temporarily_unknown_entities"] = temporary_unknown_total
+    audit.summary["problem_entities"] = problem_total
     audit.summary["anomalies_total"] = len(audit.anomalies)
+
+
+def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
+    """Build a UI-safe entity index without treating state names as deletion proof."""
+    broken_by_entity = {
+        finding.subject_id: finding.category
+        for finding in audit.findings
+        if finding.subject_type == "entity" and finding.severity == "review"
+    }
+    items: list[dict[str, Any]] = []
+    for bundle in audit.bundles:
+        for entity in bundle.entities:
+            entity_id = str(entity.get("entity_id", ""))
+            status = str(entity.get("availability_status", "available"))
+            broken_category = broken_by_entity.get(entity_id, "")
+            if broken_category.startswith("missing_"):
+                status = "broken_reference"
+            signal = dict(entity.get("connectivity_signals", {}))
+            signal_problem = any(value is False or str(value).lower() in {"false", "offline", "disconnected", "unreachable"} for value in signal.values())
+            attention = status != "available" or signal_problem
+            selectable_for_plan = status in {"long_unavailable", "long_unknown", "long_problem", "not_loaded", "broken_reference"}
+            items.append({
+                "entity_id": entity_id,
+                "name": entity.get("name", entity_id),
+                "domain": entity_id.partition(".")[0],
+                "integration": bundle.domain,
+                "bundle_id": bundle.id,
+                "bundle_title": bundle.title,
+                "config_entry_id": bundle.config_entry_id,
+                "device_id": entity.get("device_id", ""),
+                "device_name": entity.get("device_name", ""),
+                "area_id": entity.get("area_id", ""),
+                "area_name": entity.get("area_name", ""),
+                "platform": entity.get("platform", ""),
+                "status": status,
+                "raw_state": entity.get("state"),
+                "duration_days": entity.get("health_duration_days", 0),
+                "observations": entity.get("health_observations", 0),
+                "last_changed": entity.get("last_changed", ""),
+                "disabled_by": entity.get("disabled_by"),
+                "loaded": bool(entity.get("loaded")),
+                "connectivity_signals": signal,
+                "integration_signal_problem": signal_problem,
+                "attention": attention,
+                "selectable_for_plan": selectable_for_plan,
+                "execution_allowed": False,
+                "reason": _entity_reason(status, signal_problem),
+            })
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item["status"]] = counts.get(item["status"], 0) + 1
+    return {
+        "items": sorted(items, key=lambda item: (not item["attention"], -int(item["duration_days"]), item["entity_id"])),
+        "summary": {
+            "total": len(items),
+            "attention": sum(1 for item in items if item["attention"]),
+            "selectable_for_plan": sum(1 for item in items if item["selectable_for_plan"]),
+            "by_status": counts,
+        },
+        "universal_problem_states": ["unavailable", "unknown", "problem"],
+        "integration_signals_are_informational": True,
+        "execution_locked": True,
+    }
+
+
+def _entity_reason(status: str, signal_problem: bool) -> str:
+    reasons = {
+        "temporarily_unavailable": "Home Assistant meldt unavailable; nog niet lang genoeg waargenomen.",
+        "long_unavailable": "Home Assistant meldt langdurig unavailable; controleer eerst apparaat, integratie en afhankelijkheden.",
+        "temporarily_unknown": "Home Assistant heeft momenteel geen bruikbare waarde; dit is nog geen verwijderbewijs.",
+        "long_unknown": "Home Assistant heeft langdurig geen bruikbare waarde; oorzaak en gebruik moeten worden onderzocht.",
+        "temporarily_problem": "Home Assistant meldt problem; controleer eerst of dit voor dit entiteitstype een normale domeinstatus is.",
+        "long_problem": "Home Assistant meldt langdurig problem; onderzoek oorzaak, gebruik en herstel voordat verwijdering wordt overwogen.",
+        "not_loaded": "De ingeschakelde registerentity heeft momenteel geen state.",
+        "broken_reference": "De entity bevat een ontbrekende registerverwijzing.",
+        "disabled_by_user": "De entity is bewust door een gebruiker uitgeschakeld.",
+        "disabled_by_integration": "De integratie levert deze entity standaard uitgeschakeld; dit is normaal gedrag.",
+        "disabled_by_config_entry": "Nieuwe entities zijn via de configuratie-entry uitgeschakeld.",
+    }
+    if status == "available" and signal_problem:
+        return "Een integratiespecifiek connectiviteitssignaal is negatief; dit is alleen een aanwijzing."
+    return reasons.get(status, "Geen algemeen Home Assistant-statusprobleem vastgesteld.")
 
 
 def _load(path: Path) -> dict[str, dict[str, Any]]:

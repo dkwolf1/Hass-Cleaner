@@ -36,7 +36,7 @@ class AppState:
 
 
 class CleanupHandler(BaseHTTPRequestHandler):
-    server_version = "HassCleaner/0.6.1"
+    server_version = f"HassCleaner/{__version__}"
 
     @property
     def state(self) -> AppState:
@@ -186,6 +186,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     load_effective_settings(self.state.data_root),
                     selected_ids=_string_list(body, "selected_ids"),
                     selected_bundle_ids=_string_list(body, "selected_bundle_ids"),
+                    selected_entity_ids=_string_list(body, "selected_entity_ids"),
                     backup_choice=str(body.get("backup_choice", "not_required_for_dry_run")),
                 )
             except PlanError as exc:

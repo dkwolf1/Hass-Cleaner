@@ -25,20 +25,28 @@ class PlanManager:
         *,
         selected_ids: list[str],
         selected_bundle_ids: list[str],
+        selected_entity_ids: list[str],
         backup_choice: str,
     ) -> dict[str, Any]:
         if scan is None or scan.status != "completed":
             raise PlanError("Voer eerst een volledige scan uit")
         file_map = {item.id: item for item in scan.items}
         bundle_map = {item.id: item for item in scan.registry_audit.bundles}
+        entity_map = {
+            str(item.get("entity_id")): item
+            for item in scan.registry_audit.entity_workspace.get("items", [])
+        }
         unknown_files = [item_id for item_id in selected_ids if item_id not in file_map]
         unknown_bundles = [item_id for item_id in selected_bundle_ids if item_id not in bundle_map]
-        if unknown_files or unknown_bundles:
+        unknown_entities = [item_id for item_id in selected_entity_ids if item_id not in entity_map]
+        if unknown_files or unknown_bundles or unknown_entities:
             raise PlanError("De selectie hoort niet meer bij de laatste scan; scan opnieuw")
         if any(file_map[item_id].risk != "safe" for item_id in selected_ids):
             raise PlanError("Alleen bestanden die de volledige bewijspoort halen mogen in een bestandsplan")
-        if not selected_ids and not selected_bundle_ids:
-            raise PlanError("Selecteer minimaal één bestand of bundel")
+        if any(not entity_map[item_id].get("selectable_for_plan") for item_id in selected_entity_ids):
+            raise PlanError("Alleen entities met een concreet aandachtspunt mogen aan het onderzoeksplan worden toegevoegd")
+        if not selected_ids and not selected_bundle_ids and not selected_entity_ids:
+            raise PlanError("Selecteer minimaal één bestand, bundel of entity")
 
         files = []
         for item_id in selected_ids:
@@ -75,9 +83,32 @@ class PlanManager:
                 }
             )
 
+        entities = []
+        for entity_id in selected_entity_ids:
+            entity = entity_map[entity_id]
+            entities.append({
+                "entity_id": entity_id,
+                "name": entity.get("name", entity_id),
+                "integration": entity.get("integration", ""),
+                "device_id": entity.get("device_id", ""),
+                "device_name": entity.get("device_name", ""),
+                "area_name": entity.get("area_name", ""),
+                "status": entity.get("status", ""),
+                "raw_state": entity.get("raw_state"),
+                "duration_days": entity.get("duration_days", 0),
+                "reason": entity.get("reason", ""),
+                "proposed_action": "manual_review_only",
+                "required_checks": [
+                    "Controleer officiële Home Assistant-relaties en gebruik in automatiseringen, scripts en dashboards.",
+                    "Controleer apparaat, integratie en configuratie-entry voordat verwijdering ooit wordt vrijgegeven.",
+                    "Maak een volledige Home Assistant-back-up en verifieer dat deze is voltooid.",
+                ],
+                "execution_allowed": False,
+            })
+
         plan_id = uuid.uuid4().hex
         plan: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": 2,
             "id": plan_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "scan_id": scan.id,
@@ -87,9 +118,11 @@ class PlanManager:
             "settings": settings.public_dict(),
             "files": files,
             "bundles": bundles,
+            "entities": entities,
             "summary": {
                 "file_count": len(files),
                 "bundle_count": len(bundles),
+                "entity_count": len(entities),
                 "planned_bytes": sum(item["before"]["size_bytes"] for item in files),
                 "executable_actions": 0,
             },
@@ -125,6 +158,7 @@ def _markdown(plan: dict[str, Any]) -> str:
         f"- Scan-ID: `{plan['scan_id']}`",
         f"- Bestanden: {summary['file_count']}",
         f"- Bundels: {summary['bundle_count']}",
+        f"- Entities: {summary['entity_count']}",
         f"- Uitvoerbare acties: {summary['executable_actions']}",
         "",
         "## Bestanden",
@@ -154,6 +188,18 @@ def _markdown(plan: dict[str, Any]) -> str:
                 item["before"]["entity_count"],
                 _escape(advice.get("evidence_label", "")),
                 _escape(advice.get("recommended_first_step", "")),
+            )
+        )
+    lines.extend(["", "## Geselecteerde entities", "", "| Entity | Status | Duur | Integratie/apparaat | Reden |", "|---|---|---:|---|---|"])
+    for item in plan["entities"]:
+        owner = " / ".join(value for value in (item["integration"], item["device_name"]) if value)
+        lines.append(
+            "| `{}` | {} | {} dagen | {} | {} |".format(
+                _escape(item["entity_id"]),
+                _escape(item["status"]),
+                item["duration_days"],
+                _escape(owner),
+                _escape(item["reason"]),
             )
         )
     lines.extend(["", "## Algemeen herstel", ""])

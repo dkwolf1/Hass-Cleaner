@@ -6,8 +6,11 @@ const state = {
   guidance: null,
   status: null,
   activeBundle: null,
+  activeEntity: null,
   latestPlan: null,
   selected: new Set(),
+  selectedEntities: new Set(),
+  visibleEntityIds: [],
   pollTimer: null,
 };
 
@@ -190,6 +193,8 @@ function finishScan(scan) {
   renderRecipes();
   renderResults();
   renderRegistryAudit();
+  populateEntityFilters();
+  renderEntities();
   $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
   showToast("Veilige scan voltooid");
 }
@@ -322,6 +327,154 @@ function renderRegistryAudit() {
   </div>`).join("");
 }
 
+function entityStatusLabel(status) {
+  return {
+    available: "Beschikbaar",
+    temporarily_unavailable: "Tijdelijk onbeschikbaar",
+    long_unavailable: "Langdurig onbeschikbaar",
+    temporarily_unknown: "Tijdelijk onbekend",
+    long_unknown: "Langdurig onbekend",
+    temporarily_problem: "Tijdelijke probleemstatus",
+    long_problem: "Langdurige probleemstatus",
+    not_loaded: "Niet geladen",
+    broken_reference: "Kapotte verwijzing",
+    disabled_by_user: "Uitgeschakeld door gebruiker",
+    disabled_by_integration: "Standaard uitgeschakeld door integratie",
+    disabled_by_config_entry: "Uitgeschakeld via config-entry",
+  }[status] || status;
+}
+
+function populateEntityFilters() {
+  const items = state.registryAudit?.entity_workspace?.items || [];
+  const integration = $("#entity-integration-filter");
+  const area = $("#entity-area-filter");
+  const currentIntegration = integration.value;
+  const currentArea = area.value;
+  const integrations = [...new Set(items.map((item) => item.integration).filter(Boolean))].sort();
+  const areas = [...new Set(items.map((item) => item.area_name || item.area_id).filter(Boolean))].sort();
+  integration.innerHTML = '<option value="all">Alle integraties</option>' + integrations.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  area.innerHTML = '<option value="all">Alle ruimtes</option>' + areas.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  if (integrations.includes(currentIntegration)) integration.value = currentIntegration;
+  if (areas.includes(currentArea)) area.value = currentArea;
+}
+
+function filteredEntities() {
+  const workspace = state.registryAudit?.entity_workspace;
+  if (!workspace) return [];
+  const query = $("#entity-search").value.trim().toLowerCase();
+  const statusFilter = $("#entity-status-filter").value;
+  const integration = $("#entity-integration-filter").value;
+  const area = $("#entity-area-filter").value;
+  const days = Math.max(0, Number($("#entity-days-filter").value) || 0);
+  return (workspace.items || []).filter((item) => {
+    const status = String(item.status);
+    if (statusFilter === "attention" && !item.attention) return false;
+    if (statusFilter === "unavailable" && !status.includes("unavailable")) return false;
+    if (statusFilter === "unknown" && !status.includes("unknown")) return false;
+    if (statusFilter === "disabled" && !status.startsWith("disabled_by_")) return false;
+    if (statusFilter === "problem" && !status.includes("problem")) return false;
+    if (!["all", "attention", "unavailable", "unknown", "problem", "disabled"].includes(statusFilter) && status !== statusFilter) return false;
+    if (integration !== "all" && item.integration !== integration) return false;
+    if (area !== "all" && (item.area_name || item.area_id) !== area) return false;
+    if ((item.duration_days || 0) < days) return false;
+    if (!query) return true;
+    return [item.entity_id, item.name, item.device_name, item.device_id, item.integration, item.area_name, item.raw_state].join(" ").toLowerCase().includes(query);
+  });
+}
+
+function entityGroupKey(item, mode) {
+  if (mode === "integration") return item.integration || "Geen integratie";
+  if (mode === "status") return entityStatusLabel(item.status);
+  if (mode === "none") return "Alle resultaten";
+  return item.device_name || (item.device_id ? item.device_id : "Zonder apparaat");
+}
+
+function renderEntities() {
+  const workspace = state.registryAudit?.entity_workspace;
+  const list = $("#entity-list");
+  if (!workspace) {
+    list.innerHTML = '<div class="table-empty panel">Voer eerst een scan uit.</div>';
+    return;
+  }
+  const counts = workspace.summary?.by_status || {};
+  $("#entity-total").textContent = workspace.summary?.total || 0;
+  $("#entity-attention").textContent = workspace.summary?.attention || 0;
+  $("#entity-unavailable").textContent = (counts.temporarily_unavailable || 0) + (counts.long_unavailable || 0);
+  $("#entity-unknown").textContent = (counts.temporarily_unknown || 0) + (counts.long_unknown || 0);
+  const items = filteredEntities();
+  state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
+  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · verwijderen blijft geblokkeerd`;
+  if (!items.length) {
+    list.innerHTML = '<div class="table-empty panel">Geen entiteiten binnen deze filters.</div>';
+    updateEntityButtons();
+    return;
+  }
+  const mode = $("#entity-group-filter").value;
+  const groups = new Map();
+  items.forEach((item) => {
+    const key = entityGroupKey(item, mode);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+  list.innerHTML = [...groups.entries()].map(([title, members]) => {
+    const selectable = members.filter((item) => item.selectable_for_plan);
+    const allSelected = selectable.length && selectable.every((item) => state.selectedEntities.has(item.entity_id));
+    const rows = members.map((item) => `<label class="entity-row">
+      <input type="checkbox" data-entity-id="${escapeHtml(item.entity_id)}" ${item.selectable_for_plan ? "" : "disabled"} ${state.selectedEntities.has(item.entity_id) ? "checked" : ""}>
+      <button type="button" class="entity-detail" data-entity-detail="${escapeHtml(item.entity_id)}"><strong>${escapeHtml(item.name || item.entity_id)}</strong><small>${escapeHtml(item.entity_id)}</small></button>
+      <span><strong>${escapeHtml(item.device_name || "Zonder apparaat")}</strong><small>${escapeHtml(item.integration || "Onbekende integratie")}${item.area_name ? ` · ${escapeHtml(item.area_name)}` : ""}</small></span>
+      <span class="risk-chip ${item.attention ? "review" : "info"}">${escapeHtml(entityStatusLabel(item.status))}</span>
+      <span class="entity-duration">${item.duration_days || 0} dagen<small>rauw: ${escapeHtml(item.raw_state ?? "geen state")}</small></span>
+    </label>`).join("");
+    return `<article class="panel entity-group"><header><div><h3>${escapeHtml(title)}</h3><p>${members.length} entiteiten · ${selectable.length} te onderzoeken</p></div><button class="link-button entity-group-toggle" data-group="${escapeHtml(title)}" ${selectable.length ? "" : "disabled"}>${allSelected ? "Groep wissen" : "Groep selecteren"}</button></header>${rows}</article>`;
+  }).join("");
+  $$('input[data-entity-id]', list).forEach((input) => input.addEventListener("change", () => {
+    input.checked ? state.selectedEntities.add(input.dataset.entityId) : state.selectedEntities.delete(input.dataset.entityId);
+    renderEntities();
+  }));
+  $$(".entity-group-toggle", list).forEach((button) => button.addEventListener("click", () => {
+    const members = items.filter((item) => entityGroupKey(item, mode) === button.dataset.group && item.selectable_for_plan);
+    const allSelected = members.every((item) => state.selectedEntities.has(item.entity_id));
+    members.forEach((item) => allSelected ? state.selectedEntities.delete(item.entity_id) : state.selectedEntities.add(item.entity_id));
+    renderEntities();
+  }));
+  $$(".entity-detail", list).forEach((button) => button.addEventListener("click", () => openEntity(button.dataset.entityDetail)));
+  updateEntityButtons();
+}
+
+function updateEntityButtons() {
+  $("#entity-select-visible").disabled = !state.visibleEntityIds.length;
+  $("#entity-plan-button").disabled = !state.selectedEntities.size;
+  $("#entity-plan-button").textContent = state.selectedEntities.size ? `Onderzoeksplan bekijken (${state.selectedEntities.size})` : "Onderzoeksplan bekijken";
+}
+
+async function openEntity(entityId) {
+  const item = (state.registryAudit?.entity_workspace?.items || []).find((candidate) => candidate.entity_id === entityId);
+  if (!item) return;
+  state.activeEntity = item;
+  $("#entity-dialog-title").textContent = item.name || item.entity_id;
+  $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${item.duration_days || 0} dagen`;
+  const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
+  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>Laatste wijziging: ${escapeHtml(item.last_changed || "onbekend")}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
+  $("#entity-dialog").showModal();
+  try {
+    const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });
+    const groups = Object.entries(response.related || {}).filter(([, ids]) => ids.length);
+    $("#entity-related").innerHTML = `<h3>Officiële relaties</h3>${groups.length ? `<ul>${groups.map(([type, ids]) => `<li>${escapeHtml(type)}: ${escapeHtml(ids.slice(0, 12).join(", "))}${ids.length > 12 ? " …" : ""}</li>`).join("")}</ul>` : "<p>Geen relaties gevonden. Dat is nog geen verwijderbewijs.</p>"}`;
+  } catch (error) {
+    $("#entity-related").innerHTML = `<h3>Officiële relaties</h3><p>Niet beschikbaar: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function createEntityPlan() {
+  try {
+    const response = await api("api/plans/preview", { method: "POST", body: JSON.stringify({ selected_entity_ids: [...state.selectedEntities] }) });
+    showPlan(response);
+  } catch (error) {
+    showToast(error.message, true);
+  }
+}
+
 function renderBundles() {
   const list = $("#bundle-list");
   const filter = $("#registry-severity-filter").value;
@@ -392,12 +545,16 @@ function renderLocalBundleDetails(bundle) {
   const availability = bundle.entities.filter((entity) => entity.availability_status && entity.availability_status !== "available");
   return `<details class="bundle-details" open><summary>Apparaten (${bundle.devices.length})</summary><ul>${devices}</ul></details>
     <details class="bundle-details"><summary>Losse entities (${loose.length})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities</li>"}</ul></details>
-    <details class="bundle-details"><summary>Beschikbaarheid (${availability.length})</summary><ul>${availability.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)} · ${escapeHtml(availabilityLabel(entity.availability_status))}${entity.unavailable_days !== undefined ? ` · ${entity.unavailable_days} dagen` : ""}</small></li>`).join("") || "<li>Geen beschikbaarheidsproblemen</li>"}</ul></details>`;
+    <details class="bundle-details"><summary>Beschikbaarheid (${availability.length})</summary><ul>${availability.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)} · ${escapeHtml(availabilityLabel(entity.availability_status))}${entity.health_duration_days !== undefined ? ` · ${entity.health_duration_days} dagen` : ""}</small></li>`).join("") || "<li>Geen beschikbaarheidsproblemen</li>"}</ul></details>`;
 }
 
 function availabilityLabel(status) {
   if (status === "temporarily_unavailable") return "tijdelijk onbeschikbaar";
   if (status === "long_unavailable") return "langdurig onbeschikbaar";
+  if (status === "temporarily_unknown") return "tijdelijk onbekend";
+  if (status === "long_unknown") return "langdurig onbekend";
+  if (status === "temporarily_problem") return "tijdelijke probleemstatus";
+  if (status === "long_problem") return "langdurige probleemstatus";
   if (status === "not_loaded") return "niet geladen";
   if (String(status).startsWith("disabled_by_")) return `uitgeschakeld door ${String(status).slice(12)}`;
   return status;
@@ -437,7 +594,7 @@ function renderAdvice(advice) {
 function showPlan(response) {
   state.latestPlan = response;
   const summary = response.plan?.summary || {};
-  $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden en ${summary.bundle_count || 0} bundels vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
+  $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden, ${summary.bundle_count || 0} bundels en ${summary.entity_count || 0} entiteiten vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
   $("#plan-dialog").showModal();
   showToast(response.message || "Veilig opruimplan opgeslagen");
 }
@@ -593,6 +750,14 @@ function bindEvents() {
   $("#risk-filter").addEventListener("change", renderResults);
   $("#registry-severity-filter").addEventListener("change", renderBundles);
   $("#bundle-search").addEventListener("input", renderBundles);
+  ["#entity-search", "#entity-days-filter"].forEach((selector) => $(selector).addEventListener("input", renderEntities));
+  ["#entity-status-filter", "#entity-integration-filter", "#entity-area-filter", "#entity-group-filter"].forEach((selector) => $(selector).addEventListener("change", renderEntities));
+  $("#entity-select-visible").addEventListener("click", () => {
+    const allSelected = state.visibleEntityIds.length && state.visibleEntityIds.every((id) => state.selectedEntities.has(id));
+    state.visibleEntityIds.forEach((id) => allSelected ? state.selectedEntities.delete(id) : state.selectedEntities.add(id));
+    renderEntities();
+  });
+  $("#entity-plan-button").addEventListener("click", createEntityPlan);
   $("#prepare-button").addEventListener("click", openCleanupDialog);
   $("#select-all-safe").addEventListener("click", selectAllSafe);
   $("#save-settings").addEventListener("click", saveSettings);

@@ -4,7 +4,7 @@ Git-installatieklare Home Assistant App-repository voor een veilige opslag-audit
 
 ## Huidige veiligheidsstatus
 
-Versie 0.6.1 houdt bestands- en registeropschoning technisch **audit-only**:
+Versie 0.7.0 houdt bestands- en registeropschoning technisch **audit-only**:
 
 - `/homeassistant` wordt door Supervisor read-only gemount;
 - er bestaat geen verwijder- of verplaatsendpoint voor bestanden, entities of apparaten;
@@ -26,6 +26,11 @@ Versie 0.6.1 houdt bestands- en registeropschoning technisch **audit-only**:
 - HACS-code, custom integrations, dashboardbestanden en persoonlijke opnames worden niet als opruimwinst gepresenteerd.
 - beschikbaarheidsproblemen worden per integratie gebundeld; tijdelijke uitval en bewust uitgeschakelde entiteiten blijven informatief;
 - alleen langdurige of herhaald waargenomen onbeschikbaarheid wordt een geblokkeerd aandachtspunt, nooit automatisch een verwijderkandidaat.
+- een aparte entiteitenwerkruimte onderscheidt `unavailable`, `unknown`, `problem`, niet-geladen en bewust uitgeschakelde entities;
+- entiteiten zijn filterbaar op duur, integratie, apparaat en ruimte en groepeerbaar per apparaat, integratie of status;
+- alleen langdurige statusproblemen, niet-geladen entities en kapotte verwijzingen kunnen aan een onderzoeksplan worden toegevoegd;
+- integratiespecifieke signalen zoals `reachable=false` zijn uitsluitend aanwijzingen en nooit zelfstandig selecteerbaar;
+- ieder entiteitenplan blijft geblokkeerd met `execution_allowed: false` en nul uitvoerbare acties.
 
 ## Repositorystructuur
 

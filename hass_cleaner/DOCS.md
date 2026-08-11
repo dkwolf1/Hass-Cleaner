@@ -22,11 +22,12 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 3. Open **Cleanup**.
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
-6. Open **Entities & apparaten** voor de registercontrole.
-7. Gebruik **Bundel beoordelen** om apparaten, entities en officiële relaties samen te bekijken.
-8. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
-9. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
-10. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
+6. Open **Entiteiten** om te filteren op status, duur, integratie, apparaat of ruimte.
+7. Selecteer alleen langdurige aandachtspunten voor een geblokkeerd onderzoeksplan en controleer per entity de officiële relaties.
+8. Open **Bundels** om apparaten, entities en integraties samen te beoordelen.
+9. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
+10. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
+11. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
 
 ## Impact- en hersteladvies
 
@@ -52,7 +53,7 @@ De app vergelijkt read-only:
 - configuratie-entries;
 - de momenteel geladen entity-states.
 
-Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. Een `unavailable` state wordt alleen geteld: dit kan tijdelijk en volkomen legitiem zijn.
+Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. `unavailable`, `unknown` en `problem` worden qua duur gevolgd, maar tijdelijke waarnemingen blijven niet selecteerbaar. Integratiespecifieke signalen als `reachable=false` zijn alleen extra aanwijzingen. Ook een geselecteerde entity komt uitsluitend in een niet-uitvoerbaar onderzoeksplan terecht.
 
 ## Rapportbestanden
 

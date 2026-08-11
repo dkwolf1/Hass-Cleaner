@@ -53,6 +53,41 @@ class AvailabilityTests(unittest.TestCase):
                 apply_availability_history(audit, path, now=now)
             self.assertEqual(3, audit.summary["long_unavailable_entities"])
 
+    def test_unknown_and_integration_connectivity_signals_stay_distinct(self) -> None:
+        now = datetime(2026, 8, 11, tzinfo=timezone.utc)
+        audit = audit_registry_snapshot({
+            "entities": [
+                {"entity_id": "sensor.unknown", "config_entry_id": "entry-1", "device_id": "device-1", "area_id": "office", "platform": "example"},
+                {"entity_id": "sensor.vendor_offline", "config_entry_id": "entry-1", "device_id": "device-1", "area_id": "office", "platform": "example"},
+                {"entity_id": "sensor.disabled", "config_entry_id": "entry-1", "platform": "example", "disabled_by": "integration"},
+                {"entity_id": "binary_sensor.problem", "config_entry_id": "entry-1", "platform": "example"},
+            ],
+            "devices": [{"id": "device-1", "name": "Meter", "config_entries": ["entry-1"]}],
+            "areas": [{"area_id": "office", "name": "Kantoor"}],
+            "config_entries": [{"entry_id": "entry-1", "title": "Example", "domain": "example"}],
+            "states": [
+                {"entity_id": "sensor.unknown", "state": "unknown", "last_changed": (now - timedelta(days=40)).isoformat()},
+                {"entity_id": "sensor.vendor_offline", "state": "idle", "last_changed": now.isoformat(), "attributes": {"reachable": False, "secret": "never-copy"}},
+                {"entity_id": "binary_sensor.problem", "state": "problem", "last_changed": (now - timedelta(days=40)).isoformat()},
+            ],
+        })
+        with tempfile.TemporaryDirectory() as folder:
+            apply_availability_history(audit, Path(folder) / "history.json", now=now)
+
+        items = {item["entity_id"]: item for item in audit.entity_workspace["items"]}
+        self.assertEqual("long_unknown", items["sensor.unknown"]["status"])
+        self.assertTrue(items["sensor.unknown"]["selectable_for_plan"])
+        self.assertEqual("available", items["sensor.vendor_offline"]["status"])
+        self.assertTrue(items["sensor.vendor_offline"]["integration_signal_problem"])
+        self.assertFalse(items["sensor.vendor_offline"]["selectable_for_plan"])
+        self.assertEqual({"reachable": False}, items["sensor.vendor_offline"]["connectivity_signals"])
+        self.assertEqual("Meter", items["sensor.unknown"]["device_name"])
+        self.assertEqual("Kantoor", items["sensor.unknown"]["area_name"])
+        self.assertEqual("disabled_by_integration", items["sensor.disabled"]["status"])
+        self.assertFalse(items["sensor.disabled"]["selectable_for_plan"])
+        self.assertEqual("long_problem", items["binary_sensor.problem"]["status"])
+        self.assertTrue(items["binary_sensor.problem"]["selectable_for_plan"])
+
 
 if __name__ == "__main__":
     unittest.main()

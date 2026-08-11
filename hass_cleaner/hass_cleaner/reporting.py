@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 6
+REPORT_SCHEMA_VERSION = 7
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -154,6 +154,36 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     json.dumps(bundle.advice.get("content_preview", {}), ensure_ascii=False),
                 ]
             )
+        for entity in scan.registry_audit.entity_workspace.get("items", []):
+            if not entity.get("attention"):
+                continue
+            writer.writerow(
+                [
+                    "entity_health",
+                    entity.get("entity_id", ""),
+                    "",
+                    "entity",
+                    entity.get("entity_id", ""),
+                    entity.get("name", ""),
+                    entity.get("status", ""),
+                    "review",
+                    "no",
+                    "manual_review",
+                    0,
+                    entity.get("last_changed", ""),
+                    entity.get("reason", ""),
+                    "insufficient",
+                    "Verwijderen kan dashboards, automatiseringen of integraties breken",
+                    "Herstel via Home Assistant-back-up en herstel van de integratie/configuratie-entry",
+                    json.dumps({
+                        "raw_state": entity.get("raw_state"),
+                        "duration_days": entity.get("duration_days", 0),
+                        "integration": entity.get("integration", ""),
+                        "device": entity.get("device_name", ""),
+                        "area": entity.get("area_name", ""),
+                    }, ensure_ascii=False),
+                ]
+            )
         for anomaly in scan.registry_audit.anomalies:
             writer.writerow(
                 [
@@ -237,6 +267,8 @@ def _markdown(report: dict[str, object]) -> str:
                 f"- Onbeschikbare states: {registry_summary.get('unavailable_states', 0)} (alleen geteld)",
                 f"- Tijdelijk onbeschikbare entities: {registry_summary.get('temporarily_unavailable_entities', 0)} (informatief)",
                 f"- Langdurig onbeschikbare entities: {registry_summary.get('long_unavailable_entities', 0)} (gebundeld aandachtspunt, geen verwijderadvies)",
+                f"- Tijdelijk/langdurig unknown: {registry_summary.get('temporarily_unknown_entities', 0)} / {registry_summary.get('long_unknown_entities', 0)}",
+                f"- Problem-state: {registry_summary.get('problem_entities', 0)}",
                 "",
                 "### Concrete aandachtspunten",
                 "",
@@ -257,6 +289,12 @@ def _markdown(report: dict[str, object]) -> str:
         assert isinstance(bundles, list)
         lines.extend(["", "### Bundels per integratie", ""])
         lines.extend(_markdown_bundle_table([item for item in bundles if isinstance(item, dict)]))
+        workspace = registry.get("entity_workspace", {})
+        if isinstance(workspace, dict):
+            entity_items = workspace.get("items", [])
+            if isinstance(entity_items, list):
+                lines.extend(["", "### Entiteiten met aandacht", ""])
+                lines.extend(_markdown_entity_table([item for item in entity_items if isinstance(item, dict) and item.get("attention")]))
     else:
         lines.append(f"Registerscan niet beschikbaar: {registry.get('error') or registry_status}.")
     lines.extend(
@@ -267,7 +305,8 @@ def _markdown(report: dict[str, object]) -> str:
             "- Alleen items onder 'Voorgesteld voor cleanup' zouden in een latere versie selecteerbaar zijn.",
             "- Review-items worden nooit automatisch geselecteerd.",
             "- Beschermde items zijn technisch uitgesloten.",
-            "- Registerbevindingen zijn uitsluitend informatief of voor handmatige beoordeling en zijn nooit selecteerbaar.",
+            "- Alleen langdurige statusproblemen, niet-geladen entities en kapotte verwijzingen kunnen aan een geblokkeerd onderzoeksplan worden toegevoegd.",
+            "- Een onderzoeksselectie is geen verwijderadvies en bevat altijd nul uitvoerbare acties.",
             "- In deze versie bestaat geen verwijder- of verplaatsfunctie.",
             "",
         ]
@@ -296,6 +335,33 @@ def _markdown_table(items: list[dict[str, object]]) -> list[str]:
             )
         )
     return lines
+
+
+def _markdown_entity_table(items: list[dict[str, object]]) -> list[str]:
+    if not items:
+        return ["Geen entiteiten met een aandachtspunt gevonden."]
+    lines = [
+        "| Entity | Status | Duur | Integratie | Apparaat | Ruimte | Selecteerbaar voor onderzoek | Reden |",
+        "|---|---|---:|---|---|---|---|---|",
+    ]
+    for item in items:
+        lines.append(
+            "| `{}` | {} | {} dagen | {} | {} | {} | {} | {} |".format(
+                _md(item.get("entity_id", "")),
+                _md(item.get("status", "")),
+                item.get("duration_days", 0),
+                _md(item.get("integration", "")),
+                _md(item.get("device_name", "")),
+                _md(item.get("area_name", "")),
+                "ja" if item.get("selectable_for_plan") else "nee",
+                _md(item.get("reason", "")),
+            )
+        )
+    return lines
+
+
+def _md(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def _markdown_recipes(value: object, status: str) -> list[str]:

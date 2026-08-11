@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0
+
+- Aparte tab **Entiteiten** toegevoegd met zoeken en filters op status, minimumduur, integratie en ruimte.
+- Entiteiten kunnen per apparaat, integratie of status worden gegroepeerd en los of als groep aan een onderzoeksplan worden toegevoegd.
+- Officiële algemene Home Assistant-states `unavailable`, `unknown` en `problem` worden afzonderlijk en over meerdere scans gevolgd.
+- Niet-geladen entities, kapotte registerverwijzingen en de drie oorzaken van `disabled_by` blijven duidelijk van elkaar gescheiden.
+- Apparaatnaam en effectieve ruimte (entityruimte met fallback naar apparaatruimte) worden in de beoordeling opgenomen.
+- Integratiespecifieke velden `reachable`, `connected` en `online` worden alleen als niet-gevoelige aanwijzing getoond.
+- Per entity is de officiële `search/related`-controle vanuit het detailvenster beschikbaar.
+- Alleen langdurige statusproblemen, niet-geladen entities en kapotte verwijzingen zijn selecteerbaar voor onderzoek; tijdelijke uitval en uitgeschakelde entities niet.
+- JSON-, CSV- en Markdownrapporten bevatten de nieuwe entiteitenclassificatie en duur.
+- Onderzoeksplannen bevatten entities, verplichte controles en altijd `execution_allowed: false`; registerverwijdering blijft afwezig.
+
 ## 0.6.1
 
 - `Dry-run` in de interface vervangen door het duidelijkere `Veilig opruimplan`.

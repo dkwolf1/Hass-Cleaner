@@ -28,6 +28,7 @@
       <nav class="tabs" aria-label="Hoofdnavigatie">
         <button class="tab active" data-tab="overview">Overzicht</button>
         <button class="tab" data-tab="results">Scanresultaten</button>
+        <button class="tab" data-tab="entities">Entiteiten</button>
         <button class="tab" data-tab="registry">Bundels</button>
         <button class="tab" data-tab="database">Database</button>
         <button class="tab" data-tab="quarantine">Quarantaine</button>
@@ -154,6 +155,50 @@
               <div id="results-body" class="table-body"><div class="table-empty">Voer eerst een scan uit.</div></div>
             </div>
           </details>
+        </section>
+
+        <section class="view" id="view-entities">
+          <div class="section-heading">
+            <div><div class="eyebrow">ENTITEITENONDERZOEK</div><h2>Vind wat echt aandacht nodig heeft</h2></div>
+            <div class="section-actions">
+              <button class="button button-ghost" id="entity-select-visible" disabled>Zichtbare selecteren</button>
+              <button class="button button-primary" id="entity-plan-button" disabled>Onderzoeksplan bekijken</button>
+            </div>
+          </div>
+          <div class="notice notice-info">
+            <div class="notice-icon">i</div>
+            <div><strong>Status is geen verwijderbewijs</strong><p><code>unavailable</code>, <code>unknown</code> en <code>problem</code> zijn algemene Home Assistant-statussen. Offline- of bereikbaarheidsvelden van een integratie zijn alleen extra aanwijzingen. Selecteren maakt uitsluitend een geblokkeerd onderzoeksplan.</p></div>
+          </div>
+          <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
+            <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
+            <select id="entity-status-filter" aria-label="Filter op status">
+              <option value="attention" selected>Alle aandachtspunten</option>
+              <option value="unavailable">Onbeschikbaar</option>
+              <option value="unknown">Onbekende waarde</option>
+              <option value="problem">Probleemstatus</option>
+              <option value="not_loaded">Niet geladen</option>
+              <option value="disabled">Uitgeschakeld</option>
+              <option value="broken_reference">Kapotte verwijzing</option>
+              <option value="all">Alle entiteiten</option>
+            </select>
+            <select id="entity-integration-filter" aria-label="Filter op integratie"><option value="all">Alle integraties</option></select>
+            <select id="entity-area-filter" aria-label="Filter op ruimte"><option value="all">Alle ruimtes</option></select>
+            <label class="compact-field"><span>Minimaal</span><input type="number" id="entity-days-filter" min="0" max="3650" value="0"><span>dagen</span></label>
+            <select id="entity-group-filter" aria-label="Groepeer entiteiten">
+              <option value="device" selected>Per apparaat</option>
+              <option value="integration">Per integratie</option>
+              <option value="status">Per status</option>
+              <option value="none">Niet groeperen</option>
+            </select>
+          </section>
+          <section class="metric-grid entity-metrics" aria-label="Entiteitenoverzicht">
+            <article class="metric-card total"><div class="metric-top"><span>TOTAAL</span></div><strong id="entity-total">-</strong><p>In het register</p></article>
+            <article class="metric-card review"><div class="metric-top"><span>AANDACHT</span></div><strong id="entity-attention">-</strong><p>Controleren, niet automatisch verwijderen</p></article>
+            <article class="metric-card protected"><div class="metric-top"><span>UNAVAILABLE</span></div><strong id="entity-unavailable">-</strong><p>Tijdelijk en langdurig</p></article>
+            <article class="metric-card safe"><div class="metric-top"><span>UNKNOWN</span></div><strong id="entity-unknown">-</strong><p>Geen bruikbare waarde</p></article>
+          </section>
+          <div class="entity-result-summary" id="entity-result-summary">Voer eerst een scan uit.</div>
+          <div id="entity-list" class="entity-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
         </section>
 
         <section class="view" id="view-registry">
@@ -309,6 +354,17 @@
         <div id="bundle-related" class="related-list"></div>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Verwijderen vergrendeld</strong><p>Je kunt de volledige bundel in één keer beoordelen. Uitvoering wordt pas toegevoegd nadat de relaties in echte rapporten zijn gecontroleerd.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan opruimplan toevoegen</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="entity-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="entity-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">ENTITEITDETAILS</div>
+        <h2 id="entity-dialog-title">Entity</h2>
+        <p id="entity-dialog-summary"></p>
+        <div id="entity-dialog-content" class="advice-stack"></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="entity-dialog">Sluiten</button></div>
       </div>
     </dialog>
 
