@@ -30,6 +30,9 @@ class PlanManager:
     ) -> dict[str, Any]:
         if scan is None or scan.status != "completed":
             raise PlanError("Voer eerst een volledige scan uit")
+        selected_ids = list(dict.fromkeys(selected_ids))
+        selected_bundle_ids = list(dict.fromkeys(selected_bundle_ids))
+        selected_entity_ids = list(dict.fromkeys(selected_entity_ids))
         file_map = {item.id: item for item in scan.items}
         bundle_map = {item.id: item for item in scan.registry_audit.bundles}
         entity_map = {
@@ -41,10 +44,10 @@ class PlanManager:
         unknown_entities = [item_id for item_id in selected_entity_ids if item_id not in entity_map]
         if unknown_files or unknown_bundles or unknown_entities:
             raise PlanError("De selectie hoort niet meer bij de laatste scan; scan opnieuw")
-        if any(file_map[item_id].risk != "safe" for item_id in selected_ids):
-            raise PlanError("Alleen bestanden die de volledige bewijspoort halen mogen in een bestandsplan")
+        if any(file_map[item_id].risk == "protected" for item_id in selected_ids):
+            raise PlanError("Beschermde Home Assistant-bestanden kunnen niet aan een opruimplan worden toegevoegd")
         if any(not entity_map[item_id].get("selectable_for_plan") for item_id in selected_entity_ids):
-            raise PlanError("Alleen entities met een concreet aandachtspunt mogen aan het onderzoeksplan worden toegevoegd")
+            raise PlanError("Alleen geregistreerde entities kunnen aan het opruimplan worden toegevoegd")
         if not selected_ids and not selected_bundle_ids and not selected_entity_ids:
             raise PlanError("Selecteer minimaal één bestand, bundel of entity")
 
@@ -64,28 +67,45 @@ class PlanManager:
                         "retention_days": settings.retention_days if settings.deletion_mode == "quarantine" else 0,
                     },
                     "advice": item.advice,
+                    "risk": item.risk,
                     "execution_allowed": settings.deletion_mode == "quarantine",
                 }
             )
         bundles = []
+        devices: list[dict[str, Any]] = []
+        planned_entity_ids = set(selected_entity_ids)
         for bundle_id in selected_bundle_ids:
             bundle = bundle_map[bundle_id]
+            planned_entity_ids.update(str(item.get("entity_id", "")) for item in bundle.entities if item.get("entity_id"))
+            if bundle.config_entry_id:
+                devices.extend({
+                    "device_id": str(item.get("device_id", "")),
+                    "name": str(item.get("name", "")),
+                    "config_entry_id": bundle.config_entry_id,
+                    "bundle_id": bundle.id,
+                    "proposed_action": "remove_config_entry_from_device",
+                    "execution_allowed": bool(item.get("device_id")),
+                } for item in bundle.devices)
             bundles.append(
                 {
                     "id": bundle.id,
                     "title": bundle.title,
                     "domain": bundle.domain,
                     "before": {"device_count": len(bundle.devices), "entity_count": len(bundle.entities), "review_count": bundle.review_count},
-                    "proposed_action": "manual_review_only",
-                    "after": {"device_count": len(bundle.devices), "entity_count": len(bundle.entities), "changed": False},
+                    "proposed_action": "user_directed_registry_cleanup",
+                    "after": {"device_count": 0, "entity_count": 0, "changed": True},
                     "advice": bundle.advice,
-                    "execution_allowed": False,
+                    "execution_allowed": bool(bundle.entities or (bundle.devices and bundle.config_entry_id)),
                 }
             )
+        devices = list({(item["device_id"], item["config_entry_id"]): item for item in devices}.values())
 
         entities = []
-        for entity_id in selected_entity_ids:
-            entity = entity_map[entity_id]
+        bundle_entity_map = {str(item.get("entity_id", "")): item for bundle in bundle_map.values() for item in bundle.entities}
+        for entity_id in sorted(planned_entity_ids):
+            entity = entity_map.get(entity_id) or bundle_entity_map.get(entity_id)
+            if not entity:
+                continue
             entities.append({
                 "entity_id": entity_id,
                 "name": entity.get("name", entity_id),
@@ -97,34 +117,36 @@ class PlanManager:
                 "raw_state": entity.get("raw_state"),
                 "duration_days": entity.get("duration_days", 0),
                 "reason": entity.get("reason", ""),
-                "proposed_action": "manual_review_only",
+                "proposed_action": "remove_from_entity_registry",
                 "required_checks": [
-                    "Controleer officiële Home Assistant-relaties en gebruik in automatiseringen, scripts en dashboards.",
-                    "Controleer apparaat, integratie en configuratie-entry voordat verwijdering ooit wordt vrijgegeven.",
-                    "Maak een volledige Home Assistant-back-up en verifieer dat deze is voltooid.",
+                    "Controleer Home Assistant-relaties en gebruik in automatiseringen, scripts en dashboards.",
+                    "Controleer apparaat, integratie en configuratie-entry; Hass-Cleaner kan gevolgen niet volledig voorspellen.",
+                    "Maak bij voorkeur een volledige Home Assistant-back-up voordat je het register wijzigt.",
                 ],
-                "execution_allowed": False,
+                "execution_allowed": True,
             })
 
         plan_id = uuid.uuid4().hex
         plan: dict[str, Any] = {
-            "schema_version": 2,
+            "schema_version": 3,
             "id": plan_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "scan_id": scan.id,
-            "status": "awaiting_execution_choice" if files else "research_only",
-            "execution_locked": not bool(files),
+            "status": "awaiting_execution_choice",
+            "execution_locked": False,
             "backup_choice": backup_choice,
             "settings": settings.public_dict(),
             "files": files,
             "bundles": bundles,
+            "devices": devices,
             "entities": entities,
             "summary": {
                 "file_count": len(files),
                 "bundle_count": len(bundles),
                 "entity_count": len(entities),
+                "device_count": len(devices),
                 "planned_bytes": sum(item["before"]["size_bytes"] for item in files),
-                "executable_actions": len(files) if settings.deletion_mode == "quarantine" else 0,
+                "executable_actions": (len(files) if settings.deletion_mode == "quarantine" else 0) + len(entities) + len(devices),
             },
             "global_recovery": [
                 "Annuleer bij twijfel; dit plan voert zelf niets uit.",
@@ -164,7 +186,7 @@ def _markdown(plan: dict[str, Any]) -> str:
     lines = [
         "# Hass-Cleaner - impact- en herstelplan",
         "",
-        "> VEILIG OPRUIMPLAN: dit plan heeft niets gewijzigd. Alleen bewezen veilige bestanden kunnen na back-upverificatie naar quarantaine.",
+        "> OPRUIMPLAN: dit plan heeft niets gewijzigd. Hass-Cleaner toont advies en risico; de gebruiker beslist. Beschermde kernbestanden blijven uitgesloten.",
         "",
         f"- Plan-ID: `{plan['id']}`",
         f"- Scan-ID: `{plan['scan_id']}`",

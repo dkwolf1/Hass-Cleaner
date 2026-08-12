@@ -42,7 +42,7 @@
             <div class="notice-icon">✦</div>
             <div>
               <strong>Veilige scheiding actief</strong>
-              <p>Scans en registers blijven read-only. Alleen bewezen veilige bestanden kunnen na back-upverificatie naar herstelbare quarantaine; permanent verwijderen blijft geblokkeerd.</p>
+              <p>Scans wijzigen niets. Daarna kiest de gebruiker zelf: niet-beschermde bestanden kunnen naar herstelbare quarantaine en geselecteerde registerobjecten kunnen na waarschuwing worden verwijderd. Een back-up wordt sterk aanbevolen.</p>
             </div>
           </div>
 
@@ -144,7 +144,7 @@
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Bewijspoort actief</strong><p>Alleen recepten waarvan leeftijd, bestandstype, bescherming en herstel zijn bewezen kunnen aan een veilig opruimplan worden toegevoegd. Twijfelgevallen blijven geblokkeerd.</p></div>
+            <div><strong>Gebruikerskeuze met vangrails</strong><p>Hass-Cleaner geeft advies en sluit beschermde kernbestanden uit. Andere veilige en persoonlijke kandidaten kun je zelf aan het opruimplan toevoegen; quarantaine en een back-up beperken het herstelrisico.</p></div>
           </div>
           <div id="recipe-list" class="recipe-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
           <details class="panel findings-panel raw-inventory">
@@ -162,12 +162,12 @@
             <div><div class="eyebrow">ENTITEITENONDERZOEK</div><h2>Vind wat echt aandacht nodig heeft</h2></div>
             <div class="section-actions">
               <button class="button button-ghost" id="entity-select-visible" disabled>Zichtbare selecteren</button>
-              <button class="button button-primary" id="entity-plan-button" disabled>Onderzoeksplan bekijken</button>
+              <button class="button button-primary" id="entity-plan-button" disabled>Opruimplan bekijken</button>
             </div>
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Status is geen verwijderbewijs</strong><p><code>unavailable</code>, <code>unknown</code> en <code>problem</code> zijn algemene Home Assistant-statussen. Offline- of bereikbaarheidsvelden van een integratie zijn alleen extra aanwijzingen. Selecteren maakt uitsluitend een geblokkeerd onderzoeksplan.</p></div>
+            <div><strong>Status is geen verwijderbewijs</strong><p><code>unavailable</code>, <code>unknown</code> en <code>problem</code> zijn algemene Home Assistant-statussen. Hass-Cleaner geeft context en advies; jij bepaalt wat in het opruimplan komt en accepteert het risico bij uitvoering.</p></div>
           </div>
           <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
             <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
@@ -202,7 +202,7 @@
             <article class="metric-card protected"><div class="metric-top"><span>RUNTIME-ONLY</span></div><strong id="entity-state-only">-</strong><p>State zonder registeritem</p></article>
             <article class="metric-card review"><div class="metric-top"><span>ACTIE NODIG</span></div><strong id="entity-attention">-</strong><p>Langdurig of concreet aangetoond</p></article>
             <article class="metric-card safe"><div class="metric-top"><span>UITGESCHAKELD</span></div><strong id="entity-disabled">-</strong><p>Informatief, meestal normaal</p></article>
-            <article class="metric-card total"><div class="metric-top"><span>TIJDELIJK VOLGEN</span></div><strong id="entity-selectable">-</strong><p>Nog geen verwijderbewijs</p></article>
+            <article class="metric-card total"><div class="metric-top"><span>TIJDELIJK VOLGEN</span></div><strong id="entity-selectable">-</strong><p>Zelf beoordelen</p></article>
           </section>
           <div class="entity-result-summary" id="entity-result-summary">Voer eerst een scan uit.</div>
           <div id="entity-list" class="entity-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
@@ -225,7 +225,7 @@
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Eén bundel per integratie</strong><p id="registry-message">Start een veilige scan. Hass-Cleaner groepeert configuratie, apparaten, onderliggende apparaten en entities; verwijderen blijft geblokkeerd.</p></div>
+            <div><strong>Eén bundel per integratie</strong><p id="registry-message">Hass-Cleaner groepeert configuratie, apparaten en entities. Jij beoordeelt advies en risico en kiest wat aan het opruimplan wordt toegevoegd.</p></div>
           </div>
           <section class="metric-grid registry-metrics" aria-label="Registeroverzicht">
             <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">-</strong><p>In het entityregister</p></article>
@@ -269,13 +269,14 @@
         </section>
 
         <section class="view" id="view-quarantine">
-          <div class="section-heading"><div><div class="eyebrow">HERSTELBARE OPSLAG</div><h2>Quarantaine</h2></div></div>
+          <div class="section-heading"><div><div class="eyebrow">HERSTELBARE OPSLAG</div><h2>Quarantaine</h2></div><button class="button button-danger" id="clear-quarantine-history">Afgerond logboek wissen</button></div>
           <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Checksum bewaakt herstel</strong><p>Alleen opnieuw gevalideerde veilige bestanden komen hier. Herstel overschrijft nooit een bestaand bestand.</p></div></div>
           <div id="quarantine-list" class="history-list panel"><div class="table-empty">Nog geen bestanden in quarantaine.</div></div>
         </section>
 
         <section class="view" id="view-history">
-          <div class="section-heading"><div><div class="eyebrow">AUDIT-LOG</div><h2>Historie</h2></div></div>
+          <div class="section-heading"><div><div class="eyebrow">AUDIT-LOG</div><h2>Historie</h2></div><button class="button button-danger" id="clear-scan-history">Schone start</button></div>
+          <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Schone start wist lokale meetgeschiedenis</strong><p>Scanrapporten, duurmetingen, lokale entitykeuzes, opgeslagen plannen en registerlogboeken worden gewist. Home Assistant zelf wordt niet gewijzigd.</p></div></div>
           <div id="scan-history" class="history-list panel"><div class="table-empty">Nog geen voltooide scans opgeslagen.</div></div>
         </section>
 
@@ -297,7 +298,7 @@
               <label class="choice-card danger-choice">
                 <input type="radio" name="deletion-mode" value="permanent">
                 <span class="choice-control"></span>
-                <span><strong>Direct permanent verwijderen</strong><small>Nog geblokkeerd in deze release candidate. Bestandsuitvoering gebruikt uitsluitend quarantaine.</small></span>
+                <span><strong>Direct permanent verwijderen</strong><small>Uit veiligheid niet beschikbaar. Bestanden gaan eerst naar herstelbare quarantaine en kunnen pas na de bewaartermijn definitief worden gewist.</small></span>
               </label>
             </section>
 
@@ -310,9 +311,9 @@
             </section>
 
             <section class="panel settings-card full-width">
-              <div class="panel-heading"><div><div class="eyebrow">GEAVANCEERDE BEOORDELING</div><h3>Ook buiten de veilige marges onderzoeken</h3></div><span class="soft-pill">Uitvoering blijft vergrendeld</span></div>
-              <label class="toggle-row"><span><strong>Technische bestandsinventaris tonen</strong><small>Toont afzonderlijke bestanden, gevolgen, bewijs en herstel. Alleen volledig bewezen recepten zijn selecteerbaar; twijfelgevallen blijven ook hier geblokkeerd.</small></span><input type="checkbox" id="advanced-mode"></label>
-              <div class="notice notice-warning advanced-notice"><div class="notice-icon">!</div><div><strong>Geen veiligheidsregels omzeilen</strong><p>Deze instelling verandert alleen wat zichtbaar is. De server blijft ieder review- of protected-bestand voor een bestandsplan weigeren.</p></div></div>
+              <div class="panel-heading"><div><div class="eyebrow">GEAVANCEERDE BEOORDELING</div><h3>Ook buiten de veilige marges beoordelen</h3></div><span class="soft-pill">Eigen keuze</span></div>
+              <label class="toggle-row"><span><strong>Technische bestandsinventaris tonen</strong><small>Persoonlijke en onzekere inhoud is selecteerbaar met extra risicobevestiging; systeembestanden blijven beschermd.</small></span><input type="checkbox" id="advanced-mode"></label>
+              <div class="notice notice-warning advanced-notice"><div class="notice-icon">!</div><div><strong>De gebruiker beslist</strong><p>Hass-Cleaner geeft advies en beschermt systeembestanden. Alleen de gebruiker kan de functionele noodzaak beoordelen.</p></div></div>
             </section>
 
             <section class="panel settings-card full-width">
@@ -361,7 +362,7 @@
         <p id="bundle-dialog-summary"></p>
         <div id="bundle-advice" class="advice-content"></div>
         <div id="bundle-related" class="related-list"></div>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Verwijderen vergrendeld</strong><p>Je kunt de volledige bundel in één keer beoordelen. Uitvoering wordt pas toegevoegd nadat de relaties in echte rapporten zijn gecontroleerd.</p></div></div>
+        <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Gebruikerskeuze met systeemrisico</strong><p>Een bundel kan opnieuw worden aangemaakt. Verwijderen kan entities, apparaten, dashboards en automatiseringen beïnvloeden. Herstel vereist doorgaans een Home Assistant-back-up.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan opruimplan toevoegen</button></div>
       </div>
     </dialog>
@@ -385,7 +386,7 @@
         <h2>Impact- en herstelplan gereed</h2>
         <p id="plan-dialog-summary"></p>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">Het plan heeft nog niets gewijzigd.</p></div></div>
-        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-ghost plan-download" data-format="md">Markdown downloaden</button><button class="button button-primary" id="open-quarantine-execution">Naar quarantaine</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-ghost plan-download" data-format="md">Markdown downloaden</button><button class="button button-primary" id="open-quarantine-execution">Bestanden naar quarantaine</button><button class="button button-danger" id="open-registry-execution">Registeropschoning uitvoeren</button></div>
       </div>
     </dialog>
 
@@ -404,8 +405,29 @@
           <label><input type="radio" name="quarantine-backup-choice" value="none"><span><strong>Zonder back-up doorgaan</strong><small>Sterk afgeraden; herstel is dan beperkt tot de quarantainekopie.</small></span></label>
         </div>
         <label class="confirm-row hidden" id="quarantine-risk-row"><input type="checkbox" id="quarantine-risk-ack"><span id="quarantine-risk-text">Ik begrijp en accepteer het extra risico.</span></label>
+        <label class="confirm-row hidden" id="quarantine-content-risk-row"><input type="checkbox" id="quarantine-content-risk-ack"><span>Ik heb de persoonlijke of onzekere inhoud beoordeeld en accepteer mogelijk gegevensverlies.</span></label>
         <label class="field confirmation-field"><span>Typ <strong>QUARANTAINE</strong> ter bevestiging</span><input type="text" id="quarantine-confirmation" autocomplete="off" spellcheck="false"></label>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="quarantine-dialog">Annuleren</button><button class="button button-primary" id="confirm-quarantine" disabled>Veilig verplaatsen</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="registry-execution-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="registry-execution-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">REGISTEROPSCHONING OP EIGEN RISICO</div>
+        <h2>Entiteiten en apparaten verwijderen</h2>
+        <p id="registry-execution-summary"></p>
+        <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Geen quarantaine of individuele undo</strong><p>Integraties kunnen objecten opnieuw aanmaken. Dashboards en automatiseringen kunnen breken. Herstel gebeurt via een volledige Home Assistant-back-up.</p></div></div>
+        <button class="button button-ghost" id="registry-backup-button">Volledige back-up starten</button>
+        <button class="button button-ghost" id="registry-verify-button">Back-upstatus controleren</button>
+        <div class="backup-options quarantine-backup-options">
+          <label><input type="radio" name="registry-backup-choice" value="verified" checked><span><strong>Geverifieerde back-up</strong><small>Aanbevolen.</small></span></label>
+          <label><input type="radio" name="registry-backup-choice" value="manual"><span><strong>Zelf gecontroleerde back-up</strong><small>Je hebt de voltooiing in Home Assistant gecontroleerd.</small></span></label>
+          <label><input type="radio" name="registry-backup-choice" value="none"><span><strong>Zonder back-up</strong><small>Sterk afgeraden en volledig eigen risico.</small></span></label>
+        </div>
+        <label class="confirm-row"><input type="checkbox" id="registry-risk-ack"><span>Ik heb advies en relaties beoordeeld en accepteer verlies, heraanmaak en mogelijke kapotte verwijzingen.</span></label>
+        <label class="field confirmation-field"><span id="registry-confirmation-label">Typ de bevestiging</span><input type="text" id="registry-confirmation" autocomplete="off" spellcheck="false"></label>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="registry-execution-dialog">Annuleren</button><button class="button button-danger" id="confirm-registry-cleanup" disabled>Definitief uit register verwijderen</button></div>
       </div>
     </dialog>
 

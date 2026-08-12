@@ -15,7 +15,7 @@ from hass_cleaner.settings import Settings
 
 
 class ReportingTests(unittest.TestCase):
-    def test_all_report_formats_are_written_and_audit_locked(self) -> None:
+    def test_all_report_formats_are_written_with_execution_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as source_folder, tempfile.TemporaryDirectory() as output_folder:
             source = Path(source_folder)
             cache = source / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
@@ -128,6 +128,8 @@ class ReportingTests(unittest.TestCase):
         self.assertIn('<option value="integration" selected>Per integratie</option>', html)
         self.assertIn("MAX_BUNDLE_DEVICE_DETAILS = 100", javascript)
         self.assertIn("Tijdelijke signalen gegroepeerd bekijken", javascript)
+        self.assertIn("entityGroupOpen: new Map()", javascript)
+        self.assertIn("state.entityGroupOpen.set(details.dataset.entityGroup, details.open)", javascript)
 
     def test_manifest_mount_allows_only_application_guarded_quarantine(self) -> None:
         manifest = (Path(__file__).resolve().parents[1] / "config.yaml").read_text(encoding="utf-8")

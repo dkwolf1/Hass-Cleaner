@@ -53,7 +53,7 @@ def build_cleanup_guidance(items: Iterable[ScannedFile]) -> dict[str, object]:
     investigate = [recipe for recipe in recipes if recipe["kind"] != "safe"]
     return {
         "mode": "beginner",
-        "execution_locked": True,
+        "execution_locked": False,
         "safe_recipes": safe,
         "investigation_recipes": investigate,
         "safe_total_bytes": sum(int(recipe["size_bytes"]) for recipe in safe),
@@ -87,6 +87,7 @@ def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile])
         description = "Niet genoeg bewijs voor een veilig opruimadvies."
 
     safe = kind == "safe"
+    user_selectable = kind in {"safe", "investigate", "personal", "advanced"}
     gates = [
         _gate("path_and_owner", True, "Bestandstype en producer zijn herkend."),
         _gate("minimum_age", True, "De ingestelde minimumleeftijd is gehaald."),
@@ -107,8 +108,8 @@ def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile])
         "sample_paths": [item.path for item in sorted(members, key=lambda item: item.size_bytes, reverse=True)[:3]],
         "gate_passed": all(bool(gate["passed"]) for gate in gates),
         "gates": gates,
-        "recommendation": "Kan aan een veilig opruimplan worden toegevoegd; uitvoering blijft vergrendeld." if safe else "Niet verwijderen; controleer eerst verwijzingen en gedrag van de producerende integratie.",
-        "selectable_for_dry_run": safe,
+        "recommendation": "Kan aan het opruimplan worden toegevoegd." if safe else "Beoordeel risico en herstel; alleen de gebruiker kan bepalen of deze inhoud gemist kan worden.",
+        "selectable_for_dry_run": user_selectable,
         "execution_allowed": False,
     }
 

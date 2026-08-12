@@ -170,7 +170,7 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             )
             # Temporary registered entities may be selected for a read-only
             # research plan. Selection is not deletion permission.
-            selectable_for_plan = attention or watch
+            selectable_for_plan = True
             observations = int(entity.get("health_observations", 0) or 0)
             duration_seconds = int(entity.get("health_duration_seconds", 0) or 0)
             remaining_days = max(0, LONG_UNAVAILABLE_DAYS - duration_seconds // 86400)

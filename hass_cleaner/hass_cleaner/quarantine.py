@@ -20,7 +20,7 @@ class QuarantineError(RuntimeError):
 
 
 class QuarantineManager:
-    """Move only revalidated safe scan results into app-owned storage."""
+    """Move revalidated, user-selected non-protected files into app-owned storage."""
 
     def __init__(self, config_root: Path, data_root: Path):
         self.config_root = config_root.resolve()
@@ -37,6 +37,7 @@ class QuarantineManager:
         backup_valid: bool,
         backup_choice: str,
         risk_acknowledged: bool,
+        content_risk_acknowledged: bool = False,
         confirmation: str,
         requested_by: str,
     ) -> dict[str, Any]:
@@ -55,6 +56,8 @@ class QuarantineManager:
         plan_files = plan.get("files", [])
         if not isinstance(plan_files, list) or not plan_files:
             raise QuarantineError("Dit plan bevat geen veilige bestanden")
+        if any(str(item.get("risk", "safe")) == "review" for item in plan_files) and not content_risk_acknowledged:
+            raise QuarantineError("Bevestig dat je bewust persoonlijke of onzekere inhoud naar quarantaine verplaatst")
 
         scan_map = {item.id: item for item in scan.items}
         operation_id = uuid.uuid4().hex
@@ -65,8 +68,9 @@ class QuarantineManager:
         # Validate the complete batch before changing a single source file.
         for planned in plan_files:
             item = scan_map.get(str(planned.get("id", "")))
-            if item is None or item.risk != RISK_SAFE or not item.path.startswith("/homeassistant/"):
-                raise QuarantineError("De selectie is gewijzigd of bevat geen bewezen veilige kandidaat")
+            planned_risk = str(planned.get("risk", "safe"))
+            if item is None or item.risk not in {RISK_SAFE, "review"} or item.risk != planned_risk or not item.path.startswith("/homeassistant/"):
+                raise QuarantineError("De selectie is gewijzigd of bevat een beschermd bestand")
             relative = Path(item.path.removeprefix("/homeassistant/"))
             source = (self.config_root / relative).resolve(strict=False)
             try:
@@ -90,7 +94,7 @@ class QuarantineManager:
                 min_temp_age_days=settings.min_temp_age_days,
                 min_log_age_days=settings.min_log_age_days,
             )
-            if decision is None or decision.risk != RISK_SAFE or decision.category != item.category:
+            if decision is None or decision.risk != item.risk or decision.category != item.category:
                 raise QuarantineError(f"Veiligheidsclassificatie is gewijzigd: {item.path}")
             current_hash = _sha256(source)
             if not item.sha256 or current_hash != item.sha256:
@@ -200,6 +204,16 @@ class QuarantineManager:
 
     def list(self) -> list[dict[str, Any]]:
         return self._load()
+
+    def clear_completed_history(self) -> int:
+        operations = self._load()
+        active = [item for item in operations if any(file.get("status") == "quarantined" for file in item.get("files", []))]
+        removed = len(operations) - len(active)
+        self._save(active)
+        for operation in operations:
+            if operation not in active:
+                shutil.rmtree(self.root / str(operation.get("id", "")), ignore_errors=True)
+        return removed
 
     def _store_operation(self, operation_id: str, scan_id: str, backup_token: str, requested_by: str, now: datetime, settings: Settings, files: list[dict[str, Any]], status: str, backup_choice: str = "verified") -> dict[str, Any]:
         operation = {

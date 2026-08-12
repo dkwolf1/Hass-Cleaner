@@ -52,7 +52,9 @@ class ServerTests(unittest.TestCase):
         status, payload = self.request("/api/status")
         self.assertEqual(200, status)
         self.assertFalse(payload["destructive_execution_enabled"])
-        self.assertEqual("recorder_and_safe_quarantine", payload["destructive_scope"])
+        self.assertEqual("user_directed_cleanup_with_protected_core", payload["destructive_scope"])
+        self.assertFalse(payload["evidence_gate_enforced"])
+        self.assertTrue(payload["user_directed_risk_acceptance"])
         self.assertFalse(payload["file_execution_enabled"])
         self.assertFalse(payload["registry_execution_enabled"])
 
@@ -109,7 +111,7 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(cache.exists())
         self.assertEqual("quarantined", quarantined["operation"]["files"][0]["status"])
 
-    def test_plan_endpoint_rejects_review_file_even_when_called_directly(self) -> None:
+    def test_plan_endpoint_accepts_review_file_for_user_directed_quarantine(self) -> None:
         candidate = Path(self.config_temp.name) / "downloads" / "firmware.tmp"
         candidate.parent.mkdir(parents=True)
         candidate.write_bytes(b"unknown")
@@ -123,9 +125,9 @@ class ServerTests(unittest.TestCase):
                 break
             time.sleep(0.02)
         review_id = next(item["id"] for item in scan["items"] if item["risk"] == "review")
-        with self.assertRaises(urllib.error.HTTPError) as raised:
-            self.request("/api/plans/preview", "POST", {"selected_ids": [review_id]})
-        self.assertEqual(400, raised.exception.code)
+        status, payload = self.request("/api/plans/preview", "POST", {"selected_ids": [review_id]})
+        self.assertEqual(201, status)
+        self.assertEqual("review", payload["plan"]["files"][0]["risk"])
 
     def test_recorder_purge_requires_backup_and_exact_confirmation(self) -> None:
         calls = []
@@ -162,7 +164,7 @@ class ServerTests(unittest.TestCase):
         with urllib.request.urlopen(f"{self.base}/api/reports/{scan_id}.json", timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
             self.assertEqual("attachment", response.headers["Content-Disposition"].split(";", 1)[0])
-        self.assertTrue(payload["audit_only"])
+            self.assertTrue(payload["audit_only"])
         self.assertTrue(payload["execution_locked"])
         _, summary = self.request(f"/api/scans/{scan_id}/summary")
         self.assertNotIn("items", summary)

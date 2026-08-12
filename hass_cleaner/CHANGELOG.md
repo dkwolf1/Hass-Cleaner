@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0
+
+- Vervangt de bewijspoort door gebruikersgestuurde beoordeling: advies en risico informeren, de gebruiker beslist.
+- Persoonlijke en onzekere bestanden kunnen met extra bevestiging naar checksum-bewaakte quarantaine; beschermde kernbestanden blijven uitgesloten.
+- Geregistreerde entities en ondersteunde apparaatbundels kunnen na back-upkeuze en exacte aantalsbevestiging via officiële Home Assistant WebSocket-opdrachten worden opgeschoond.
+- Entiteitsgroepen blijven open tijdens selecteren.
+- Lokale scan-, meet-, plan- en registerhistorie kan voor een schone start worden gewist.
+- Afgeronde quarantainelogboeken kunnen worden gewist; actieve herstelgegevens blijven altijd behouden.
+
 ## 0.9.1
 
 - Back-upcontrole gebruikt de toegestane Supervisor-back-uplijst en niet langer het geweigerde jobs-endpoint.

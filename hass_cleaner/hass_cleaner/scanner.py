@@ -116,8 +116,8 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                         "Python-cache heeft geen aantoonbaar bijbehorend .py-bronbestand",
                         "review",
                     )
-                content_hash = _sha256(path) if decision.risk == RISK_SAFE else ""
-                if decision.risk == RISK_SAFE and not content_hash:
+                content_hash = _sha256(path) if decision.risk != RISK_PROTECTED else ""
+                if decision.risk != RISK_PROTECTED and not content_hash:
                     decision = Classification(
                         decision.category,
                         RISK_REVIEW,
@@ -142,7 +142,7 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                         size_bytes=size,
                         modified_at=datetime.fromtimestamp(metadata.st_mtime, tz=timezone.utc).isoformat(),
                         advice=analyze_file(path, decision.category, decision.risk, decision.reason),
-                        sha256=content_hash if decision.risk == RISK_SAFE else "",
+                        sha256=content_hash if decision.risk != RISK_PROTECTED else "",
                     )
                 )
         result.status = "completed"
@@ -232,6 +232,25 @@ class ScanManager:
             return value if isinstance(value, list) else []
         except (FileNotFoundError, OSError, json.JSONDecodeError):
             return []
+
+    def clear_history(self) -> None:
+        if self.report_dir is None:
+            return
+        with self._lock:
+            self._scans.clear()
+            self._latest_id = None
+        data_root = self.report_dir.parent
+        for name in ("scan-history.json", "availability-history.json", "entity-decisions.json"):
+            (data_root / name).unlink(missing_ok=True)
+        for pattern in ("hass-cleaner-audit-*.*",):
+            for path in self.report_dir.glob(pattern):
+                if path.is_file():
+                    path.unlink()
+        plans = data_root / "plans"
+        if plans.is_dir():
+            for path in plans.glob("hass-cleaner-plan-*.*"):
+                if path.is_file():
+                    path.unlink()
 
     def _append_history(self, scan: ScanResult) -> None:
         if self.report_dir is None:

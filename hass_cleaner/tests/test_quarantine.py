@@ -5,6 +5,7 @@ import tempfile
 import time
 import unittest
 import hashlib
+from dataclasses import replace
 from datetime import datetime, timezone
 from datetime import timedelta
 from pathlib import Path
@@ -83,6 +84,57 @@ class QuarantineTests(unittest.TestCase):
             manager._save([stored])
             deleted = manager.purge_expired(operation["id"], "file1", confirmation="VERWIJDER", requested_by="Dennis")
             self.assertEqual("deleted", deleted["files"][0]["status"])
+
+    def test_review_content_requires_separate_risk_acknowledgement(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            scan.items[0] = replace(scan.items[0], risk="review")
+            plan["files"][0]["risk"] = "review"
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            with self.assertRaises(QuarantineError):
+                manager.execute(scan, Settings(), plan=plan, backup_token="", backup_valid=False,
+                                backup_choice="none", risk_acknowledged=True,
+                                content_risk_acknowledged=False, confirmation="QUARANTAINE", requested_by="Dennis")
+            self.assertTrue(source.exists())
+
+    def test_personal_media_can_be_quarantined_after_explicit_user_choice(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            config = Path(config_folder)
+            source = config / "www" / "media" / "camera" / "snapshots" / "porch.jpg"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"personal image fixture")
+            modified = source.stat().st_mtime
+            item = ScanItem(
+                id="personal1", path="/homeassistant/www/media/camera/snapshots/porch.jpg",
+                category="personal_media", risk="review", reason="persoonlijke inhoud",
+                recommended_action="review", size_bytes=source.stat().st_size,
+                modified_at=datetime.fromtimestamp(modified, tz=timezone.utc).isoformat(),
+                advice=analyze_file(source, "personal_media", "review", "persoonlijke inhoud"),
+                sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+            )
+            scan = ScanResult(id="scan-personal", status="completed", items=[item])
+            plan = {"scan_id": scan.id, "files": [{"id": item.id, "risk": "review"}]}
+            manager = QuarantineManager(config, Path(data_folder))
+            operation = manager.execute(
+                scan, Settings(), plan=plan, backup_token="", backup_valid=False,
+                backup_choice="none", risk_acknowledged=True, content_risk_acknowledged=True,
+                confirmation="QUARANTAINE", requested_by="Dennis",
+            )
+            self.assertFalse(source.exists())
+            self.assertEqual("quarantined", operation["files"][0]["status"])
+
+    def test_clearing_log_preserves_active_quarantine_and_removes_restored_record(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            active = manager.execute(scan, Settings(), plan=plan, backup_token="", backup_valid=False,
+                                     backup_choice="none", risk_acknowledged=True,
+                                     confirmation="QUARANTAINE", requested_by="Dennis")
+            self.assertEqual(0, manager.clear_completed_history())
+            self.assertEqual(active["id"], manager.list()[0]["id"])
+            manager.restore(active["id"], "file1", confirmation="HERSTEL", requested_by="Dennis")
+            self.assertEqual(1, manager.clear_completed_history())
+            self.assertEqual([], manager.list())
 
 
 if __name__ == "__main__":

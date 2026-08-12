@@ -27,14 +27,14 @@ class GuidanceTests(unittest.TestCase):
         self.assertTrue(recipe["gate_passed"])
         self.assertTrue(recipe["selectable_for_dry_run"])
 
-    def test_cache_is_grouped_by_generic_producer_and_blocked(self) -> None:
+    def test_cache_is_grouped_by_generic_producer_and_user_selectable(self) -> None:
         guidance = build_cleanup_guidance([
             Item("1", "/homeassistant/www/media/frigate/cache/cam.jpg", "integration_cache_candidate", "review", 500),
         ])
         recipe = guidance["investigation_recipes"][0]
         self.assertEqual("frigate", recipe["producer"])
         self.assertFalse(recipe["gate_passed"])
-        self.assertFalse(recipe["selectable_for_dry_run"])
+        self.assertTrue(recipe["selectable_for_dry_run"])
 
     def test_installed_code_is_inventory_not_cleanup(self) -> None:
         guidance = build_cleanup_guidance([

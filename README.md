@@ -4,7 +4,7 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, evidence and recovery come before reclaimed space.
 
-> **Release status:** version 0.9.1 is a release candidate under local development. Install it only for controlled testing. A verified Home Assistant backup is strongly recommended before execution, but the user may make a different, explicitly audited choice.
+> **Release status:** version 1.0.0 is being prepared for controlled testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
 
 ## Nederlands
 
@@ -22,15 +22,17 @@ Een gevonden item is nooit automatisch verwijderbewijs. De app toont waarom iets
 - Apparaten en entities bundelen per integratie of apparaat.
 - Verschillen tussen scans: nieuw, gewijzigd, hersteld en verdwenen.
 - Officiële Home Assistant Recorder-purge met afzonderlijke bevestiging.
-- Quarantaine voor uitsluitend bewezen veilige bestanden.
+- Quarantaine voor veilige, persoonlijke en door de gebruiker beoordeelde bestanden; beschermde kernbestanden blijven uitgesloten.
+- Gebruikersgestuurde verwijdering van geregistreerde entities en ondersteunde apparaatbundels via de officiële Home Assistant-API.
+- Wisbare lokale scan- en afgeronde quarantainelogboeken voor een schone start.
 - Hersteltest en terugplaatsen zonder bestaande bestanden te overschrijven.
 
-### Veiligheidsmodel van 0.9.1
+### Veiligheidsmodel van 1.0.0
 
 Een bestand kan alleen naar quarantaine als aan alle voorwaarden wordt voldaan:
 
 1. Het bestand komt uit de laatste voltooide scan.
-2. Bestandstype, pad, leeftijd en beschermde scopes leveren opnieuw de classificatie **veilig** op.
+2. Bestandstype, pad, leeftijd, risicoklasse en beschermde scopes komen nog overeen met de scan.
 3. Grootte, wijzigingstijd en SHA-256 komen overeen met de scan.
 4. De gebruiker kiest bewust voor een door Supervisor geverifieerde back-up, een zelf gecontroleerde recente back-up of doorgaan zonder back-up.
 5. Een afwijking van de aanbevolen geverifieerde back-up vereist een extra risicobevestiging.
@@ -40,7 +42,7 @@ De volledige selectie wordt gecontroleerd voordat het eerste bestand wordt verpl
 
 Na de ingestelde bewaartermijn van 1–10 dagen wordt niets automatisch gewist. Definitief verwijderen is pas daarna beschikbaar, voert opnieuw een checksumcontrole uit en vereist `VERWIJDER`.
 
-Registermutaties, automatische entityverwijdering en directe permanente verwijdering buiten quarantaine blijven geblokkeerd.
+Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registeropschoning vereist adviesweergave, back-upkeuze, risicobevestiging en een exact aantal. Runtime-only entities en beschermde kernbestanden blijven technisch uitgesloten.
 
 ### Talen
 
@@ -56,7 +58,7 @@ Registermutaties, automatische entityverwijdering en directe permanente verwijde
 4. Start de app en open de webinterface.
 5. Voer eerst alleen een scan uit en beoordeel het rapport.
 
-Versie 0.9.1 moet eerst naar GitHub worden gepusht en door de containerworkflow worden gebouwd voordat deze installatiestappen de nieuwe release opleveren.
+Versie 1.0.0 moet eerst naar GitHub worden gepusht en door de containerworkflow worden gebouwd voordat deze installatiestappen de nieuwe release opleveren.
 
 ### Lokaal ontwikkelen en testen
 
@@ -97,15 +99,17 @@ A finding is never treated as deletion evidence by itself. The App explains why 
 - Device and entity grouping by integration or device.
 - Scan differences for new, changed, recovered and disappeared signals.
 - Official Home Assistant Recorder purge with separate confirmation.
-- Quarantine for proven-safe files only.
+- Quarantine for safe, personal and explicitly user-reviewed files; protected core files remain excluded.
+- User-directed removal of registered entities and supported device bundles through Home Assistant's official API.
+- Clearable local scan and completed-quarantine logs for a clean start.
 - Restore testing and recovery without overwriting existing files.
 
-### 0.9.1 safety model
+### 1.0.0 safety model
 
 A file can enter quarantine only when all conditions are satisfied:
 
 1. It belongs to the latest completed scan.
-2. Its type, path, age and protected scopes are reclassified as **safe** immediately before execution.
+2. Its type, path, age, risk class and protected scopes still match the scan immediately before execution.
 3. Its size, modification time and SHA-256 still match the scan.
 4. The user explicitly chooses a Supervisor-verified backup, a manually checked recent backup or proceeding without a backup.
 5. Deviating from the recommended verified backup requires an additional risk acknowledgement.
@@ -115,7 +119,7 @@ The entire selection is validated before the first file is moved. Quarantine rec
 
 Nothing is deleted automatically after the configured 1–10 day retention period. Permanent removal becomes available only after expiry, verifies the checksum again and requires `VERWIJDER`.
 
-Registry mutations, automatic entity deletion and direct permanent deletion outside quarantine remain disabled.
+Personal or uncertain content requires an additional content acknowledgement. Registry cleanup requires displayed advice, a backup choice, risk acknowledgement and exact count confirmation. Runtime-only entities and protected core files remain technically excluded.
 
 ### Languages
 
@@ -131,7 +135,7 @@ Registry mutations, automatic entity deletion and direct permanent deletion outs
 4. Start the App and open its web interface.
 5. Run a scan first and review the report before preparing an action.
 
-Version 0.9.1 must be pushed to GitHub and built by the container workflow before these steps install the new release.
+Version 1.0.0 must be pushed to GitHub and built by the container workflow before these steps install the new release.
 
 ### Local development and tests
 

@@ -10,6 +10,7 @@ const state = {
   latestPlan: null,
   selected: new Set(),
   selectedEntities: new Set(),
+  entityGroupOpen: new Map(),
   visibleEntityIds: [],
   pollTimer: null,
   csrfToken: "",
@@ -258,7 +259,7 @@ function renderMetrics(scan) {
   $("#protected-size").textContent = formatBytes(guidance.inventory_total_bytes || 0);
   $("#total-size").textContent = formatBytes(guidance.safe_total_bytes || 0);
   $("#safe-count").textContent = `${safeRecipes.length} veilige recepten`;
-  $("#review-count").textContent = `${investigate.length} eerst onderzoeken`;
+  $("#review-count").textContent = `${investigate.length} zelf beoordelen`;
   $("#protected-count").textContent = "Systeeminventaris · behouden";
 }
 
@@ -280,7 +281,7 @@ function renderRecipes() {
       <div class="recipe-main"><div class="eyebrow">${passed ? "VEILIG RECEPT" : recipe.kind === "personal" ? "PERSOONLIJKE INHOUD" : "EERST ONDERZOEKEN"}</div><h3>${escapeHtml(recipe.title)}</h3><p>${escapeHtml(recipe.description)}</p><small>${recipe.file_count} bestanden · ${formatBytes(recipe.size_bytes)} · producer: ${escapeHtml(recipe.producer)}</small></div>
       <div class="recipe-gates"><strong>Veiligheidscontrole</strong><ul>${gates}</ul></div>
       <details><summary>Producenten, voorbeelden en advies</summary><ul class="producer-groups">${producers}</ul><ul class="sample-paths">${samples}</ul><p>${escapeHtml(recipe.recommendation)}</p></details>
-      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "4/4 bewezen" : "geblokkeerd"}</span><button class="button ${passed ? "button-primary recipe-select" : "button-ghost"}" data-recipe-id="${escapeHtml(recipe.id)}" ${passed ? "" : "disabled"}>${passed ? selectedAll ? "Uit opruimplan verwijderen" : "Aan opruimplan toevoegen" : "Meer bewijs nodig"}</button></div>
+      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "Aanbevolen" : "Eigen beoordeling"}</span><button class="button button-primary recipe-select" data-recipe-id="${escapeHtml(recipe.id)}">${selectedAll ? "Uit opruimplan verwijderen" : "Aan opruimplan toevoegen"}</button></div>
     </article>`;
   }).join("") : '<div class="table-empty panel">Geen opruimrecepten gevonden. Je systeeminventaris blijft behouden.</div>';
   $$(".recipe-select", list).forEach((button) => button.addEventListener("click", () => selectRecipe(button.dataset.recipeId, button)));
@@ -511,11 +512,11 @@ function renderEntities() {
   renderEntityChanges(workspace.changes || {});
   const items = filteredEntities();
   state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
-  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · selectie maakt een beoordelingsplan, geen verwijderopdracht`;
+  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · jij beslist na advies en back-upkeuze`;
   if (!items.length) {
     const temporary = workspace.summary?.temporary_visible ?? workspace.summary?.temporary_signals ?? 0;
     if ($("#entity-status-filter").value === "attention" && temporary) {
-      list.innerHTML = `<div class="table-empty panel entity-empty-safe"><strong>Geen entiteiten met bewezen actiebehoefte</strong><p>${temporary} tijdelijke signalen worden gevolgd. Je kunt ze selecteren voor beoordeling, maar niet automatisch verwijderen.</p><button class="button button-ghost" id="entity-show-watch">Tijdelijke signalen gegroepeerd bekijken</button></div>`;
+      list.innerHTML = `<div class="table-empty panel entity-empty-safe"><strong>Geen entiteiten binnen het huidige aandachtsfilter</strong><p>${temporary} tijdelijke signalen worden gevolgd. Open die groep om zelf entities te selecteren en de risico's te beoordelen.</p><button class="button button-ghost" id="entity-show-watch">Tijdelijke signalen gegroepeerd bekijken</button></div>`;
       $("#entity-show-watch").addEventListener("click", () => {
         $("#entity-status-filter").value = "watch";
         $("#entity-group-filter").value = "integration";
@@ -539,7 +540,9 @@ function renderEntities() {
     const allSelected = selectable.length && selectable.every((item) => state.selectedEntities.has(item.entity_id));
     const attention = members.filter((item) => item.attention).length;
     const temporary = members.filter((item) => item.watch).length;
-    const open = attention > 0 || mode === "none";
+    const open = state.entityGroupOpen.has(title)
+      ? state.entityGroupOpen.get(title)
+      : attention > 0 || mode === "none";
     const maxDuration = members.reduce((maximum, item) => Math.max(maximum, Number(item.duration_seconds) || 0), 0);
     const maxObservations = members.reduce((maximum, item) => Math.max(maximum, Number(item.observations) || 0), 0);
     const evidenceItem = {...members[0], duration_seconds: maxDuration, observations: maxObservations};
@@ -553,8 +556,11 @@ function renderEntities() {
     const groupAction = selectable.length
       ? `<button class="link-button entity-group-toggle" data-group="${escapeHtml(title)}">${allSelected ? "Groep wissen" : "Groep selecteren"}</button>`
       : '<span class="signal-note">Alleen volgen</span>';
-    return `<details class="panel entity-group" ${open ? "open" : ""}><summary><div class="entity-group-title"><span class="entity-group-caret">›</span><div><h3>${escapeHtml(title)}</h3><p>${members.length} entiteiten · ${attention} actie nodig · ${temporary} tijdelijk · maximaal ${escapeHtml(entityDurationLabel(evidenceItem))} / ${maxObservations} meting(en)</p></div></div><div class="entity-group-summary">${entityStatusBreakdown(members)}${groupAction}</div></summary><div class="entity-group-rows">${rows}</div></details>`;
+    return `<details class="panel entity-group" data-entity-group="${escapeHtml(title)}" ${open ? "open" : ""}><summary><div class="entity-group-title"><span class="entity-group-caret">›</span><div><h3>${escapeHtml(title)}</h3><p>${members.length} entiteiten · ${attention} actie nodig · ${temporary} tijdelijk · maximaal ${escapeHtml(entityDurationLabel(evidenceItem))} / ${maxObservations} meting(en)</p></div></div><div class="entity-group-summary">${entityStatusBreakdown(members)}${groupAction}</div></summary><div class="entity-group-rows">${rows}</div></details>`;
   }).join("");
+  $$("details.entity-group", list).forEach((details) => details.addEventListener("toggle", () => {
+    state.entityGroupOpen.set(details.dataset.entityGroup, details.open);
+  }));
   $$('input[data-entity-id]', list).forEach((input) => input.addEventListener("change", () => {
     input.checked ? state.selectedEntities.add(input.dataset.entityId) : state.selectedEntities.delete(input.dataset.entityId);
     renderEntities();
@@ -574,7 +580,7 @@ function renderEntities() {
 function updateEntityButtons() {
   $("#entity-select-visible").disabled = !state.visibleEntityIds.length;
   $("#entity-plan-button").disabled = !state.selectedEntities.size;
-  $("#entity-plan-button").textContent = state.selectedEntities.size ? `Onderzoeksplan bekijken (${state.selectedEntities.size})` : "Onderzoeksplan bekijken";
+  $("#entity-plan-button").textContent = state.selectedEntities.size ? `Opruimplan bekijken (${state.selectedEntities.size})` : "Opruimplan bekijken";
 }
 
 async function openEntity(entityId) {
@@ -642,10 +648,10 @@ function renderBundles() {
     const anomaly = anomalyByBundle.get(bundle.id);
     const devicePreview = bundle.devices.slice(0, 3).map((item) => `<span>${escapeHtml(item.name)}</span>`).join("");
     const warning = anomaly
-      ? `<span class="risk-chip review">Meer bewijs nodig</span>`
+      ? `<span class="risk-chip review">Eigen beoordeling</span>`
       : bundle.review_count
       ? `<span class="risk-chip review">${bundle.review_count} beoordelen</span>`
-      : `<span class="risk-chip info">${escapeHtml(bundle.advice?.evidence_label || "Meer bewijs nodig")}</span>`;
+      : `<span class="risk-chip info">Eigen beoordeling</span>`;
     return `<article class="panel bundle-card">
       <div class="bundle-main">
         <div class="bundle-icon">${escapeHtml((bundle.domain || "?").slice(0, 2).toUpperCase())}</div>
@@ -663,7 +669,7 @@ async function openBundle(bundleId) {
   const anomaly = (state.registryAudit?.anomalies || []).find((item) => item.bundle_id === bundleId);
   state.activeBundle = bundle;
   $("#bundle-dialog-title").textContent = bundle.title;
-  $("#bundle-dialog-summary").textContent = `${bundle.devices.length} apparaten en ${bundle.entities.length} entities. ${anomaly ? "1 geblokkeerde registerafwijking." : `${bundle.review_count} waarschuwingen.`}`;
+  $("#bundle-dialog-summary").textContent = `${bundle.devices.length} apparaten en ${bundle.entities.length} entities. ${anomaly ? "1 registerafwijking voor eigen beoordeling." : `${bundle.review_count} waarschuwingen.`}`;
   const generalAdvice = renderAdvice(bundle.advice || {});
   $("#bundle-advice").innerHTML = anomaly
     ? `${renderAnomalyAdvice(anomaly)}<details class="general-bundle-advice"><summary>Algemene bundelanalyse tonen</summary>${generalAdvice}</details>`
@@ -689,7 +695,7 @@ function renderAnomalyAdvice(anomaly) {
   const consequences = (anomaly.possible_consequences || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Gevolgen zijn nog niet volledig vastgesteld.</li>";
   const recovery = (anomaly.recovery_steps || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Maak eerst een volledige Home Assistant-back-up.</li>";
   const samples = [...(anomaly.sample_device_ids || []), ...(anomaly.sample_entity_ids || [])];
-  return `<section class="anomaly-advice"><div class="evidence-banner insufficient"><span>Registerafwijking</span><strong>Meer bewijs nodig</strong></div><section class="advice-section"><h3>${escapeHtml(anomaly.title || "Registerafwijking")}</h3><p>${escapeHtml(anomaly.summary || "")}</p><p><strong>Al bewezen:</strong> ${escapeHtml(anomaly.evidence_summary || "Aanvullende controle vereist.")}</p><p><strong>Nog nodig:</strong> ${escapeHtml(anomaly.evidence_needed || "Controleer de officiële relaties en het actuele gebruik.")}</p><p><strong>Risico:</strong> ${escapeHtml(anomaly.risk_summary || "Wijzigen kan onverwachte gevolgen hebben.")}</p></section>${samples.length ? `<section class="advice-section"><h3>Voorbeelden uit het register</h3><code class="sample-identifiers">${escapeHtml(samples.join(" · "))}</code></section>` : ""}<section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section><section class="advice-section first-step"><h3>Hoe verandert dit oordeel?</h3><p>${escapeHtml(anomaly.recommended_first_step || "Niet wijzigen zonder aanvullende controle.")}</p></section></section>`;
+  return `<section class="anomaly-advice"><div class="evidence-banner insufficient"><span>Registerafwijking</span><strong>Beoordeel zelf</strong></div><section class="advice-section"><h3>${escapeHtml(anomaly.title || "Registerafwijking")}</h3><p>${escapeHtml(anomaly.summary || "")}</p><p><strong>Waarneming:</strong> ${escapeHtml(anomaly.evidence_summary || "Aanvullende controle vereist.")}</p><p><strong>Advies:</strong> ${escapeHtml(anomaly.evidence_needed || "Controleer de officiële relaties en het actuele gebruik.")}</p><p><strong>Risico:</strong> ${escapeHtml(anomaly.risk_summary || "Wijzigen kan onverwachte gevolgen hebben.")}</p></section>${samples.length ? `<section class="advice-section"><h3>Voorbeelden uit het register</h3><code class="sample-identifiers">${escapeHtml(samples.join(" · "))}</code></section>` : ""}<section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section><section class="advice-section first-step"><h3>Aanbevolen controle</h3><p>${escapeHtml(anomaly.recommended_first_step || "Controleer dit voor uitvoering.")}</p></section></section>`;
 }
 
 function renderLocalBundleDetails(bundle) {
@@ -741,7 +747,7 @@ function renderAdvice(advice) {
   const consequences = (advice.possible_consequences || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Geen gevolgadvies beschikbaar.</li>";
   const recovery = (advice.recovery_steps || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Hersteladvies ontbreekt; niet uitvoeren.</li>";
   const preview = advice.content_preview || {};
-  return `<div class="evidence-banner ${escapeHtml(advice.evidence_level || "insufficient")}"><span>Bewijsniveau</span><strong>${escapeHtml(advice.evidence_label || "Meer bewijs nodig")}</strong></div>
+  return `<div class="evidence-banner ${escapeHtml(advice.evidence_level || "insufficient")}"><span>Risico-indicatie</span><strong>${escapeHtml(advice.evidence_label || "Eigen beoordeling")}</strong></div>
     <section class="advice-section"><h3>Wat is dit?</h3><p>${escapeHtml(advice.summary || "Geen beschrijving beschikbaar.")}</p></section>
     <section class="advice-section"><h3>Veilige inhoudspreview</h3><pre>${escapeHtml(JSON.stringify(preview, null, 2))}</pre><small>Waarden die gevoelig kunnen zijn worden niet opgenomen.</small></section>
     <section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section>
@@ -753,12 +759,15 @@ function showPlan(response) {
   const summary = response.plan?.summary || {};
   $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden, ${summary.bundle_count || 0} bundels en ${summary.entity_count || 0} entiteiten vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
   const hasFiles = Number(summary.file_count || 0) > 0;
+  const registryCount = Number(summary.entity_count || 0) + Number(summary.device_count || 0);
   $("#open-quarantine-execution").classList.toggle("hidden", !hasFiles);
-  $("#open-quarantine-execution").disabled = !(summary.executable_actions > 0 && state.status?.quarantine_enabled);
-  $("#plan-execution-title").textContent = hasFiles ? "Bestandsquarantaine beschikbaar" : "Registerplan — geen bestandsquarantaine";
+  $("#open-quarantine-execution").disabled = !(hasFiles && state.status?.quarantine_enabled);
+  $("#open-registry-execution").classList.toggle("hidden", !registryCount);
+  $("#open-registry-execution").disabled = !registryCount;
+  $("#plan-execution-title").textContent = hasFiles && registryCount ? "Bestands- en registeracties beschikbaar" : hasFiles ? "Bestandsquarantaine beschikbaar" : "Registeropschoning beschikbaar";
   $("#plan-execution-note").textContent = hasFiles
     ? "Een back-up is sterk aanbevolen. Ieder bestand wordt vlak vóór verplaatsing opnieuw gecontroleerd."
-    : "Entities en apparaten zijn Home Assistant-registerobjecten, geen bestanden. Dit plan beoordeelt ze, maar kan ze niet in bestandsquarantaine plaatsen of automatisch verwijderen.";
+    : "Entities en apparaten zijn registerobjecten. De gebruiker kan ze na advies, back-upkeuze en zware bevestiging verwijderen.";
   $("#plan-dialog").showModal();
   showToast(response.message || "Veilig opruimplan opgeslagen");
 }
@@ -766,6 +775,9 @@ function showPlan(response) {
 function openQuarantineExecution() {
   $("#quarantine-confirmation").value = "";
   $("#quarantine-risk-ack").checked = false;
+  const hasReview = (state.latestPlan?.plan?.files || []).some((item) => item.risk === "review");
+  $("#quarantine-content-risk-row").classList.toggle("hidden", !hasReview);
+  $("#quarantine-content-risk-ack").checked = !hasReview;
   $('input[name="quarantine-backup-choice"][value="verified"]').checked = true;
   renderBackupEvidence();
   updateQuarantineChoice();
@@ -833,7 +845,8 @@ async function verifyQuarantineBackup() {
 function updateQuarantineExecuteButton() {
   const choice = $('input[name="quarantine-backup-choice"]:checked').value;
   const backupAccepted = choice === "verified" ? state.backupVerified : $("#quarantine-risk-ack").checked;
-  $("#confirm-quarantine").disabled = !(backupAccepted && $("#quarantine-confirmation").value === "QUARANTAINE");
+  const contentAccepted = $("#quarantine-content-risk-ack").checked;
+  $("#confirm-quarantine").disabled = !(backupAccepted && contentAccepted && $("#quarantine-confirmation").value === "QUARANTAINE");
 }
 
 function updateQuarantineChoice() {
@@ -855,6 +868,7 @@ async function executeQuarantine() {
       backup_evidence_token: state.backupEvidenceToken,
       backup_choice: $('input[name="quarantine-backup-choice"]:checked').value,
       risk_acknowledged: $("#quarantine-risk-ack").checked,
+      content_risk_acknowledged: $("#quarantine-content-risk-ack").checked,
       confirmation: $("#quarantine-confirmation").value,
     }) });
     $("#quarantine-dialog").close();
@@ -866,6 +880,64 @@ async function executeQuarantine() {
   } finally {
     updateQuarantineExecuteButton();
   }
+}
+
+function openRegistryExecution() {
+  const summary = state.latestPlan?.plan?.summary || {};
+  const total = Number(summary.entity_count || 0) + Number(summary.device_count || 0);
+  $("#registry-execution-summary").textContent = `${summary.entity_count || 0} entiteiten en ${summary.device_count || 0} apparaten worden definitief uit hun Home Assistant-registerrelatie verwijderd.`;
+  $("#registry-confirmation-label").innerHTML = `Typ <strong>VERWIJDER ${total}</strong> ter bevestiging`;
+  $("#registry-confirmation").value = "";
+  $("#registry-risk-ack").checked = false;
+  $('input[name="registry-backup-choice"][value="verified"]').checked = true;
+  updateRegistryExecuteButton();
+  $("#plan-dialog").close();
+  $("#registry-execution-dialog").showModal();
+}
+
+function updateRegistryExecuteButton() {
+  const summary = state.latestPlan?.plan?.summary || {};
+  const total = Number(summary.entity_count || 0) + Number(summary.device_count || 0);
+  const choice = $('input[name="registry-backup-choice"]:checked').value;
+  const backupAccepted = choice === "verified" ? state.backupVerified : true;
+  $("#confirm-registry-cleanup").disabled = !(backupAccepted && $("#registry-risk-ack").checked && $("#registry-confirmation").value === `VERWIJDER ${total}`);
+}
+
+async function startRegistryBackup() {
+  try {
+    const response = await api("api/backups", { method: "POST", body: "{}" });
+    state.backupEvidenceToken = response.evidence?.token || "";
+    state.backupVerified = false;
+    showToast("Back-up gestart; controleer de status zodra Home Assistant klaar is");
+  } catch (error) { showToast(error.message, true); }
+  updateRegistryExecuteButton();
+}
+
+async function verifyRegistryBackup() {
+  try {
+    const response = await api(`api/backups/${state.backupEvidenceToken}/verify`, { method: "POST", body: "{}" });
+    state.backupVerified = response.status === "completed";
+    showToast(state.backupVerified ? "Back-up voltooid en geverifieerd" : `Back-upstatus: ${response.status}`);
+  } catch (error) { showToast(error.message, true); }
+  updateRegistryExecuteButton();
+}
+
+async function executeRegistryCleanup() {
+  const button = $("#confirm-registry-cleanup");
+  button.disabled = true;
+  try {
+    const response = await api("api/registry-cleanup", { method: "POST", body: JSON.stringify({
+      plan_id: state.latestPlan?.plan?.id,
+      backup_evidence_token: state.backupEvidenceToken,
+      backup_choice: $('input[name="registry-backup-choice"]:checked').value,
+      risk_acknowledged: $("#registry-risk-ack").checked,
+      confirmation: $("#registry-confirmation").value,
+    }) });
+    $("#registry-execution-dialog").close();
+    state.selectedEntities.clear();
+    showToast(`${response.operation?.completed?.length || 0} registeracties voltooid; start een nieuwe scan`);
+  } catch (error) { showToast(error.message, true); }
+  updateRegistryExecuteButton();
 }
 
 async function loadQuarantine() {
@@ -1015,6 +1087,32 @@ async function loadScanHistory() {
   }
 }
 
+async function clearLocalHistory() {
+  const confirmation = window.prompt("Typ WIS HISTORIE voor een schone lokale start. Home Assistant zelf wordt niet gewijzigd.");
+  if (confirmation !== "WIS HISTORIE") return;
+  try {
+    await api("api/history/clear", { method: "POST", body: JSON.stringify({ confirmation }) });
+    state.scan = null;
+    state.plan = null;
+    state.selected.clear();
+    state.selectedEntities.clear();
+    state.selectedBundles.clear();
+    await loadScanHistory();
+    showToast("Lokale scan-, meet-, plan-, register- en Recorder-historie gewist");
+    window.setTimeout(() => window.location.reload(), 500);
+  } catch (error) { showToast(error.message, true); }
+}
+
+async function clearQuarantineHistory() {
+  const confirmation = window.prompt("Typ WIS LOGBOEK. Actieve quarantainebestanden en hun herstelgegevens blijven behouden.");
+  if (confirmation !== "WIS LOGBOEK") return;
+  try {
+    const response = await api("api/quarantine/history/clear", { method: "POST", body: JSON.stringify({ confirmation }) });
+    await loadQuarantine();
+    showToast(`${response.removed || 0} afgeronde quarantainelogboeken gewist`);
+  } catch (error) { showToast(error.message, true); }
+}
+
 function downloadReport(extension) {
   if (!state.scan?.id) {
     showToast("Voer eerst een scan uit", true);
@@ -1105,12 +1203,22 @@ function bindEvents() {
   $("#save-settings").addEventListener("click", saveSettings);
   $("#confirm-plan").addEventListener("click", confirmPlan);
   $("#open-quarantine-execution").addEventListener("click", openQuarantineExecution);
+  $("#open-registry-execution").addEventListener("click", openRegistryExecution);
   $("#quarantine-backup-button").addEventListener("click", startQuarantineBackup);
   $("#quarantine-verify-button").addEventListener("click", verifyQuarantineBackup);
   $("#quarantine-confirmation").addEventListener("input", updateQuarantineExecuteButton);
   $$("input[name=\"quarantine-backup-choice\"]").forEach((input) => input.addEventListener("change", updateQuarantineChoice));
   $("#quarantine-risk-ack").addEventListener("change", updateQuarantineExecuteButton);
+  $("#quarantine-content-risk-ack").addEventListener("change", updateQuarantineExecuteButton);
   $("#confirm-quarantine").addEventListener("click", executeQuarantine);
+  $("#registry-backup-button").addEventListener("click", startRegistryBackup);
+  $("#registry-verify-button").addEventListener("click", verifyRegistryBackup);
+  $("#registry-risk-ack").addEventListener("change", updateRegistryExecuteButton);
+  $("#registry-confirmation").addEventListener("input", updateRegistryExecuteButton);
+  $$('input[name="registry-backup-choice"]').forEach((input) => input.addEventListener("change", updateRegistryExecuteButton));
+  $("#confirm-registry-cleanup").addEventListener("click", executeRegistryCleanup);
+  $("#clear-scan-history").addEventListener("click", clearLocalHistory);
+  $("#clear-quarantine-history").addEventListener("click", clearQuarantineHistory);
   $("#bundle-plan-button").addEventListener("click", addBundleToPlan);
   $("#open-purge-dialog").addEventListener("click", openPurgeDialog);
   $("#purge-backup-button").addEventListener("click", startPurgeBackup);

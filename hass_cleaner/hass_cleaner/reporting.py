@@ -24,6 +24,8 @@ def build_report(scan: ScanResult, settings: Settings) -> dict[str, object]:
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        # The report itself is an immutable scan artifact. Execution is always
+        # performed separately from a freshly revalidated cleanup plan.
         "audit_only": True,
         "execution_locked": True,
         "source_root": "/homeassistant",
@@ -349,7 +351,7 @@ def _markdown(report: dict[str, object]) -> str:
                 lines.extend(_markdown_status_summary(entity_summary.get("by_status", {})))
             if isinstance(entity_items, list):
                 selectable = [item for item in entity_items if isinstance(item, dict) and item.get("selectable_for_plan")]
-                lines.extend(["", "#### Selecteerbaar voor onderzoek", ""])
+                lines.extend(["", "#### Selecteerbaar voor opruimplan", ""])
                 lines.extend(_markdown_entity_table(selectable[:100]))
                 if len(selectable) > 100:
                     lines.append(f"\nNog {len(selectable) - 100} entities staan in JSON en CSV.")
@@ -366,12 +368,12 @@ def _markdown(report: dict[str, object]) -> str:
             "",
             "## Beoordelingsregels",
             "",
-            "- Alleen items onder 'Voorgesteld voor cleanup' kunnen na een nieuwe servercontrole en geverifieerde back-up naar quarantaine.",
-            "- Review-items worden nooit automatisch geselecteerd.",
+            "- Alleen door de gebruiker geselecteerde, niet-beschermde bestanden kunnen na een nieuwe servercontrole naar quarantaine.",
+            "- Review-items worden nooit automatisch geselecteerd en vereisen een extra risicoacceptatie.",
             "- Beschermde items zijn technisch uitgesloten.",
-            "- Alleen langdurige statusproblemen, niet-geladen entities en kapotte verwijzingen kunnen aan een geblokkeerd onderzoeksplan worden toegevoegd.",
-            "- Een onderzoeksselectie is geen verwijderadvies en bevat altijd nul uitvoerbare acties.",
-            "- Permanente bestandsverwijdering en alle registermutaties zijn technisch geblokkeerd.",
+            "- Geregistreerde entities en gebundelde apparaten kunnen door de gebruiker aan een opruimplan worden toegevoegd.",
+            "- Status en advies zijn geen garantie; registerwijzigingen vereisen een aparte waarschuwing en exacte bevestiging.",
+            "- Permanente bestandsverwijdering buiten de bewaartermijn en wijzigingen aan beschermde kernbestanden blijven technisch uitgesloten.",
             "",
         ]
     )

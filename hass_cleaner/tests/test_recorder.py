@@ -54,6 +54,13 @@ class RecorderTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 manager.execute(keep_days=5, repack=False, apply_filter=False, backup_confirmed=True, confirmation="purge")
 
+    def test_history_can_be_cleared(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            manager = PurgeManager(Path(folder), lambda *args: None)
+            manager.execute(keep_days=5, repack=False, apply_filter=False, backup_confirmed=True, confirmation="PURGE")
+            manager.clear_history()
+            self.assertEqual([], manager.history())
+
 
 if __name__ == "__main__":
     unittest.main()
