@@ -4,7 +4,7 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, evidence and recovery come before reclaimed space.
 
-> **Release status:** version 0.9.0 is a release candidate under local development. Install it only for controlled testing and create a verified Home Assistant backup before executing any cleanup action.
+> **Release status:** version 0.9.1 is a release candidate under local development. Install it only for controlled testing. A verified Home Assistant backup is strongly recommended before execution, but the user may make a different, explicitly audited choice.
 
 ## Nederlands
 
@@ -25,15 +25,16 @@ Een gevonden item is nooit automatisch verwijderbewijs. De app toont waarom iets
 - Quarantaine voor uitsluitend bewezen veilige bestanden.
 - Hersteltest en terugplaatsen zonder bestaande bestanden te overschrijven.
 
-### Veiligheidsmodel van 0.9.0
+### Veiligheidsmodel van 0.9.1
 
 Een bestand kan alleen naar quarantaine als aan alle voorwaarden wordt voldaan:
 
 1. Het bestand komt uit de laatste voltooide scan.
 2. Bestandstype, pad, leeftijd en beschermde scopes leveren opnieuw de classificatie **veilig** op.
 3. Grootte, wijzigingstijd en SHA-256 komen overeen met de scan.
-4. Home Assistant Supervisor bevestigt dat de specifieke volledige back-up is voltooid en toegankelijk is.
-5. De gebruiker bevestigt de actie met `QUARANTAINE`.
+4. De gebruiker kiest bewust voor een door Supervisor geverifieerde back-up, een zelf gecontroleerde recente back-up of doorgaan zonder back-up.
+5. Een afwijking van de aanbevolen geverifieerde back-up vereist een extra risicobevestiging.
+6. De gebruiker bevestigt de actie met `QUARANTAINE`.
 
 De volledige selectie wordt gecontroleerd voordat het eerste bestand wordt verplaatst. Quarantaine bewaart oorsprong, checksum, gebruiker, back-upbewijs en vervaldatum. Herstel vereist `HERSTEL` en overschrijft nooit een bestaand bestand.
 
@@ -55,7 +56,7 @@ Registermutaties, automatische entityverwijdering en directe permanente verwijde
 4. Start de app en open de webinterface.
 5. Voer eerst alleen een scan uit en beoordeel het rapport.
 
-Versie 0.9.0 moet eerst naar GitHub worden gepusht en door de containerworkflow worden gebouwd voordat deze installatiestappen de nieuwe release opleveren.
+Versie 0.9.1 moet eerst naar GitHub worden gepusht en door de containerworkflow worden gebouwd voordat deze installatiestappen de nieuwe release opleveren.
 
 ### Lokaal ontwikkelen en testen
 
@@ -99,15 +100,16 @@ A finding is never treated as deletion evidence by itself. The App explains why 
 - Quarantine for proven-safe files only.
 - Restore testing and recovery without overwriting existing files.
 
-### 0.9.0 safety model
+### 0.9.1 safety model
 
 A file can enter quarantine only when all conditions are satisfied:
 
 1. It belongs to the latest completed scan.
 2. Its type, path, age and protected scopes are reclassified as **safe** immediately before execution.
 3. Its size, modification time and SHA-256 still match the scan.
-4. Home Assistant Supervisor confirms that the specific full backup completed and is accessible.
-5. The user confirms the operation with `QUARANTAINE`.
+4. The user explicitly chooses a Supervisor-verified backup, a manually checked recent backup or proceeding without a backup.
+5. Deviating from the recommended verified backup requires an additional risk acknowledgement.
+6. The user confirms the operation with `QUARANTAINE`.
 
 The entire selection is validated before the first file is moved. Quarantine records the original path, checksum, user, backup evidence and expiry time. Recovery requires `HERSTEL` and never overwrites an existing file.
 
@@ -129,7 +131,7 @@ Registry mutations, automatic entity deletion and direct permanent deletion outs
 4. Start the App and open its web interface.
 5. Run a scan first and review the report before preparing an action.
 
-Version 0.9.0 must be pushed to GitHub and built by the container workflow before these steps install the new release.
+Version 0.9.1 must be pushed to GitHub and built by the container workflow before these steps install the new release.
 
 ### Local development and tests
 

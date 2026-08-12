@@ -140,6 +140,8 @@ class AvailabilityTests(unittest.TestCase):
             root = Path(folder)
             apply_availability_history(audit, root / "availability-history.json", now=now)
             item = audit.entity_workspace["items"][0]
+            self.assertTrue(item["selectable_for_plan"])
+            self.assertIn("nog 2 meting(en)", item["evidence_needed"])
             self.assertEqual(0, item["duration_seconds"])
             self.assertEqual(1, item["observations"])
             self.assertEqual("baseline", item["diff_status"])

@@ -15,11 +15,12 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 | 0.7.2 | Afgerond | Betrouwbare tijdmetingen, verschillen tussen scans, opgeslagen gebruikersbeslissingen, beveiliging en paginering/performance. |
 | 0.7.3 | Afgerond | Duidelijkere entitysignalen, compacte bundels, apart onderscheid tussen tijdelijk, langdurig, `unavailable`, `unknown` en integratiespecifieke problemen. |
 | 0.8.0 | Lokaal geïmplementeerd | Werkende quarantaine voor bewezen veilige bestanden, batchvalidatie, SHA-256-manifest en veilig herstel. |
-| 0.9.0 | Huidige release candidate | Supervisor-back-upverificatie, hersteltest, bewaartermijn, expliciete verwijdering na verval en aangescherpte Recorder-purge. |
+| 0.9.0 | Afgerond | Supervisor-back-upverificatie, hersteltest, bewaartermijn en expliciete verwijdering na verval. |
+| 0.9.1 | Huidige release candidate | Toegestane back-upcontrole, hergebruik van back-upbewijs, bewuste optionele back-upkeuze en selecteerbare entitybeoordeling. |
 
 ### Vereist vóór 1.0
 
-- 0.9.0 bouwen en installeren via de echte GitHub/GHCR-workflow.
+- 0.9.1 bouwen en installeren via de echte GitHub/GHCR-workflow.
 - Volledige back-up starten en voltooiing op Home Assistant OS verifiëren.
 - Eén bewezen veilig testbestand naar quarantaine verplaatsen.
 - Hersteltest uitvoeren en hetzelfde bestand werkelijk terugplaatsen.
@@ -61,11 +62,12 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 | 0.7.2 | Completed | Reliable duration tracking, scan differences, saved user decisions, security controls and pagination/performance. |
 | 0.7.3 | Completed | Clearer entity signals, compact bundles and separate treatment of temporary, persistent, `unavailable`, `unknown` and integration-specific problems. |
 | 0.8.0 | Implemented locally | Working quarantine for proven-safe files, batch validation, SHA-256 manifests and safe recovery. |
-| 0.9.0 | Current release candidate | Supervisor backup verification, restore testing, retention, explicit post-expiry deletion and a stricter Recorder purge. |
+| 0.9.0 | Completed | Supervisor backup verification, restore testing, retention and explicit post-expiry deletion. |
+| 0.9.1 | Current release candidate | Permitted backup verification, reusable evidence, an explicit optional backup choice and selectable entity reviews. |
 
 ### Required before 1.0
 
-- Build and install 0.9.0 through the real GitHub/GHCR workflow.
+- Build and install 0.9.1 through the real GitHub/GHCR workflow.
 - Start a full backup and verify completion on Home Assistant OS.
 - Move one proven-safe test file into quarantine.
 - Run the restore test and restore that file to its original location.

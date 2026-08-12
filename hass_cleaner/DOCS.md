@@ -1,6 +1,6 @@
 # Hass-Cleaner
 
-Versie 0.9.0 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. De app verzint geen historie: als Home Assistant `last_changed` levert, gebruikt Hass-Cleaner die duur; anders begint de teller met **Eerste meting**. Daarna toont de app gevolgde uren of dagen en het aantal metingen. Langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Entity- en registeracties blijven geblokkeerd. Alleen bewezen veilige bestanden kunnen na geverifieerde back-up naar quarantaine.
+Versie 0.9.1 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. De app verzint geen historie: als Home Assistant `last_changed` levert, gebruikt Hass-Cleaner die duur; anders begint de teller met **Eerste meting**. Daarna toont de app gevolgde uren of dagen en het aantal metingen. Langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Tijdelijke geregistreerde entities kunnen voor beoordeling worden geselecteerd, maar entity- en registeruitvoering blijft geblokkeerd.
 
 Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 
@@ -10,7 +10,7 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 - De volledige batch wordt vóór de eerste wijziging gevalideerd op pad, type, grootte, wijzigingstijd en actuele beleidsclassificatie.
 - Quarantainekopieën en herstel worden met SHA-256 gecontroleerd; een bestaand doelbestand wordt nooit overschreven.
 - Na de bewaartermijn wordt niets automatisch gewist: definitief verwijderen vereist een nieuwe checksumcontrole en de exacte bevestiging `VERWIJDER`.
-- Permanent verwijderen van bestanden is in 0.9.0 geblokkeerd.
+- Permanent verwijderen van bestanden buiten verlopen quarantaine is in 0.9.1 geblokkeerd.
 - De app bevat geen verwijderendpoint voor bestanden, entities of apparaten.
 - Scannen verandert geen bestanden of metadata.
 - Niets wordt vooraf geselecteerd.
@@ -29,7 +29,7 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
 6. Open **Entiteiten**. De veilige standaard toont alleen bewezen aandachtspunten; kies **Tijdelijke signalen gegroepeerd bekijken** om de nulmeting en gevolgde signalen per integratie te openen.
-7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Markeer tijdelijke signalen eventueel als verwacht of stel ze 7, 30 of 90 dagen uit. Selecteer alleen langdurige aandachtspunten voor een geblokkeerd onderzoeksplan en controleer per entity de officiële relaties.
+7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Markeer tijdelijke signalen eventueel als verwacht of stel ze 7, 30 of 90 dagen uit. Geregistreerde tijdelijke en langdurige signalen kunnen worden geselecteerd voor een geblokkeerd onderzoeksplan; controleer per entity de officiële relaties.
 8. Open **Bundels** om apparaten, entities en integraties samen te beoordelen.
 9. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
 10. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
@@ -59,7 +59,7 @@ De app vergelijkt read-only:
 - configuratie-entries;
 - de momenteel geladen entity-states.
 
-Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. `unavailable`, `unknown` en `problem` worden qua duur gevolgd, maar tijdelijke waarnemingen blijven niet selecteerbaar. De duur komt eerst uit `last_changed` wanneer Home Assistant die waarde levert en wordt daarna door opeenvolgende Hass-Cleaner-scans onderbouwd. Integratiespecifieke signalen als `reachable=false` zijn alleen extra aanwijzingen. Ook een geselecteerde entity komt uitsluitend in een niet-uitvoerbaar onderzoeksplan terecht.
+Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. `unavailable`, `unknown` en `problem` worden qua duur gevolgd. Tijdelijke geregistreerde waarnemingen zijn selecteerbaar voor beoordeling, maar vormen geen verwijderbewijs. De duur komt eerst uit `last_changed` wanneer Home Assistant die waarde levert en wordt daarna door opeenvolgende Hass-Cleaner-scans onderbouwd. Integratiespecifieke signalen als `reachable=false` zijn alleen extra aanwijzingen. Ook een geselecteerde entity komt uitsluitend in een niet-uitvoerbaar onderzoeksplan terecht.
 
 De lokale keuzes **Volgen**, **Verwacht** en **Uitstellen** verbergen alleen een melding in Hass-Cleaner. Ze schakelen geen entity uit en wijzigen geen Home Assistant-register. In **Historie** zie je wat sinds de voorgaande scan nieuw, gewijzigd, hersteld of verdwenen is.
 
@@ -77,4 +77,4 @@ Rapporten vermelden expliciet `audit_only: true` en `execution_locked: true`. On
 
 ## Back-up
 
-Een scan vereist geen back-up. Vóór een Recorder-purge kan de app via de officiële Supervisor API een volledige back-up starten. Hass-Cleaner bewaart bewijs dat Supervisor het verzoek heeft geaccepteerd; dat is nog geen bewijs dat de back-up succesvol voltooid is. Controleer daarom in Home Assistant of de back-up voltooid, downloadbaar en bruikbaar is. De purge wordt pas geaccepteerd nadat de gebruiker dit bevestigt en exact `PURGE` typt. `repack` is standaard uitgeschakeld omdat dit een zware bewerking is en tijdelijk extra schijfruimte kan gebruiken.
+Een scan vereist geen back-up. Vóór bestandsquarantaine of Recorder-purge kan de app via de officiële Supervisor API een volledige back-up starten. Hass-Cleaner controleert voltooiing via de toegestane back-uplijst en kan recent bewijs maximaal 24 uur hergebruiken. Een geverifieerde back-up is sterk aanbevolen, maar de gebruiker kan ook een zelf gecontroleerde back-up bevestigen of bewust zonder back-up doorgaan; die keuze wordt geaudit. Recorder-purge vereist daarnaast exact `PURGE`. `repack` is standaard uitgeschakeld omdat dit een zware bewerking is en tijdelijk extra schijfruimte kan gebruiken.

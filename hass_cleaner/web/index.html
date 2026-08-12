@@ -121,7 +121,7 @@
               </div>
               <div class="policy-row">
                 <span class="policy-icon">▣</span>
-                <div><strong>Back-upvraag verplicht</strong><p>Voor iedere cleanup verschijnt een Home Assistant-back-upkeuze</p></div>
+                <div><strong>Back-upkeuze verplicht</strong><p>Een back-up is sterk aanbevolen; de gebruiker kiest en bevestigt bewust</p></div>
               </div>
             </article>
           </section>
@@ -320,8 +320,8 @@
               <p class="settings-intro">Voor elke bestands- of database-uitvoering geldt:</p>
               <div class="backup-options">
                 <div><strong>1. Volledige back-up starten</strong><span>De app bewaart het unieke Supervisor-taaknummer bij de actie.</span></div>
-                <div><strong>2. Voltooiing verifiëren</strong><span>Taakstatus én de specifieke back-upmetadata moeten beschikbaar en foutvrij zijn.</span></div>
-                <div><strong>3. Uitvoering pas daarna</strong><span>Handmatige bevestiging of doorgaan zonder back-up is niet toegestaan.</span></div>
+                <div><strong>2. Voltooiing verifiëren</strong><span>Hass-Cleaner zoekt de aangemaakte back-up in de officiële Supervisor-back-uplijst.</span></div>
+                <div><strong>3. Bewuste keuze</strong><span>Handmatig bevestigen of zonder back-up doorgaan kan, maar wordt nadrukkelijk gewaarschuwd en geaudit.</span></div>
               </div>
             </section>
           </div>
@@ -336,7 +336,7 @@
         <div class="eyebrow">IMPACTANALYSE</div>
         <h2>Bekijk het veilige opruimplan</h2>
         <p>Het plan legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Na dit plan wordt ieder bestand opnieuw gecontroleerd en is een door Home Assistant voltooide back-up verplicht.</p></div></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Na dit plan wordt ieder bestand opnieuw gecontroleerd. Een voltooide back-up is sterk aanbevolen, maar geen technische verplichting.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
         <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Opruimplan opslaan</button></div>
       </form>
@@ -384,7 +384,7 @@
         <div class="eyebrow">OPGESLAGEN OPRUIMPLAN</div>
         <h2>Impact- en herstelplan gereed</h2>
         <p id="plan-dialog-summary"></p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Eerst back-upverificatie</strong><p>Het plan heeft nog niets gewijzigd. Alleen bewezen veilige bestanden kunnen na een voltooide back-up naar quarantaine.</p></div></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">Het plan heeft nog niets gewijzigd.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-ghost plan-download" data-format="md">Markdown downloaden</button><button class="button button-primary" id="open-quarantine-execution">Naar quarantaine</button></div>
       </div>
     </dialog>
@@ -398,6 +398,12 @@
         <button class="button button-ghost" id="quarantine-backup-button">Volledige back-up starten</button>
         <button class="button button-ghost" id="quarantine-verify-button" disabled>Back-upstatus controleren</button>
         <p id="quarantine-backup-status">Nog geen back-up aangevraagd.</p>
+        <div class="backup-options quarantine-backup-options">
+          <label><input type="radio" name="quarantine-backup-choice" value="verified" checked><span><strong>Door Hass-Cleaner geverifieerde back-up</strong><small>Aanbevolen. Je kunt een eerder gestarte recente back-up hergebruiken.</small></span></label>
+          <label><input type="radio" name="quarantine-backup-choice" value="manual"><span><strong>Recente back-up zelf gecontroleerd</strong><small>Gebruik dit als je in Home Assistant hebt vastgesteld dat de back-up voltooid is.</small></span></label>
+          <label><input type="radio" name="quarantine-backup-choice" value="none"><span><strong>Zonder back-up doorgaan</strong><small>Sterk afgeraden; herstel is dan beperkt tot de quarantainekopie.</small></span></label>
+        </div>
+        <label class="confirm-row hidden" id="quarantine-risk-row"><input type="checkbox" id="quarantine-risk-ack"><span id="quarantine-risk-text">Ik begrijp en accepteer het extra risico.</span></label>
         <label class="field confirmation-field"><span>Typ <strong>QUARANTAINE</strong> ter bevestiging</span><input type="text" id="quarantine-confirmation" autocomplete="off" spellcheck="false"></label>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="quarantine-dialog">Annuleren</button><button class="button button-primary" id="confirm-quarantine" disabled>Veilig verplaatsen</button></div>
       </div>

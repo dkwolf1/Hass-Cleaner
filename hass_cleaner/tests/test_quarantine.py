@@ -39,7 +39,7 @@ class QuarantineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
             source, scan, plan = self._fixture(Path(config_folder))
             manager = QuarantineManager(Path(config_folder), Path(data_folder))
-            operation = manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, confirmation="QUARANTAINE", requested_by="Dennis")
+            operation = manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, backup_choice="verified", risk_acknowledged=False, confirmation="QUARANTAINE", requested_by="Dennis")
             self.assertFalse(source.exists())
             self.assertTrue(manager.test_restore(operation["id"], "file1")["passed"])
             restored = manager.restore(operation["id"], "file1", confirmation="HERSTEL", requested_by="Dennis")
@@ -52,7 +52,7 @@ class QuarantineTests(unittest.TestCase):
             source.write_bytes(b"changed after scan")
             manager = QuarantineManager(Path(config_folder), Path(data_folder))
             with self.assertRaises(QuarantineError):
-                manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, confirmation="QUARANTAINE", requested_by="Dennis")
+                manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, backup_choice="verified", risk_acknowledged=False, confirmation="QUARANTAINE", requested_by="Dennis")
             self.assertTrue(source.exists())
 
     def test_backup_and_exact_confirmation_are_mandatory(self) -> None:
@@ -60,14 +60,22 @@ class QuarantineTests(unittest.TestCase):
             source, scan, plan = self._fixture(Path(config_folder))
             manager = QuarantineManager(Path(config_folder), Path(data_folder))
             with self.assertRaises(QuarantineError):
-                manager.execute(scan, Settings(), plan=plan, backup_token="", backup_valid=False, confirmation="QUARANTAINE", requested_by="Dennis")
+                manager.execute(scan, Settings(), plan=plan, backup_token="", backup_valid=False, backup_choice="verified", risk_acknowledged=False, confirmation="QUARANTAINE", requested_by="Dennis")
             self.assertTrue(source.exists())
+
+    def test_user_can_explicitly_accept_running_without_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            operation = manager.execute(scan, Settings(), plan=plan, backup_token="", backup_valid=False, backup_choice="none", risk_acknowledged=True, confirmation="QUARANTAINE", requested_by="Dennis")
+            self.assertFalse(source.exists())
+            self.assertEqual("none", operation["backup_choice"])
 
     def test_permanent_purge_is_blocked_until_retention_expires(self) -> None:
         with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
             _, scan, plan = self._fixture(Path(config_folder))
             manager = QuarantineManager(Path(config_folder), Path(data_folder))
-            operation = manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, confirmation="QUARANTAINE", requested_by="Dennis")
+            operation = manager.execute(scan, Settings(), plan=plan, backup_token="verified", backup_valid=True, backup_choice="verified", risk_acknowledged=False, confirmation="QUARANTAINE", requested_by="Dennis")
             with self.assertRaises(QuarantineError):
                 manager.purge_expired(operation["id"], "file1", confirmation="VERWIJDER", requested_by="Dennis")
             stored = manager.list()[0]

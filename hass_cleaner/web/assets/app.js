@@ -511,11 +511,11 @@ function renderEntities() {
   renderEntityChanges(workspace.changes || {});
   const items = filteredEntities();
   state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
-  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · verwijderen blijft geblokkeerd`;
+  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · selectie maakt een beoordelingsplan, geen verwijderopdracht`;
   if (!items.length) {
     const temporary = workspace.summary?.temporary_visible ?? workspace.summary?.temporary_signals ?? 0;
     if ($("#entity-status-filter").value === "attention" && temporary) {
-      list.innerHTML = `<div class="table-empty panel entity-empty-safe"><strong>Geen entiteiten met bewezen actiebehoefte</strong><p>${temporary} tijdelijke signalen worden veilig gevolgd en zijn niet selecteerbaar.</p><button class="button button-ghost" id="entity-show-watch">Tijdelijke signalen gegroepeerd bekijken</button></div>`;
+      list.innerHTML = `<div class="table-empty panel entity-empty-safe"><strong>Geen entiteiten met bewezen actiebehoefte</strong><p>${temporary} tijdelijke signalen worden gevolgd. Je kunt ze selecteren voor beoordeling, maar niet automatisch verwijderen.</p><button class="button button-ghost" id="entity-show-watch">Tijdelijke signalen gegroepeerd bekijken</button></div>`;
       $("#entity-show-watch").addEventListener("click", () => {
         $("#entity-status-filter").value = "watch";
         $("#entity-group-filter").value = "integration";
@@ -584,7 +584,7 @@ async function openEntity(entityId) {
   $("#entity-dialog-title").textContent = item.name || item.entity_id;
   $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${entityDurationLabel(item)}${item.registry_entry === false ? " · runtime-only" : ""}`;
   const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
-  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString("nl-NL"))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString("nl-NL") : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString("nl-NL") : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
+  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p><strong>Nog nodig:</strong> ${escapeHtml(item.evidence_needed || "Controleer duur, herhaalde metingen en officiële relaties.")}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString("nl-NL"))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString("nl-NL") : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString("nl-NL") : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
   $("#entity-dialog").showModal();
   try {
     const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });
@@ -689,7 +689,7 @@ function renderAnomalyAdvice(anomaly) {
   const consequences = (anomaly.possible_consequences || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Gevolgen zijn nog niet volledig vastgesteld.</li>";
   const recovery = (anomaly.recovery_steps || []).map((value) => `<li>${escapeHtml(value)}</li>`).join("") || "<li>Maak eerst een volledige Home Assistant-back-up.</li>";
   const samples = [...(anomaly.sample_device_ids || []), ...(anomaly.sample_entity_ids || [])];
-  return `<section class="anomaly-advice"><div class="evidence-banner insufficient"><span>Registerafwijking</span><strong>Meer bewijs nodig</strong></div><section class="advice-section"><h3>${escapeHtml(anomaly.title || "Registerafwijking")}</h3><p>${escapeHtml(anomaly.summary || "")}</p><p><strong>Bewijs:</strong> ${escapeHtml(anomaly.evidence_summary || "Aanvullende controle vereist.")}</p><p><strong>Risico:</strong> ${escapeHtml(anomaly.risk_summary || "Wijzigen kan onverwachte gevolgen hebben.")}</p></section>${samples.length ? `<section class="advice-section"><h3>Voorbeelden uit het register</h3><code class="sample-identifiers">${escapeHtml(samples.join(" · "))}</code></section>` : ""}<section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section><section class="advice-section first-step"><h3>Aanbevolen eerste stap</h3><p>${escapeHtml(anomaly.recommended_first_step || "Niet wijzigen zonder aanvullende controle.")}</p></section></section>`;
+  return `<section class="anomaly-advice"><div class="evidence-banner insufficient"><span>Registerafwijking</span><strong>Meer bewijs nodig</strong></div><section class="advice-section"><h3>${escapeHtml(anomaly.title || "Registerafwijking")}</h3><p>${escapeHtml(anomaly.summary || "")}</p><p><strong>Al bewezen:</strong> ${escapeHtml(anomaly.evidence_summary || "Aanvullende controle vereist.")}</p><p><strong>Nog nodig:</strong> ${escapeHtml(anomaly.evidence_needed || "Controleer de officiële relaties en het actuele gebruik.")}</p><p><strong>Risico:</strong> ${escapeHtml(anomaly.risk_summary || "Wijzigen kan onverwachte gevolgen hebben.")}</p></section>${samples.length ? `<section class="advice-section"><h3>Voorbeelden uit het register</h3><code class="sample-identifiers">${escapeHtml(samples.join(" · "))}</code></section>` : ""}<section class="advice-grid"><div><h3>Wat kan er gebeuren?</h3><ul>${consequences}</ul></div><div><h3>Hoe herstel je dit?</h3><ul>${recovery}</ul></div></section><section class="advice-section first-step"><h3>Hoe verandert dit oordeel?</h3><p>${escapeHtml(anomaly.recommended_first_step || "Niet wijzigen zonder aanvullende controle.")}</p></section></section>`;
 }
 
 function renderLocalBundleDetails(bundle) {
@@ -752,20 +752,53 @@ function showPlan(response) {
   state.latestPlan = response;
   const summary = response.plan?.summary || {};
   $("#plan-dialog-summary").textContent = `${summary.file_count || 0} bestanden, ${summary.bundle_count || 0} bundels en ${summary.entity_count || 0} entiteiten vastgelegd. Uitvoerbare acties: ${summary.executable_actions || 0}.`;
+  const hasFiles = Number(summary.file_count || 0) > 0;
+  $("#open-quarantine-execution").classList.toggle("hidden", !hasFiles);
   $("#open-quarantine-execution").disabled = !(summary.executable_actions > 0 && state.status?.quarantine_enabled);
+  $("#plan-execution-title").textContent = hasFiles ? "Bestandsquarantaine beschikbaar" : "Registerplan — geen bestandsquarantaine";
+  $("#plan-execution-note").textContent = hasFiles
+    ? "Een back-up is sterk aanbevolen. Ieder bestand wordt vlak vóór verplaatsing opnieuw gecontroleerd."
+    : "Entities en apparaten zijn Home Assistant-registerobjecten, geen bestanden. Dit plan beoordeelt ze, maar kan ze niet in bestandsquarantaine plaatsen of automatisch verwijderen.";
   $("#plan-dialog").showModal();
   showToast(response.message || "Veilig opruimplan opgeslagen");
 }
 
 function openQuarantineExecution() {
-  state.backupEvidenceToken = "";
-  state.backupVerified = false;
   $("#quarantine-confirmation").value = "";
-  $("#quarantine-backup-status").textContent = "Nog geen back-up aangevraagd.";
-  $("#quarantine-verify-button").disabled = true;
-  $("#confirm-quarantine").disabled = true;
+  $("#quarantine-risk-ack").checked = false;
+  $('input[name="quarantine-backup-choice"][value="verified"]').checked = true;
+  renderBackupEvidence();
+  updateQuarantineChoice();
   $("#plan-dialog").close();
   $("#quarantine-dialog").showModal();
+}
+
+function renderBackupEvidence() {
+  if (state.backupVerified) {
+    $("#quarantine-backup-status").textContent = "Recente back-up is voltooid en geverifieerd; je hoeft geen nieuwe te maken.";
+  } else if (state.backupEvidenceToken) {
+    $("#quarantine-backup-status").textContent = "Er is een recente back-upaanvraag. Controleer de status; opnieuw aanmaken is niet nodig.";
+  } else {
+    $("#quarantine-backup-status").textContent = "Nog geen recente back-upaanvraag gevonden. Een back-up is sterk aanbevolen.";
+  }
+  $("#quarantine-verify-button").disabled = !state.backupEvidenceToken || state.backupVerified;
+}
+
+async function loadBackupEvidence() {
+  try {
+    const response = await api("api/backups/evidence");
+    const recent = (response.items || []).find((item) => {
+      const age = Date.now() - new Date(item.requested_at).getTime();
+      return age >= 0 && age <= 24 * 60 * 60 * 1000 && ["accepted", "running", "completed"].includes(item.status);
+    });
+    if (recent) {
+      state.backupEvidenceToken = recent.token || "";
+      state.backupVerified = recent.status === "completed";
+    }
+    renderBackupEvidence();
+  } catch (_) {
+    // Evidence is optional and must not block the interface.
+  }
 }
 
 async function startQuarantineBackup() {
@@ -775,8 +808,7 @@ async function startQuarantineBackup() {
     const response = await api("api/backups", { method: "POST", body: "{}" });
     state.backupEvidenceToken = response.evidence?.token || "";
     state.backupVerified = false;
-    $("#quarantine-backup-status").textContent = "Back-up draait. Controleer de status zodra Home Assistant klaar is.";
-    $("#quarantine-verify-button").disabled = !state.backupEvidenceToken;
+    renderBackupEvidence();
   } catch (error) {
     showToast(error.message, true);
   } finally {
@@ -799,7 +831,19 @@ async function verifyQuarantineBackup() {
 }
 
 function updateQuarantineExecuteButton() {
-  $("#confirm-quarantine").disabled = !(state.backupVerified && $("#quarantine-confirmation").value === "QUARANTAINE");
+  const choice = $('input[name="quarantine-backup-choice"]:checked').value;
+  const backupAccepted = choice === "verified" ? state.backupVerified : $("#quarantine-risk-ack").checked;
+  $("#confirm-quarantine").disabled = !(backupAccepted && $("#quarantine-confirmation").value === "QUARANTAINE");
+}
+
+function updateQuarantineChoice() {
+  const choice = $('input[name="quarantine-backup-choice"]:checked').value;
+  const manual = choice !== "verified";
+  $("#quarantine-risk-row").classList.toggle("hidden", !manual);
+  $("#quarantine-risk-text").textContent = choice === "manual"
+    ? "Ik bevestig dat ik zelf een recente, voltooide en bruikbare back-up in Home Assistant heb gecontroleerd."
+    : "Ik begrijp dat ik zonder volledige Home Assistant-back-up doorga en accepteer het extra herstelrisico.";
+  updateQuarantineExecuteButton();
 }
 
 async function executeQuarantine() {
@@ -809,6 +853,8 @@ async function executeQuarantine() {
     const response = await api("api/quarantine", { method: "POST", body: JSON.stringify({
       plan_id: state.latestPlan?.plan?.id,
       backup_evidence_token: state.backupEvidenceToken,
+      backup_choice: $('input[name="quarantine-backup-choice"]:checked').value,
+      risk_acknowledged: $("#quarantine-risk-ack").checked,
       confirmation: $("#quarantine-confirmation").value,
     }) });
     $("#quarantine-dialog").close();
@@ -1062,6 +1108,8 @@ function bindEvents() {
   $("#quarantine-backup-button").addEventListener("click", startQuarantineBackup);
   $("#quarantine-verify-button").addEventListener("click", verifyQuarantineBackup);
   $("#quarantine-confirmation").addEventListener("input", updateQuarantineExecuteButton);
+  $$("input[name=\"quarantine-backup-choice\"]").forEach((input) => input.addEventListener("change", updateQuarantineChoice));
+  $("#quarantine-risk-ack").addEventListener("change", updateQuarantineExecuteButton);
   $("#confirm-quarantine").addEventListener("click", executeQuarantine);
   $("#bundle-plan-button").addEventListener("click", addBundleToPlan);
   $("#open-purge-dialog").addEventListener("click", openPurgeDialog);
@@ -1089,7 +1137,7 @@ function bindEvents() {
 async function init() {
   bindEvents();
   await loadStatus();
-  await Promise.allSettled([loadSettings(), loadPurgeHistory(), loadScanHistory(), loadQuarantine()]);
+  await Promise.allSettled([loadSettings(), loadPurgeHistory(), loadScanHistory(), loadQuarantine(), loadBackupEvidence()]);
   try {
     const latest = await api("api/scans/latest?summary=1");
     if (latest.status && latest.status !== "never_run") {

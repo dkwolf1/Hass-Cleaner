@@ -11,11 +11,10 @@ class BackupEvidenceTests(unittest.TestCase):
     def test_request_only_becomes_valid_after_job_and_backup_verification(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             def getter(path: str):
-                if path.startswith("/jobs/"):
-                    return {"done": True, "progress": 100, "errors": [], "extra": {"slug": "backup-123"}}
-                return {"name": "Hass-Cleaner test", "size": 1234}
+                self.assertEqual("/backups", path)
+                return {"backups": [{"slug": "backup-123", "name": "Hass-Cleaner test", "size": 1234}]}
 
-            manager = BackupEvidenceManager(Path(folder), creator=lambda: {"slug": "backup-123", "job_id": "job-1"}, getter=getter)
+            manager = BackupEvidenceManager(Path(folder), creator=lambda: {"slug": "backup-123", "job_id": "job-1", "requested_name": "Hass-Cleaner test"}, getter=getter)
             record = manager.create("Dennis")
 
             self.assertEqual("accepted", record["status"])

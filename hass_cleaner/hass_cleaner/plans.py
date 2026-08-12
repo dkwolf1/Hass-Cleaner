@@ -112,7 +112,7 @@ class PlanManager:
             "id": plan_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "scan_id": scan.id,
-            "status": "awaiting_verified_backup" if files else "research_only",
+            "status": "awaiting_execution_choice" if files else "research_only",
             "execution_locked": not bool(files),
             "backup_choice": backup_choice,
             "settings": settings.public_dict(),

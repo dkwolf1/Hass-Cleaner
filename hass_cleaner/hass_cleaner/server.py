@@ -206,6 +206,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     plan=plan,
                     backup_token=backup_token,
                     backup_valid=self.state.backup_manager.valid(backup_token),
+                    backup_choice=str(body.get("backup_choice", "verified")),
+                    risk_acknowledged=_optional_bool(body, "risk_acknowledged", False),
                     confirmation=str(body.get("confirmation", "")),
                     requested_by=self._remote_user(),
                 )
@@ -283,8 +285,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 apply_filter = _required_bool(body, "apply_filter")
                 backup_confirmed = _required_bool(body, "backup_confirmed")
                 backup_token = str(body.get("backup_evidence_token", ""))
-                if not backup_confirmed or not self.state.backup_manager.valid(backup_token):
-                    raise ValueError("Een door Hass-Cleaner geverifieerde, voltooide back-up is verplicht")
+                if not backup_confirmed:
+                    raise ValueError("Bevestig dat je de back-upafweging bewust hebt gecontroleerd")
                 record = self.state.purge_manager.execute(
                     keep_days=keep_days,
                     repack=repack,
@@ -292,7 +294,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     backup_confirmed=backup_confirmed,
                     confirmation=str(body.get("confirmation", "")),
                     requested_by=self._remote_user(),
-                    backup_evidence="app-verified:" + backup_token,
+                    backup_evidence=("app-verified:" + backup_token if self.state.backup_manager.valid(backup_token) else "manual-confirmation"),
                 )
             except (TypeError, ValueError) as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)

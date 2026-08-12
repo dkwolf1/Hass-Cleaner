@@ -35,6 +35,8 @@ class QuarantineManager:
         plan: dict[str, Any],
         backup_token: str,
         backup_valid: bool,
+        backup_choice: str,
+        risk_acknowledged: bool,
         confirmation: str,
         requested_by: str,
     ) -> dict[str, Any]:
@@ -42,8 +44,12 @@ class QuarantineManager:
             raise QuarantineError("Typ QUARANTAINE om de verplaatsing te bevestigen")
         if settings.deletion_mode != "quarantine":
             raise QuarantineError("Direct permanent verwijderen is niet beschikbaar; kies quarantaine")
-        if not backup_token or not backup_valid:
-            raise QuarantineError("Een geverifieerde, voltooide Home Assistant-back-up is verplicht")
+        if backup_choice not in {"verified", "manual", "none"}:
+            raise QuarantineError("Kies hoe je met de back-up wilt omgaan")
+        if backup_choice == "verified" and (not backup_token or not backup_valid):
+            raise QuarantineError("De gekozen Home Assistant-back-up is nog niet geverifieerd")
+        if backup_choice in {"manual", "none"} and not risk_acknowledged:
+            raise QuarantineError("Bevestig bewust de gekozen back-upafweging")
         if scan is None or scan.status != "completed" or plan.get("scan_id") != scan.id:
             raise QuarantineError("Het plan hoort niet bij de laatste voltooide scan; scan opnieuw")
         plan_files = plan.get("files", [])
@@ -121,10 +127,10 @@ class QuarantineManager:
         except Exception:
             # Already moved files remain recoverable and are recorded below.
             if records:
-                self._store_operation(operation_id, scan.id, backup_token, requested_by, now, settings, records, "partial")
+                self._store_operation(operation_id, scan.id, backup_token or backup_choice, requested_by, now, settings, records, "partial", backup_choice)
             raise
 
-        return self._store_operation(operation_id, scan.id, backup_token, requested_by, now, settings, records, "quarantined")
+        return self._store_operation(operation_id, scan.id, backup_token or backup_choice, requested_by, now, settings, records, "quarantined", backup_choice)
 
     def restore(self, operation_id: str, file_id: str, *, confirmation: str, requested_by: str) -> dict[str, Any]:
         if confirmation != "HERSTEL":
@@ -195,7 +201,7 @@ class QuarantineManager:
     def list(self) -> list[dict[str, Any]]:
         return self._load()
 
-    def _store_operation(self, operation_id: str, scan_id: str, backup_token: str, requested_by: str, now: datetime, settings: Settings, files: list[dict[str, Any]], status: str) -> dict[str, Any]:
+    def _store_operation(self, operation_id: str, scan_id: str, backup_token: str, requested_by: str, now: datetime, settings: Settings, files: list[dict[str, Any]], status: str, backup_choice: str = "verified") -> dict[str, Any]:
         operation = {
             "id": operation_id,
             "scan_id": scan_id,
@@ -205,6 +211,7 @@ class QuarantineManager:
             "status": status,
             "requested_by": requested_by,
             "backup_evidence_token": backup_token,
+            "backup_choice": backup_choice,
             "files": files,
             "total_bytes": sum(int(item.get("size_bytes", 0)) for item in files),
         }

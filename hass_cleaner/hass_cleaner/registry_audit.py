@@ -294,6 +294,7 @@ def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:
                 "counts": {"devices": len(bundle.devices), "orphans": len(orphan_devices), "anonymous": len(anonymous_devices)},
                 "evidence_level": "insufficient",
                 "evidence_summary": "De omvang, ontbrekende entities en anonieme apparaatmetadata zijn aangetoond; ouderdom en actief gebruik zijn niet beschikbaar in het apparaatregister.",
+                "evidence_needed": "Controleer een representatieve steekproef, bevestig welke config-entry of integratie de apparaten beheert, volg de groep over meerdere scans en sluit uit dat de integratie deze records actief gebruikt of opnieuw nodig heeft.",
                 "sample_device_ids": [str(item.get("device_id", "")) for item in orphan_devices[:10]],
                 "risk_summary": "Een grote groep zonder entities kan registervervuiling zijn, maar ook door een integratie beheerde apparaatadministratie.",
                 "possible_consequences": [
@@ -319,6 +320,7 @@ def _detect_anomalies(bundles: list[RegistryBundle]) -> list[dict[str, Any]]:
                 "counts": {"findings": bundle.review_count},
                 "evidence_level": "insufficient",
                 "evidence_summary": "De ontbrekende registerverwijzingen zijn read-only vastgesteld; de oorzaak en het actuele gebruik zijn nog niet bewezen.",
+                "evidence_needed": "Controleer de officiële relaties, bepaal de eigenaar van ieder registerobject en bevestig dat dashboards, automatiseringen en integraties er niet meer naar verwijzen.",
                 "risk_summary": "Wijzigen zonder relatiecontrole kan nog gebruikte entities of apparaten beschadigen.",
                 "possible_consequences": [
                     "Dashboards, automatiseringen en integraties kunnen naar ontbrekende onderdelen blijven verwijzen.",

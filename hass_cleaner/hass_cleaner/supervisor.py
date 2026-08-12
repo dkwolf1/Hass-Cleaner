@@ -22,7 +22,7 @@ def create_full_backup() -> dict[str, object]:
     if not token:
         raise SupervisorError("Supervisor is niet beschikbaar in lokale ontwikkelmodus")
     payload = {
-        "name": f"Voor Hass-Cleaner - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "name": f"Voor Hass-Cleaner - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "compressed": True,
         "background": True,
     }
@@ -40,7 +40,11 @@ def create_full_backup() -> dict[str, object]:
             result = json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise SupervisorError(f"Back-up kon niet worden gestart: {exc}") from exc
-    return result.get("data", result)
+    data = result.get("data", result)
+    if not isinstance(data, dict):
+        raise SupervisorError("Supervisor gaf een ongeldig antwoord op de back-upaanvraag")
+    data["requested_name"] = payload["name"]
+    return data
 
 
 def supervisor_get(path: str) -> dict[str, object]:
@@ -81,6 +85,7 @@ class BackupEvidenceManager:
             "backup_reference": str(result.get("slug") or result.get("id") or result.get("job_id") or ""),
             "backup_slug": str(result.get("slug") or ""),
             "job_id": str(result.get("job_id") or ""),
+            "requested_name": str(result.get("requested_name") or ""),
         }
         records = self.history()
         records.insert(0, record)
@@ -92,35 +97,27 @@ class BackupEvidenceManager:
         record = next((item for item in records if item.get("token") == token), None)
         if record is None:
             raise SupervisorError("Back-upbewijs niet gevonden")
-        job_id = str(record.get("job_id", ""))
         slug = str(record.get("backup_slug", ""))
-        if job_id:
-            job = self.getter(f"/jobs/{job_id}")
-            record["job_progress"] = int(job.get("progress") or 0)
-            record["job_stage"] = str(job.get("stage") or "")
-            errors = _job_errors(job)
-            if errors:
-                record["status"] = "failed"
-                record["verification_error"] = "; ".join(str(value) for value in errors)
-            elif not job.get("done"):
-                record["status"] = "running"
-            else:
-                extra = job.get("extra") if isinstance(job.get("extra"), dict) else {}
-                slug = slug or str(extra.get("slug") or job.get("reference") or "")
-        if record.get("status") != "failed" and (not job_id or record.get("status") != "running"):
-            if not slug:
-                record["status"] = "failed"
-                record["verification_error"] = "Supervisor leverde geen back-upslug"
-            else:
-                info = self.getter(f"/backups/{slug}/info")
-                record.update({
-                    "status": "completed",
-                    "backup_slug": slug,
-                    "backup_reference": slug,
-                    "verified_at": datetime.now(timezone.utc).isoformat(),
-                    "backup_name": str(info.get("name") or ""),
-                    "backup_size": int(info.get("size") or 0),
-                })
+        backups_data = self.getter("/backups")
+        backups = backups_data.get("backups", [])
+        if not isinstance(backups, list):
+            raise SupervisorError("Supervisor gaf een ongeldige back-uplijst terug")
+        requested_name = str(record.get("requested_name", ""))
+        match = next((item for item in backups if isinstance(item, dict) and slug and item.get("slug") == slug), None)
+        if match is None and requested_name:
+            match = next((item for item in backups if isinstance(item, dict) and item.get("name") == requested_name), None)
+        if match is None:
+            record["status"] = "running"
+        else:
+            slug = str(match.get("slug") or "")
+            record.update({
+                "status": "completed",
+                "backup_slug": slug,
+                "backup_reference": slug,
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+                "backup_name": str(match.get("name") or requested_name),
+                "backup_size": int(match.get("size") or 0),
+            })
         self._save(records)
         return record
 
@@ -149,13 +146,3 @@ class BackupEvidenceManager:
         temporary = self.path.with_suffix(".tmp")
         temporary.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(self.path)
-
-
-def _job_errors(job: dict[str, object]) -> list[object]:
-    errors = list(job.get("errors", [])) if isinstance(job.get("errors"), list) else []
-    children = job.get("child_jobs", [])
-    if isinstance(children, list):
-        for child in children:
-            if isinstance(child, dict):
-                errors.extend(_job_errors(child))
-    return errors

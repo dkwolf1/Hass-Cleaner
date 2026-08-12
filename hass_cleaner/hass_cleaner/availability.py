@@ -168,7 +168,19 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             attention = status in {"long_unavailable", "long_unknown", "long_problem", "broken_reference"} or (
                 status == "not_loaded" and bool(entity.get("persistent_issue"))
             )
-            selectable_for_plan = attention
+            # Temporary registered entities may be selected for a read-only
+            # research plan. Selection is not deletion permission.
+            selectable_for_plan = attention or watch
+            observations = int(entity.get("health_observations", 0) or 0)
+            duration_seconds = int(entity.get("health_duration_seconds", 0) or 0)
+            remaining_days = max(0, LONG_UNAVAILABLE_DAYS - duration_seconds // 86400)
+            remaining_observations = max(0, REQUIRED_OBSERVATIONS - observations)
+            evidence_needed = (
+                "Actiecriterium bereikt; controleer officiële relaties en actief gebruik."
+                if attention else
+                f"Nog {remaining_days} dag(en) tot {LONG_UNAVAILABLE_DAYS} dagen, of nog {remaining_observations} meting(en) "
+                f"met minimaal {REPEATED_OBSERVATION_DAYS} dagen tussen eerste en laatste meting."
+            )
             items.append({
                 "entity_id": entity_id,
                 "name": entity.get("name", entity_id),
@@ -201,6 +213,7 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
                 "informational": not attention and not watch,
                 "selectable_for_plan": selectable_for_plan,
                 "execution_allowed": False,
+                "evidence_needed": evidence_needed,
                 "reason": _entity_reason(status, signal_problem),
             })
     for entity in audit.state_only_entities:

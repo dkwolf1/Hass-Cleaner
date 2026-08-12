@@ -283,7 +283,11 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 17px; heigh
 .inline-note p { margin: 1px 0; }
 .settings-intro { color: var(--muted); font-size: 12px; }
 .backup-options { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 15px; }
-.backup-options > div { border: 1px solid var(--line); border-radius: 9px; padding: 15px; background: #1b1c20; }
+.backup-options > div, .backup-options > label { border: 1px solid var(--line); border-radius: 9px; padding: 15px; background: #1b1c20; }
+.backup-options > label { display: grid; grid-template-columns: 18px 1fr; gap: 9px; cursor: pointer; }
+.backup-options > label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.backup-options input { accent-color: var(--accent); }
+.quarantine-backup-options { grid-template-columns: 1fr; }
 .backup-options strong { display: block; font-size: 11px; margin-bottom: 5px; }
 .backup-options span { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; }
 dialog { width: min(610px,calc(100% - 28px)); padding: 0; border: 1px solid #434550; border-radius: 14px; background: #1b1c20; color: var(--text); box-shadow: 0 30px 100px #000; }

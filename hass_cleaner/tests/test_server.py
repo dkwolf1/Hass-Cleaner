@@ -92,7 +92,7 @@ class ServerTests(unittest.TestCase):
             {"backup_choice": "existing", "selected_ids": [selected_id]},
         )
         self.assertEqual(201, status)
-        self.assertEqual("awaiting_verified_backup", payload["status"])
+        self.assertEqual("awaiting_execution_choice", payload["status"])
         self.assertFalse(payload["plan"]["execution_locked"])
         self.assertEqual(1, payload["plan"]["summary"]["executable_actions"])
         plan_id = payload["plan"]["id"]

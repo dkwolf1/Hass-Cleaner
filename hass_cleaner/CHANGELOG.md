@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1
+
+- Back-upcontrole gebruikt de toegestane Supervisor-back-uplijst en niet langer het geweigerde jobs-endpoint.
+- Recente back-upaanvragen blijven beschikbaar wanneer het dialoogvenster opnieuw wordt geopend.
+- Een geverifieerde back-up blijft sterk aanbevolen, maar handmatige bevestiging of bewust doorgaan zonder back-up is mogelijk en wordt geaudit.
+- Tijdelijke geregistreerde entities kunnen in een niet-uitvoerbaar beoordelingsplan worden geselecteerd.
+- Entitydetails tonen exact welke duur en metingen nog ontbreken.
+- Registerplannen worden duidelijk onderscheiden van bestandsquarantaine; bulkverwijdering van onzekere apparaten blijft geblokkeerd.
+
 ## 0.9.0
 
 - Werkende quarantaine voor uitsluitend opnieuw gevalideerde veilige bestanden uit de laatste scan.
