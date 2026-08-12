@@ -278,6 +278,7 @@ input[type="range"]::-webkit-slider-thumb { appearance: none; width: 17px; heigh
 .field { display: flex; justify-content: space-between; align-items: center; padding: 17px 0; border-bottom: 1px solid #28292f; font-size: 12px; }
 .field > div { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
 .field input { width: 75px; }
+.field > select { min-width: 250px; }
 .inline-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 16px; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .inline-note span { display: grid; place-items: center; flex: 0 0 20px; height: 20px; border-radius: 50%; background: #262833; color: var(--accent-2); }
 .inline-note p { margin: 1px 0; }
@@ -307,6 +308,13 @@ dialog::backdrop { background: rgba(5,6,8,.76); backdrop-filter: blur(4px); }
 .dialog-options .danger-option:has(input:checked) { border-color: var(--danger); background: rgba(240,120,120,.06); }
 .dialog-summary { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: 11px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+.export-options { display: grid; gap: 10px; margin-top: 20px; }
+.export-option { display: flex; align-items: center; justify-content: space-between; gap: 18px; width: 100%; padding: 15px; color: var(--text); background: #1b1c20; border: 1px solid var(--line); border-radius: 9px; text-align: left; cursor: pointer; }
+.export-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.export-option strong, .export-option small { display: block; }
+.export-option strong { margin-bottom: 4px; font-size: 12px; }
+.export-option small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.export-option em { color: var(--accent-2); font-size: 10px; font-style: normal; font-weight: 700; text-transform: uppercase; }
 .toast { position: fixed; right: 25px; bottom: 25px; max-width: 390px; border: 1px solid #41434e; background: #202127; box-shadow: var(--shadow); border-radius: 9px; padding: 13px 16px; font-size: 11px; opacity: 0; transform: translateY(12px); pointer-events: none; transition: .2s ease; }
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { border-color: rgba(240,120,120,.55); }

@@ -2,6 +2,9 @@
 
 ## 1.0.0
 
+- Voegt taalkeuze Automatisch/Nederlands/English toe aan zowel App-configuratie als de interface.
+- Bundelt Markdown, CSV en JSON onder één uitgelegd exportvenster.
+- Vervangt `Opruimplan` door **Opschoning voorbereiden** en `Recepten` door **Opruimcategorieën**.
 - Vervangt de bewijspoort door gebruikersgestuurde beoordeling: advies en risico informeren, de gebruiker beslist.
 - Persoonlijke en onzekere bestanden kunnen met extra bevestiging naar checksum-bewaakte quarantaine; beschermde kernbestanden blijven uitgesloten.
 - Geregistreerde entities en ondersteunde apparaatbundels kunnen na back-upkeuze en exacte aantalsbevestiging via officiële Home Assistant WebSocket-opdrachten worden opgeschoond.

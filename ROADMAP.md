@@ -29,7 +29,7 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 - Een kleine set test-entities verwijderen en herstel vanuit een Home Assistant-back-up oefenen.
 - Recorder-purge met een kleine, veilige testinstelling controleren.
 - Interface testen op desktop en mobiel.
-- Volledige Ingress-interface in Nederlands en Engels aanbieden.
+- Nederlandse en Engelse Ingress-interface en automatische taalkeuze in regressietests blijven controleren.
 - Minimaal enkele gebruikerstests uitvoeren met verschillende integraties en opslagprofielen.
 - Bekende problemen documenteren en alle releaseblokkerende fouten oplossen.
 
@@ -78,7 +78,7 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 - Remove a small set of test entities and rehearse recovery from a Home Assistant backup.
 - Validate Recorder purge with a small and safe test configuration.
 - Test the interface on desktop and mobile.
-- Provide the complete Ingress interface in Dutch and English.
+- Keep the Dutch and English Ingress interface and automatic language selection covered by regression tests.
 - Run user tests across several integrations and storage profiles.
 - Document known issues and resolve every release-blocking defect.
 

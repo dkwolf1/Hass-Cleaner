@@ -16,8 +16,8 @@ Een gevonden item is nooit automatisch verwijderbewijs. De app toont waarom iets
 
 ### Belangrijkste functies
 
-- Veilige opslagscan met JSON-, CSV- en Markdownrapporten.
-- Begrijpelijke opruimrecepten en technische detailweergave.
+- Veilige opslagscan met één duidelijk exportvenster: een leesbaar Markdownrapport, CSV voor Excel en JSON voor technische analyse.
+- Begrijpelijke opruimcategorieën en de actie **Opschoning voorbereiden**.
 - Entities filteren op status, duur, integratie, apparaat en ruimte.
 - Apparaten en entities bundelen per integratie of apparaat.
 - Verschillen tussen scans: nieuw, gewijzigd, hersteld en verdwenen.
@@ -46,9 +46,9 @@ Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registerop
 
 ### Talen
 
-- Home Assistant App-instellingen: Nederlands en Engels.
-- README en roadmap: Nederlands en Engels.
-- Ingress-interface: Nederlands; volledige Engelse UI is een vereiste vóór versie 1.0.
+- Interface en Home Assistant App-instellingen: Automatisch, Nederlands en English.
+- Automatisch gebruikt de browser-/Home Assistant-weergavetaal en valt bij een niet-ondersteunde taal terug op Engels.
+- De taalkeuze binnen Hass-Cleaner heeft voorrang op de Home Assistant App-configuratie.
 
 ### Installeren vanuit GitHub
 
@@ -93,8 +93,8 @@ A finding is never treated as deletion evidence by itself. The App explains why 
 
 ### Main features
 
-- Safe storage scanning with JSON, CSV and Markdown reports.
-- Beginner-friendly cleanup recipes and technical detail views.
+- Safe storage scanning with one clear export dialog: a readable Markdown report, CSV for Excel and JSON for technical analysis.
+- Beginner-friendly cleanup categories and a clear **Prepare cleanup** action.
 - Entity filters for state, duration, integration, device and area.
 - Device and entity grouping by integration or device.
 - Scan differences for new, changed, recovered and disappeared signals.
@@ -123,9 +123,9 @@ Personal or uncertain content requires an additional content acknowledgement. Re
 
 ### Languages
 
-- Home Assistant App settings: Dutch and English.
-- README and roadmap: Dutch and English.
-- Ingress interface: Dutch; a complete English UI is a release requirement for version 1.0.
+- Interface and Home Assistant App settings: Automatic, Dutch and English.
+- Automatic uses the browser/Home Assistant display language and falls back to English for unsupported languages.
+- The language selected inside Hass-Cleaner takes precedence over the Home Assistant App configuration.
 
 ### Install from GitHub
 

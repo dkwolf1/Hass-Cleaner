@@ -92,7 +92,7 @@ class RegistryCleanupManager:
         }.values())
         total = len(entities) + len(devices)
         if scan is None or scan.status != "completed" or plan.get("scan_id") != scan.id:
-            raise RegistryCleanupError("Het opruimplan hoort niet bij de laatste scan; scan opnieuw")
+            raise RegistryCleanupError("De voorbereide opschoning hoort niet bij de laatste scan; scan opnieuw")
         workspace = scan.registry_audit.entity_workspace
         allowed_entities = {
             str(item.get("entity_id", ""))
@@ -108,11 +108,11 @@ class RegistryCleanupManager:
         if any(entity_id not in allowed_entities for entity_id in entities) or any(
             (item["device_id"], item["config_entry_id"]) not in allowed_devices for item in devices
         ):
-            raise RegistryCleanupError("Het opruimplan bevat registerobjecten die niet meer in de laatste scan staan; scan opnieuw")
+            raise RegistryCleanupError("De voorbereide opschoning bevat registerobjecten die niet meer in de laatste scan staan; scan opnieuw")
         if not total:
-            raise RegistryCleanupError("Dit opruimplan bevat geen uitvoerbare registerobjecten")
-        if confirmation != f"VERWIJDER {total}":
-            raise RegistryCleanupError(f"Typ exact VERWIJDER {total} om de registeropschoning te bevestigen")
+            raise RegistryCleanupError("Deze voorbereide opschoning bevat geen uitvoerbare registerobjecten")
+        if confirmation not in {f"VERWIJDER {total}", f"DELETE {total}"}:
+            raise RegistryCleanupError(f"Typ exact VERWIJDER {total} of DELETE {total} om de registeropschoning te bevestigen")
         if backup_choice not in {"verified", "manual", "none"}:
             raise RegistryCleanupError("Kies hoe je met de back-up wilt omgaan")
         if backup_choice == "verified" and (not backup_token or not backup_valid):

@@ -41,8 +41,8 @@ class QuarantineManager:
         confirmation: str,
         requested_by: str,
     ) -> dict[str, Any]:
-        if confirmation != "QUARANTAINE":
-            raise QuarantineError("Typ QUARANTAINE om de verplaatsing te bevestigen")
+        if confirmation not in {"QUARANTAINE", "QUARANTINE"}:
+            raise QuarantineError("Typ QUARANTAINE of QUARANTINE om de verplaatsing te bevestigen")
         if settings.deletion_mode != "quarantine":
             raise QuarantineError("Direct permanent verwijderen is niet beschikbaar; kies quarantaine")
         if backup_choice not in {"verified", "manual", "none"}:
@@ -137,8 +137,8 @@ class QuarantineManager:
         return self._store_operation(operation_id, scan.id, backup_token or backup_choice, requested_by, now, settings, records, "quarantined", backup_choice)
 
     def restore(self, operation_id: str, file_id: str, *, confirmation: str, requested_by: str) -> dict[str, Any]:
-        if confirmation != "HERSTEL":
-            raise QuarantineError("Typ HERSTEL om terugplaatsen te bevestigen")
+        if confirmation not in {"HERSTEL", "RESTORE"}:
+            raise QuarantineError("Typ HERSTEL of RESTORE om terugplaatsen te bevestigen")
         operation = self._find_operation(operation_id)
         record = next((item for item in operation.get("files", []) if item.get("id") == file_id), None)
         if record is None or record.get("status") != "quarantined":
@@ -182,8 +182,8 @@ class QuarantineManager:
         return result
 
     def purge_expired(self, operation_id: str, file_id: str, *, confirmation: str, requested_by: str) -> dict[str, Any]:
-        if confirmation != "VERWIJDER":
-            raise QuarantineError("Typ VERWIJDER om een verlopen quarantainebestand definitief te verwijderen")
+        if confirmation not in {"VERWIJDER", "DELETE"}:
+            raise QuarantineError("Typ VERWIJDER of DELETE om een verlopen quarantainebestand definitief te verwijderen")
         operation = self._find_operation(operation_id)
         try:
             expires_at = datetime.fromisoformat(str(operation.get("expires_at", "")).replace("Z", "+00:00"))

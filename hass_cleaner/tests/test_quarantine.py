@@ -47,6 +47,19 @@ class QuarantineTests(unittest.TestCase):
             self.assertTrue(source.is_file())
             self.assertEqual("restored", restored["files"][0]["status"])
 
+    def test_english_confirmation_words_are_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            operation = manager.execute(
+                scan, Settings(), plan=plan, backup_token="", backup_valid=False,
+                backup_choice="none", risk_acknowledged=True,
+                confirmation="QUARANTINE", requested_by="Dennis",
+            )
+            self.assertFalse(source.exists())
+            manager.restore(operation["id"], "file1", confirmation="RESTORE", requested_by="Dennis")
+            self.assertTrue(source.is_file())
+
     def test_changed_file_blocks_complete_batch_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
             source, scan, plan = self._fixture(Path(config_folder))

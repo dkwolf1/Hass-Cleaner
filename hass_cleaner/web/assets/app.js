@@ -10,6 +10,7 @@ const state = {
   latestPlan: null,
   selected: new Set(),
   selectedEntities: new Set(),
+  selectedBundles: new Set(),
   entityGroupOpen: new Map(),
   visibleEntityIds: [],
   pollTimer: null,
@@ -23,6 +24,10 @@ const state = {
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const MAX_BUNDLE_DEVICE_DETAILS = 100;
+
+function englishInterface() {
+  return window.HassCleanerI18n?.locale === "en";
+}
 
 function apiUrl(path) {
   const current = window.location.pathname;
@@ -47,7 +52,7 @@ async function api(path, options = {}) {
 
 function showToast(message, error = false) {
   const toast = $("#toast");
-  toast.textContent = message;
+  toast.textContent = window.HassCleanerI18n?.text(message) || message;
   toast.classList.toggle("error", error);
   toast.classList.add("show");
   window.setTimeout(() => toast.classList.remove("show"), 3600);
@@ -125,6 +130,8 @@ async function loadStatus() {
 
 async function loadSettings() {
   state.settings = await api("api/settings");
+  $("#language-setting").value = state.settings.language || "auto";
+  window.HassCleanerI18n?.setPreference(state.settings.language || "auto");
   $("#min-temp-age").value = state.settings.min_temp_age_days;
   $("#min-log-age").value = state.settings.min_log_age_days;
   $("#retention-days").value = state.settings.retention_days;
@@ -204,7 +211,7 @@ function finishScan(scan, showCompletionToast = true) {
   state.scanFullLoaded = true;
   state.registryAudit = scan.registry_audit || null;
   state.guidance = scan.cleanup_guidance || null;
-  $$(".report-action").forEach((button) => button.classList.remove("hidden"));
+  $$(".export-action").forEach((button) => button.classList.remove("hidden"));
   $("#scan-state").textContent = "Voltooid";
   $("#scan-empty strong").textContent = `${scan.visited_files} bestanden gecontroleerd`;
   $("#scan-empty p").textContent = `${state.items.length} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. De scan heeft niets gewijzigd.`;
@@ -226,7 +233,7 @@ function finishScanSummary(scan) {
   state.guidance = scan.cleanup_guidance || null;
   $("#scan-progress").classList.add("hidden");
   $("#scan-empty").classList.remove("hidden");
-  $$(".report-action").forEach((button) => button.classList.remove("hidden"));
+  $$(".export-action").forEach((button) => button.classList.remove("hidden"));
   $("#scan-state").textContent = "Voltooid";
   $("#scan-empty strong").textContent = `${scan.visited_files || 0} bestanden gecontroleerd`;
   const reported = Object.values(scan.counts || {}).reduce((total, value) => total + Number(value || 0), 0);
@@ -258,7 +265,7 @@ function renderMetrics(scan) {
   $("#review-size").textContent = formatBytes(guidance.investigation_total_bytes || 0);
   $("#protected-size").textContent = formatBytes(guidance.inventory_total_bytes || 0);
   $("#total-size").textContent = formatBytes(guidance.safe_total_bytes || 0);
-  $("#safe-count").textContent = `${safeRecipes.length} veilige recepten`;
+  $("#safe-count").textContent = `${safeRecipes.length} veilige categorieën`;
   $("#review-count").textContent = `${investigate.length} zelf beoordelen`;
   $("#protected-count").textContent = "Systeeminventaris · behouden";
 }
@@ -281,9 +288,9 @@ function renderRecipes() {
       <div class="recipe-main"><div class="eyebrow">${passed ? "VEILIG RECEPT" : recipe.kind === "personal" ? "PERSOONLIJKE INHOUD" : "EERST ONDERZOEKEN"}</div><h3>${escapeHtml(recipe.title)}</h3><p>${escapeHtml(recipe.description)}</p><small>${recipe.file_count} bestanden · ${formatBytes(recipe.size_bytes)} · producer: ${escapeHtml(recipe.producer)}</small></div>
       <div class="recipe-gates"><strong>Veiligheidscontrole</strong><ul>${gates}</ul></div>
       <details><summary>Producenten, voorbeelden en advies</summary><ul class="producer-groups">${producers}</ul><ul class="sample-paths">${samples}</ul><p>${escapeHtml(recipe.recommendation)}</p></details>
-      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "Aanbevolen" : "Eigen beoordeling"}</span><button class="button button-primary recipe-select" data-recipe-id="${escapeHtml(recipe.id)}">${selectedAll ? "Uit opruimplan verwijderen" : "Aan opruimplan toevoegen"}</button></div>
+      <div class="recipe-action"><span class="risk-chip ${passed ? "safe" : "review"}">${passed ? "Aanbevolen" : "Eigen beoordeling"}</span><button class="button button-primary recipe-select" data-recipe-id="${escapeHtml(recipe.id)}">${selectedAll ? "Uit opschoning verwijderen" : "Aan opschoning toevoegen"}</button></div>
     </article>`;
-  }).join("") : '<div class="table-empty panel">Geen opruimrecepten gevonden. Je systeeminventaris blijft behouden.</div>';
+  }).join("") : '<div class="table-empty panel">Geen opruimcategorieën gevonden. Je systeeminventaris blijft behouden.</div>';
   $$(".recipe-select", list).forEach((button) => button.addEventListener("click", () => selectRecipe(button.dataset.recipeId, button)));
   const inventory = guidance.inventory || [];
   $("#inventory-summary").innerHTML = inventory.length ? inventory.map((item) => `<span><strong>${item.count}</strong> ${escapeHtml(categoryLabel(item.category))} · ${formatBytes(item.size_bytes)}</span>`).join("") : "Geen beschermde inventaris gevonden.";
@@ -295,7 +302,7 @@ function selectRecipe(recipeId, button) {
   if (!recipe?.selectable_for_dry_run) return;
   const allSelected = recipe.item_ids.every((id) => state.selected.has(id));
   recipe.item_ids.forEach((id) => allSelected ? state.selected.delete(id) : state.selected.add(id));
-  button.textContent = allSelected ? "Aan opruimplan toevoegen" : "Uit opruimplan verwijderen";
+  button.textContent = allSelected ? "Aan opschoning toevoegen" : "Uit opschoning verwijderen";
   renderResults();
 }
 
@@ -580,7 +587,7 @@ function renderEntities() {
 function updateEntityButtons() {
   $("#entity-select-visible").disabled = !state.visibleEntityIds.length;
   $("#entity-plan-button").disabled = !state.selectedEntities.size;
-  $("#entity-plan-button").textContent = state.selectedEntities.size ? `Opruimplan bekijken (${state.selectedEntities.size})` : "Opruimplan bekijken";
+  $("#entity-plan-button").textContent = state.selectedEntities.size ? `Opschoning voorbereiden (${state.selectedEntities.size})` : "Opschoning voorbereiden";
 }
 
 async function openEntity(entityId) {
@@ -769,11 +776,14 @@ function showPlan(response) {
     ? "Een back-up is sterk aanbevolen. Ieder bestand wordt vlak vóór verplaatsing opnieuw gecontroleerd."
     : "Entities en apparaten zijn registerobjecten. De gebruiker kan ze na advies, back-upkeuze en zware bevestiging verwijderen.";
   $("#plan-dialog").showModal();
-  showToast(response.message || "Veilig opruimplan opgeslagen");
+  showToast(response.message || "Opschoning voorbereid");
 }
 
 function openQuarantineExecution() {
   $("#quarantine-confirmation").value = "";
+  $("#quarantine-confirmation").closest("label").querySelector("span").innerHTML = englishInterface()
+    ? "Type <strong>QUARANTINE</strong> to confirm"
+    : "Typ <strong>QUARANTAINE</strong> ter bevestiging";
   $("#quarantine-risk-ack").checked = false;
   const hasReview = (state.latestPlan?.plan?.files || []).some((item) => item.risk === "review");
   $("#quarantine-content-risk-row").classList.toggle("hidden", !hasReview);
@@ -846,7 +856,8 @@ function updateQuarantineExecuteButton() {
   const choice = $('input[name="quarantine-backup-choice"]:checked').value;
   const backupAccepted = choice === "verified" ? state.backupVerified : $("#quarantine-risk-ack").checked;
   const contentAccepted = $("#quarantine-content-risk-ack").checked;
-  $("#confirm-quarantine").disabled = !(backupAccepted && contentAccepted && $("#quarantine-confirmation").value === "QUARANTAINE");
+  const expected = englishInterface() ? "QUARANTINE" : "QUARANTAINE";
+  $("#confirm-quarantine").disabled = !(backupAccepted && contentAccepted && $("#quarantine-confirmation").value === expected);
 }
 
 function updateQuarantineChoice() {
@@ -886,7 +897,8 @@ function openRegistryExecution() {
   const summary = state.latestPlan?.plan?.summary || {};
   const total = Number(summary.entity_count || 0) + Number(summary.device_count || 0);
   $("#registry-execution-summary").textContent = `${summary.entity_count || 0} entiteiten en ${summary.device_count || 0} apparaten worden definitief uit hun Home Assistant-registerrelatie verwijderd.`;
-  $("#registry-confirmation-label").innerHTML = `Typ <strong>VERWIJDER ${total}</strong> ter bevestiging`;
+  const keyword = englishInterface() ? "DELETE" : "VERWIJDER";
+  $("#registry-confirmation-label").innerHTML = englishInterface() ? `Type <strong>${keyword} ${total}</strong> to confirm` : `Typ <strong>${keyword} ${total}</strong> ter bevestiging`;
   $("#registry-confirmation").value = "";
   $("#registry-risk-ack").checked = false;
   $('input[name="registry-backup-choice"][value="verified"]').checked = true;
@@ -900,7 +912,8 @@ function updateRegistryExecuteButton() {
   const total = Number(summary.entity_count || 0) + Number(summary.device_count || 0);
   const choice = $('input[name="registry-backup-choice"]:checked').value;
   const backupAccepted = choice === "verified" ? state.backupVerified : true;
-  $("#confirm-registry-cleanup").disabled = !(backupAccepted && $("#registry-risk-ack").checked && $("#registry-confirmation").value === `VERWIJDER ${total}`);
+  const keyword = englishInterface() ? "DELETE" : "VERWIJDER";
+  $("#confirm-registry-cleanup").disabled = !(backupAccepted && $("#registry-risk-ack").checked && $("#registry-confirmation").value === `${keyword} ${total}`);
 }
 
 async function startRegistryBackup() {
@@ -967,18 +980,22 @@ async function testQuarantineRestore(operation, file) {
 }
 
 async function restoreQuarantine(operation, file) {
-  if (window.prompt("Typ HERSTEL om dit bestand terug te plaatsen") !== "HERSTEL") return;
+  const confirmation = englishInterface() ? "RESTORE" : "HERSTEL";
+  const promptText = englishInterface() ? "Type RESTORE to restore this file" : "Typ HERSTEL om dit bestand terug te plaatsen";
+  if (window.prompt(promptText) !== confirmation) return;
   try {
-    await api(`api/quarantine/${operation}/${file}/restore`, { method: "POST", body: JSON.stringify({ confirmation: "HERSTEL" }) });
+    await api(`api/quarantine/${operation}/${file}/restore`, { method: "POST", body: JSON.stringify({ confirmation }) });
     showToast("Bestand veilig teruggeplaatst");
     await loadQuarantine();
   } catch (error) { showToast(error.message, true); }
 }
 
 async function purgeQuarantine(operation, file) {
-  if (window.prompt("De bewaartermijn is verstreken. Typ VERWIJDER voor definitieve verwijdering") !== "VERWIJDER") return;
+  const confirmation = englishInterface() ? "DELETE" : "VERWIJDER";
+  const promptText = englishInterface() ? "The retention period has expired. Type DELETE to remove permanently" : "De bewaartermijn is verstreken. Typ VERWIJDER voor definitieve verwijdering";
+  if (window.prompt(promptText) !== confirmation) return;
   try {
-    await api(`api/quarantine/${operation}/${file}/purge`, { method: "POST", body: JSON.stringify({ confirmation: "VERWIJDER" }) });
+    await api(`api/quarantine/${operation}/${file}/purge`, { method: "POST", body: JSON.stringify({ confirmation }) });
     showToast("Verlopen quarantainebestand definitief verwijderd");
     await loadQuarantine();
   } catch (error) { showToast(error.message, true); }
@@ -1069,7 +1086,7 @@ async function executePurge() {
 function updatePrepareButton() {
   const button = $("#prepare-button");
   button.disabled = state.selected.size === 0;
-  button.textContent = state.selected.size ? `Opruimplan bekijken (${state.selected.size})` : "Opruimplan bekijken";
+  button.textContent = state.selected.size ? `Opschoning voorbereiden (${state.selected.size})` : "Opschoning voorbereiden";
 }
 
 async function loadScanHistory() {
@@ -1088,8 +1105,9 @@ async function loadScanHistory() {
 }
 
 async function clearLocalHistory() {
-  const confirmation = window.prompt("Typ WIS HISTORIE voor een schone lokale start. Home Assistant zelf wordt niet gewijzigd.");
-  if (confirmation !== "WIS HISTORIE") return;
+  const expected = englishInterface() ? "CLEAR HISTORY" : "WIS HISTORIE";
+  const confirmation = window.prompt(englishInterface() ? "Type CLEAR HISTORY for a clean local start. Home Assistant itself is not changed." : "Typ WIS HISTORIE voor een schone lokale start. Home Assistant zelf wordt niet gewijzigd.");
+  if (confirmation !== expected) return;
   try {
     await api("api/history/clear", { method: "POST", body: JSON.stringify({ confirmation }) });
     state.scan = null;
@@ -1104,8 +1122,9 @@ async function clearLocalHistory() {
 }
 
 async function clearQuarantineHistory() {
-  const confirmation = window.prompt("Typ WIS LOGBOEK. Actieve quarantainebestanden en hun herstelgegevens blijven behouden.");
-  if (confirmation !== "WIS LOGBOEK") return;
+  const expected = englishInterface() ? "CLEAR LOG" : "WIS LOGBOEK";
+  const confirmation = window.prompt(englishInterface() ? "Type CLEAR LOG. Active quarantine files and their recovery data are retained." : "Typ WIS LOGBOEK. Actieve quarantainebestanden en hun herstelgegevens blijven behouden.");
+  if (confirmation !== expected) return;
   try {
     const response = await api("api/quarantine/history/clear", { method: "POST", body: JSON.stringify({ confirmation }) });
     await loadQuarantine();
@@ -1134,9 +1153,11 @@ async function saveSettings() {
     retention_days: Number($("#retention-days").value),
     advanced_mode: $("#advanced-mode").checked,
     report_retention_count: Number($("#report-retention-count").value),
+    language: $("#language-setting").value,
   };
   try {
     state.settings = await api("api/settings", { method: "POST", body: JSON.stringify(payload) });
+    window.HassCleanerI18n?.setPreference(state.settings.language || "auto");
     renderPolicy();
     showToast("Instellingen opgeslagen");
   } catch (error) {
@@ -1147,7 +1168,7 @@ async function saveSettings() {
 function openCleanupDialog() {
   const chosen = state.items.filter((item) => state.selected.has(item.id));
   const reviewCount = chosen.filter((item) => item.risk === "review").length;
-  const text = `${chosen.length} bestanden in het veilige opruimplan · ${reviewCount} buiten de veilige marge · 0 uitvoerbare acties`;
+  const text = `${chosen.length} bestanden geselecteerd · ${reviewCount} zelf te beoordelen · de voorbereiding wijzigt nog niets`;
   $("#dialog-summary").textContent = text;
   $("#cleanup-dialog").showModal();
 }
@@ -1156,7 +1177,7 @@ async function confirmPlan() {
   const button = $("#confirm-plan");
   button.disabled = true;
   try {
-    button.textContent = "Opruimplan voorbereiden...";
+    button.textContent = "Opschoning voorbereiden...";
     const plan = await api("api/plans/preview", {
       method: "POST",
       body: JSON.stringify({
@@ -1172,7 +1193,7 @@ async function confirmPlan() {
     showToast(error.message, true);
   } finally {
     button.disabled = false;
-    button.textContent = "Opruimplan opslaan";
+    button.textContent = "Opschoning opslaan";
   }
 }
 
@@ -1201,6 +1222,7 @@ function bindEvents() {
   $("#prepare-button").addEventListener("click", openCleanupDialog);
   $("#select-all-safe").addEventListener("click", selectAllSafe);
   $("#save-settings").addEventListener("click", saveSettings);
+  $("#language-setting").addEventListener("change", (event) => window.HassCleanerI18n?.setPreference(event.target.value));
   $("#confirm-plan").addEventListener("click", confirmPlan);
   $("#open-quarantine-execution").addEventListener("click", openQuarantineExecution);
   $("#open-registry-execution").addEventListener("click", openRegistryExecution);
@@ -1233,7 +1255,11 @@ function bindEvents() {
   });
   $$(".plan-download").forEach((button) => button.addEventListener("click", () => downloadPlan(button.dataset.format)));
   $$('[data-close-dialog]').forEach((button) => button.addEventListener("click", () => $("#" + button.dataset.closeDialog).close()));
-  $$(".report-action").forEach((button) => button.addEventListener("click", () => downloadReport(button.dataset.report)));
+  $$(".export-action").forEach((button) => button.addEventListener("click", () => $("#export-dialog").showModal()));
+  $$(".report-action").forEach((button) => button.addEventListener("click", () => {
+    $("#export-dialog").close();
+    downloadReport(button.dataset.report);
+  }));
   $$('input[name="deletion-mode"]').forEach((input) => input.addEventListener("change", updateRetentionVisibility));
   $("#retention-days").addEventListener("input", (event) => {
     $("#retention-value").textContent = event.target.value;

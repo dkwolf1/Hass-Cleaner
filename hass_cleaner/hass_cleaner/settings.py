@@ -14,6 +14,7 @@ class Settings:
     retention_days: int = 7
     advanced_mode: bool = False
     report_retention_count: int = 10
+    language: str = "auto"
 
     def validated(self) -> "Settings":
         if not 1 <= self.min_temp_age_days <= 365:
@@ -28,6 +29,8 @@ class Settings:
             raise ValueError("advanced_mode moet true of false zijn")
         if not 1 <= self.report_retention_count <= 50:
             raise ValueError("report_retention_count moet tussen 1 en 50 liggen")
+        if self.language not in {"auto", "nl", "en"}:
+            raise ValueError("language moet auto, nl of en zijn")
         return self
 
     def public_dict(self) -> dict[str, object]:
@@ -59,6 +62,7 @@ def load_settings(data_root: Path) -> Settings:
         retention_days=int(values.get("retention_days", 7)),
         advanced_mode=advanced_value if isinstance(advanced_value, bool) else False,
         report_retention_count=int(values.get("report_retention_count", 10)),
+        language=str(values.get("language", "auto")),
     ).validated()
 
 

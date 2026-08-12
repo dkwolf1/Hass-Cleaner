@@ -108,7 +108,7 @@ def _recipe(kind: str, category: str, producer: str, members: list[ScannedFile])
         "sample_paths": [item.path for item in sorted(members, key=lambda item: item.size_bytes, reverse=True)[:3]],
         "gate_passed": all(bool(gate["passed"]) for gate in gates),
         "gates": gates,
-        "recommendation": "Kan aan het opruimplan worden toegevoegd." if safe else "Beoordeel risico en herstel; alleen de gebruiker kan bepalen of deze inhoud gemist kan worden.",
+        "recommendation": "Kan aan de opschoning worden toegevoegd." if safe else "Beoordeel risico en herstel; alleen de gebruiker kan bepalen of deze inhoud gemist kan worden.",
         "selectable_for_dry_run": user_selectable,
         "execution_allowed": False,
     }

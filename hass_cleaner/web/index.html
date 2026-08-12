@@ -93,8 +93,7 @@
               <div class="panel-heading">
                 <div><div class="eyebrow">LAATSTE CONTROLE</div><h3>Scanstatus</h3></div>
                 <div class="heading-tools">
-                  <button class="link-button report-action hidden" data-report="md">Rapport</button>
-                  <button class="link-button report-action hidden" data-report="json">JSON</button>
+                  <button class="link-button export-action hidden">Exporteren</button>
                   <span class="soft-pill" id="scan-state">Niet uitgevoerd</span>
                 </div>
               </div>
@@ -129,7 +128,7 @@
 
         <section class="view" id="view-results">
           <div class="section-heading">
-            <div><div class="eyebrow">BEGINNERSMODUS</div><h2>Opruimrecepten</h2></div>
+            <div><div class="eyebrow">BEGINNERSMODUS</div><h2>Opruimcategorieën</h2></div>
             <div class="section-actions">
               <select id="risk-filter" class="technical-action" aria-label="Filter op risico">
                 <option value="all">Alle categorieën</option>
@@ -137,14 +136,14 @@
                 <option value="review">Beoordeling</option>
                 <option value="protected">Beschermd</option>
               </select>
-              <button class="button button-ghost report-action hidden" data-report="csv">CSV export</button>
+              <button class="button button-ghost export-action hidden">Exporteren</button>
               <button class="button button-ghost" id="select-all-safe" disabled>Alles veilig selecteren</button>
-              <button class="button button-primary" id="prepare-button" disabled>Opruimplan bekijken</button>
+              <button class="button button-primary" id="prepare-button" disabled>Opschoning voorbereiden</button>
             </div>
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Gebruikerskeuze met vangrails</strong><p>Hass-Cleaner geeft advies en sluit beschermde kernbestanden uit. Andere veilige en persoonlijke kandidaten kun je zelf aan het opruimplan toevoegen; quarantaine en een back-up beperken het herstelrisico.</p></div>
+            <div><strong>Gebruikerskeuze met vangrails</strong><p>Hass-Cleaner geeft advies en sluit beschermde kernbestanden uit. Andere veilige en persoonlijke kandidaten kun je zelf aan de opschoning toevoegen; quarantaine en een back-up beperken het herstelrisico.</p></div>
           </div>
           <div id="recipe-list" class="recipe-list"><div class="table-empty panel">Voer eerst een scan uit.</div></div>
           <details class="panel findings-panel raw-inventory">
@@ -162,12 +161,12 @@
             <div><div class="eyebrow">ENTITEITENONDERZOEK</div><h2>Vind wat echt aandacht nodig heeft</h2></div>
             <div class="section-actions">
               <button class="button button-ghost" id="entity-select-visible" disabled>Zichtbare selecteren</button>
-              <button class="button button-primary" id="entity-plan-button" disabled>Opruimplan bekijken</button>
+              <button class="button button-primary" id="entity-plan-button" disabled>Opschoning voorbereiden</button>
             </div>
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Status is geen verwijderbewijs</strong><p><code>unavailable</code>, <code>unknown</code> en <code>problem</code> zijn algemene Home Assistant-statussen. Hass-Cleaner geeft context en advies; jij bepaalt wat in het opruimplan komt en accepteert het risico bij uitvoering.</p></div>
+            <div><strong>Status is geen verwijderbewijs</strong><p>unavailable, unknown en problem zijn algemene Home Assistant-statussen. Hass-Cleaner geeft context en advies; jij bepaalt wat aan de opschoning wordt toegevoegd en accepteert het risico bij uitvoering.</p></div>
           </div>
           <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
             <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
@@ -225,7 +224,7 @@
           </div>
           <div class="notice notice-info">
             <div class="notice-icon">i</div>
-            <div><strong>Eén bundel per integratie</strong><p id="registry-message">Hass-Cleaner groepeert configuratie, apparaten en entities. Jij beoordeelt advies en risico en kiest wat aan het opruimplan wordt toegevoegd.</p></div>
+            <div><strong>Eén bundel per integratie</strong><p id="registry-message">Hass-Cleaner groepeert configuratie, apparaten en entities. Jij beoordeelt advies en risico en kiest wat aan de opschoning wordt toegevoegd.</p></div>
           </div>
           <section class="metric-grid registry-metrics" aria-label="Registeroverzicht">
             <article class="metric-card total"><div class="metric-top"><span>ENTITIES</span></div><strong id="registry-entities-total">-</strong><p>In het entityregister</p></article>
@@ -250,7 +249,7 @@
           </div>
           <div class="notice notice-warning">
             <div class="notice-icon">!</div>
-            <div><strong>Dit verwijdert historische gegevens permanent</strong><p>De actie gebruikt rechtstreeks <code>recorder.purge</code>. Actuele entities en apparaten worden niet verwijderd.</p></div>
+            <div><strong>Dit verwijdert historische gegevens permanent</strong><p>De actie gebruikt rechtstreeks recorder.purge. Actuele entities en apparaten worden niet verwijderd.</p></div>
           </div>
           <div class="database-layout">
             <section class="panel settings-card">
@@ -270,19 +269,24 @@
 
         <section class="view" id="view-quarantine">
           <div class="section-heading"><div><div class="eyebrow">HERSTELBARE OPSLAG</div><h2>Quarantaine</h2></div><button class="button button-danger" id="clear-quarantine-history">Afgerond logboek wissen</button></div>
-          <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Checksum bewaakt herstel</strong><p>Alleen opnieuw gevalideerde veilige bestanden komen hier. Herstel overschrijft nooit een bestaand bestand.</p></div></div>
+          <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Checksum bewaakt herstel</strong><p>Alleen opnieuw gevalideerde, geselecteerde bestanden komen hier. Herstel overschrijft nooit een bestaand bestand.</p></div></div>
           <div id="quarantine-list" class="history-list panel"><div class="table-empty">Nog geen bestanden in quarantaine.</div></div>
         </section>
 
         <section class="view" id="view-history">
           <div class="section-heading"><div><div class="eyebrow">AUDIT-LOG</div><h2>Historie</h2></div><button class="button button-danger" id="clear-scan-history">Schone start</button></div>
-          <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Schone start wist lokale meetgeschiedenis</strong><p>Scanrapporten, duurmetingen, lokale entitykeuzes, opgeslagen plannen en registerlogboeken worden gewist. Home Assistant zelf wordt niet gewijzigd.</p></div></div>
+          <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Schone start wist lokale meetgeschiedenis</strong><p>Scanrapporten, duurmetingen, lokale entitykeuzes, opgeslagen voorbereidingen en registerlogboeken worden gewist. Home Assistant zelf wordt niet gewijzigd.</p></div></div>
           <div id="scan-history" class="history-list panel"><div class="table-empty">Nog geen voltooide scans opgeslagen.</div></div>
         </section>
 
         <section class="view" id="view-settings">
           <div class="section-heading"><div><div class="eyebrow">VEILIGHEID EN GEDRAG</div><h2>Instellingen</h2></div><button class="button button-primary" id="save-settings">Instellingen opslaan</button></div>
           <div class="settings-layout">
+            <section class="panel settings-card full-width">
+              <div class="panel-heading"><div><div class="eyebrow">TAAL</div><h3>Interfacetaal</h3></div></div>
+              <label class="field"><span>Interfacetaal</span><select id="language-setting"><option value="auto">Automatisch (browser/Home Assistant)</option><option value="nl">Nederlands</option><option value="en">Engels</option></select></label>
+              <div class="inline-note"><span>i</span><p>Automatisch gebruikt de browsertaal en kiest Engels als de taal niet wordt ondersteund.</p></div>
+            </section>
             <section class="panel settings-card">
               <div class="panel-heading"><div><div class="eyebrow">VERWIJDERBELEID</div><h3>Wat gebeurt er met bestanden?</h3></div></div>
               <label class="choice-card">
@@ -335,11 +339,11 @@
         <button class="dialog-close" value="cancel" aria-label="Sluiten">×</button>
         <div class="dialog-icon">i</div>
         <div class="eyebrow">IMPACTANALYSE</div>
-        <h2>Bekijk het veilige opruimplan</h2>
-        <p>Het plan legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Na dit plan wordt ieder bestand opnieuw gecontroleerd. Een voltooide back-up is sterk aanbevolen, maar geen technische verplichting.</p></div></div>
+        <h2>Opschoning voorbereiden</h2>
+        <p>Dit overzicht legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Vóór uitvoering wordt ieder bestand opnieuw gecontroleerd. Een voltooide back-up is sterk aanbevolen, maar geen technische verplichting.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
-        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Opruimplan opslaan</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" value="cancel">Annuleren</button><button type="button" class="button button-primary" id="confirm-plan">Opschoning opslaan</button></div>
       </form>
     </dialog>
 
@@ -363,7 +367,7 @@
         <div id="bundle-advice" class="advice-content"></div>
         <div id="bundle-related" class="related-list"></div>
         <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Gebruikerskeuze met systeemrisico</strong><p>Een bundel kan opnieuw worden aangemaakt. Verwijderen kan entities, apparaten, dashboards en automatiseringen beïnvloeden. Herstel vereist doorgaans een Home Assistant-back-up.</p></div></div>
-        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan opruimplan toevoegen</button></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="bundle-dialog">Sluiten</button><button class="button button-primary" id="bundle-plan-button">Bundel aan opschoning toevoegen</button></div>
       </div>
     </dialog>
 
@@ -382,11 +386,25 @@
     <dialog id="plan-dialog">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="plan-dialog" aria-label="Sluiten">&times;</button>
-        <div class="eyebrow">OPGESLAGEN OPRUIMPLAN</div>
-        <h2>Impact- en herstelplan gereed</h2>
+        <div class="eyebrow">VOORBEREIDE OPSCHONING</div>
+        <h2>Impact- en hersteloverzicht gereed</h2>
         <p id="plan-dialog-summary"></p>
-        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">Het plan heeft nog niets gewijzigd.</p></div></div>
-        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">JSON downloaden</button><button class="button button-ghost plan-download" data-format="md">Markdown downloaden</button><button class="button button-primary" id="open-quarantine-execution">Bestanden naar quarantaine</button><button class="button button-danger" id="open-registry-execution">Registeropschoning uitvoeren</button></div>
+        <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">De voorbereiding heeft nog niets gewijzigd.</p></div></div>
+        <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">Technische gegevens downloaden</button><button class="button button-ghost plan-download" data-format="md">Leesbaar overzicht downloaden</button><button class="button button-primary" id="open-quarantine-execution">Bestanden naar quarantaine</button><button class="button button-danger" id="open-registry-execution">Registeropschoning uitvoeren</button></div>
+      </div>
+    </dialog>
+
+    <dialog id="export-dialog">
+      <div class="dialog-card">
+        <button class="dialog-close" data-close-dialog="export-dialog" aria-label="Sluiten">&times;</button>
+        <div class="eyebrow">EXPORTEREN</div>
+        <h2>Exporteer scanresultaten</h2>
+        <p>Kies het formaat dat past bij wat je wilt doen.</p>
+        <div class="export-options">
+          <button class="export-option report-action" data-report="md"><span><strong>Leesbaar rapport</strong><small>Markdown (.md) voor lezen, delen en ondersteuning.</small></span><em>Downloaden</em></button>
+          <button class="export-option report-action" data-report="csv"><span><strong>Spreadsheet</strong><small>CSV (.csv) om grote resultaten in Excel te filteren en sorteren.</small></span><em>Downloaden</em></button>
+          <button class="export-option report-action" data-report="json"><span><strong>Technische gegevens</strong><small>JSON (.json) voor foutonderzoek, automatisering en volledige details.</small></span><em>Downloaden</em></button>
+        </div>
       </div>
     </dialog>
 
@@ -446,6 +464,7 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="assets/i18n.js"></script>
     <script src="assets/app.js"></script>
   </body>
 </html>

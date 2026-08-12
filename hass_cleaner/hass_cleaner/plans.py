@@ -45,9 +45,9 @@ class PlanManager:
         if unknown_files or unknown_bundles or unknown_entities:
             raise PlanError("De selectie hoort niet meer bij de laatste scan; scan opnieuw")
         if any(file_map[item_id].risk == "protected" for item_id in selected_ids):
-            raise PlanError("Beschermde Home Assistant-bestanden kunnen niet aan een opruimplan worden toegevoegd")
+            raise PlanError("Beschermde Home Assistant-bestanden kunnen niet aan de opschoning worden toegevoegd")
         if any(not entity_map[item_id].get("selectable_for_plan") for item_id in selected_entity_ids):
-            raise PlanError("Alleen geregistreerde entities kunnen aan het opruimplan worden toegevoegd")
+            raise PlanError("Alleen geregistreerde entities kunnen aan de opschoning worden toegevoegd")
         if not selected_ids and not selected_bundle_ids and not selected_entity_ids:
             raise PlanError("Selecteer minimaal één bestand, bundel of entity")
 
@@ -186,7 +186,7 @@ def _markdown(plan: dict[str, Any]) -> str:
     lines = [
         "# Hass-Cleaner - impact- en herstelplan",
         "",
-        "> OPRUIMPLAN: dit plan heeft niets gewijzigd. Hass-Cleaner toont advies en risico; de gebruiker beslist. Beschermde kernbestanden blijven uitgesloten.",
+        "> VOORBEREIDE OPSCHONING: dit overzicht heeft niets gewijzigd. Hass-Cleaner toont advies en risico; de gebruiker beslist. Beschermde kernbestanden blijven uitgesloten.",
         "",
         f"- Plan-ID: `{plan['id']}`",
         f"- Scan-ID: `{plan['scan_id']}`",

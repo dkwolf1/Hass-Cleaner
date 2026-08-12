@@ -1,7 +1,7 @@
 configuration:
   min_temp_age_days:
     name: Minimumleeftijd tijdelijke bestanden
-    description: Jongere bestanden blijven uitgesloten van veilige opruimrecepten.
+    description: Jongere bestanden blijven uitgesloten van aanbevolen opruimcategorieën.
   min_log_age_days:
     name: Minimumleeftijd oude logs
     description: Jongere logbestanden blijven uitgesloten.
@@ -17,3 +17,6 @@ configuration:
   report_retention_count:
     name: Rapporten bewaren
     description: Volledige scanrapportsets die in appdata bewaard blijven.
+  language:
+    name: Taal
+    description: Kies automatisch, Nederlands of Engels voor de Hass-Cleaner-interface.

@@ -180,6 +180,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     retention_days=int(body.get("retention_days", 7)),
                     advanced_mode=_optional_bool(body, "advanced_mode", False),
                     report_retention_count=int(body.get("report_retention_count", 10)),
+                    language=str(body.get("language", "auto")),
                 ).validated()
                 save_local_settings(self.state.data_root, settings)
             except (TypeError, ValueError) as exc:
@@ -241,8 +242,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json({"status": "completed", "operation": operation}, HTTPStatus.CREATED)
         elif path == "/api/history/clear":
             body = self._read_json()
-            if str(body.get("confirmation", "")) != "WIS HISTORIE":
-                self._json({"error": "Typ exact WIS HISTORIE"}, HTTPStatus.BAD_REQUEST)
+            if str(body.get("confirmation", "")) not in {"WIS HISTORIE", "CLEAR HISTORY"}:
+                self._json({"error": "Typ exact WIS HISTORIE of CLEAR HISTORY"}, HTTPStatus.BAD_REQUEST)
                 return
             self.state.scan_manager.clear_history()
             self.state.registry_cleanup_manager.clear_history()
@@ -250,8 +251,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json({"status": "cleared"})
         elif path == "/api/quarantine/history/clear":
             body = self._read_json()
-            if str(body.get("confirmation", "")) != "WIS LOGBOEK":
-                self._json({"error": "Typ exact WIS LOGBOEK"}, HTTPStatus.BAD_REQUEST)
+            if str(body.get("confirmation", "")) not in {"WIS LOGBOEK", "CLEAR LOG"}:
+                self._json({"error": "Typ exact WIS LOGBOEK of CLEAR LOG"}, HTTPStatus.BAD_REQUEST)
                 return
             removed = self.state.quarantine_manager.clear_completed_history()
             self._json({"status": "cleared", "removed": removed})
@@ -363,7 +364,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json(
                 {
                     "status": plan["status"],
-                    "message": "Opruimplan opgeslagen. De gebruiker kiest na advies, back-upafweging en bevestiging welke acties worden uitgevoerd.",
+                    "message": "Opschoning voorbereid. De gebruiker kiest na advies, back-upafweging en bevestiging welke acties worden uitgevoerd.",
                     "plan": plan,
                     "downloads": {
                         "json": f"api/plans/{plan['id']}.json",

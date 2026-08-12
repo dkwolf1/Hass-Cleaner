@@ -72,6 +72,26 @@ class ServerTests(unittest.TestCase):
             )
         self.assertEqual(400, raised.exception.code)
 
+    def test_language_can_be_selected_and_invalid_values_are_rejected(self) -> None:
+        _, initial = self.request("/api/settings")
+        self.assertEqual("auto", initial["language"])
+        status, saved = self.request("/api/settings", "POST", {
+            "min_temp_age_days": 30, "min_log_age_days": 14,
+            "deletion_mode": "quarantine", "retention_days": 7,
+            "advanced_mode": False, "report_retention_count": 10,
+            "language": "en",
+        })
+        self.assertEqual(200, status)
+        self.assertEqual("en", saved["language"])
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request("/api/settings", "POST", {
+                "min_temp_age_days": 30, "min_log_age_days": 14,
+                "deletion_mode": "quarantine", "retention_days": 7,
+                "advanced_mode": False, "report_retention_count": 10,
+                "language": "de",
+            })
+        self.assertEqual(400, raised.exception.code)
+
     def test_plan_endpoint_allows_only_verified_quarantine_followup(self) -> None:
         cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
         cache.parent.mkdir(parents=True)

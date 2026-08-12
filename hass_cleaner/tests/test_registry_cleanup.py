@@ -70,6 +70,20 @@ class RegistryCleanupTests(unittest.TestCase):
                 manager.execute(scan, plan, backup_choice="verified", backup_token="bad", backup_valid=False,
                                 risk_acknowledged=True, confirmation="VERWIJDER 1", requested_by="Dennis")
 
+    def test_english_delete_confirmation_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            calls = []
+            manager = RegistryCleanupManager(
+                Path(folder), executor=lambda entities, devices: calls.append((entities, devices)) or [],
+            )
+            plan = {"scan_id": "scan1", "entities": [{"entity_id": "sensor.old", "execution_allowed": True}]}
+            record = manager.execute(
+                self._scan(), plan, backup_choice="none", backup_token="", backup_valid=False,
+                risk_acknowledged=True, confirmation="DELETE 1", requested_by="Dennis",
+            )
+            self.assertEqual("completed", record["status"])
+            self.assertEqual([(["sensor.old"], [])], calls)
+
     def test_tampered_plan_object_is_rejected_against_latest_scan(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices: self.fail("must not execute"))

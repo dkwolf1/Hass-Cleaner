@@ -123,6 +123,7 @@ class ReportingTests(unittest.TestCase):
         app_root = Path(__file__).resolve().parents[1]
         html = (app_root / "web" / "index.html").read_text(encoding="utf-8")
         javascript = (app_root / "web" / "assets" / "app.js").read_text(encoding="utf-8")
+        translations = (app_root / "web" / "assets" / "i18n.js").read_text(encoding="utf-8")
 
         self.assertIn('<option value="attention" selected>Alleen actie nodig</option>', html)
         self.assertIn('<option value="integration" selected>Per integratie</option>', html)
@@ -130,6 +131,12 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("Tijdelijke signalen gegroepeerd bekijken", javascript)
         self.assertIn("entityGroupOpen: new Map()", javascript)
         self.assertIn("state.entityGroupOpen.set(details.dataset.entityGroup, details.open)", javascript)
+        self.assertIn('id="language-setting"', html)
+        self.assertIn('value="auto"', html)
+        self.assertIn('id="export-dialog"', html)
+        self.assertIn("Readable report", translations)
+        self.assertIn("Cleanup categories", translations)
+        self.assertIn("HassCleanerI18n?.setPreference", javascript)
 
     def test_manifest_mount_allows_only_application_guarded_quarantine(self) -> None:
         manifest = (Path(__file__).resolve().parents[1] / "config.yaml").read_text(encoding="utf-8")

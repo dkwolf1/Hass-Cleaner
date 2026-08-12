@@ -1,7 +1,7 @@
 configuration:
   min_temp_age_days:
     name: Minimum age for temporary files
-    description: Files younger than this remain excluded from safe cleanup recipes.
+    description: Files younger than this remain excluded from recommended cleanup categories.
   min_log_age_days:
     name: Minimum age for old logs
     description: Log files younger than this remain excluded.
@@ -17,3 +17,6 @@ configuration:
   report_retention_count:
     name: Reports to retain
     description: Complete scan report sets kept in app data.
+  language:
+    name: Language
+    description: Choose automatic, Dutch or English for the Hass-Cleaner interface.

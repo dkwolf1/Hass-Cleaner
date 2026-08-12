@@ -267,7 +267,7 @@ def _markdown(report: dict[str, object]) -> str:
         f"- Handmatig beoordelen: {summary.get('requires_manual_review_count')} bestanden",
         f"- Beschermd: {summary.get('protected_count')} bestanden",
         "",
-        "## Beginnersadvies - opruimrecepten",
+        "## Beginnersadvies - opruimcategorieën",
         "",
     ]
     guidance = report.get("cleanup_guidance", {})
@@ -351,7 +351,7 @@ def _markdown(report: dict[str, object]) -> str:
                 lines.extend(_markdown_status_summary(entity_summary.get("by_status", {})))
             if isinstance(entity_items, list):
                 selectable = [item for item in entity_items if isinstance(item, dict) and item.get("selectable_for_plan")]
-                lines.extend(["", "#### Selecteerbaar voor opruimplan", ""])
+                lines.extend(["", "#### Selecteerbaar voor opschoning", ""])
                 lines.extend(_markdown_entity_table(selectable[:100]))
                 if len(selectable) > 100:
                     lines.append(f"\nNog {len(selectable) - 100} entities staan in JSON en CSV.")
@@ -371,7 +371,7 @@ def _markdown(report: dict[str, object]) -> str:
             "- Alleen door de gebruiker geselecteerde, niet-beschermde bestanden kunnen na een nieuwe servercontrole naar quarantaine.",
             "- Review-items worden nooit automatisch geselecteerd en vereisen een extra risicoacceptatie.",
             "- Beschermde items zijn technisch uitgesloten.",
-            "- Geregistreerde entities en gebundelde apparaten kunnen door de gebruiker aan een opruimplan worden toegevoegd.",
+            "- Geregistreerde entities en gebundelde apparaten kunnen door de gebruiker aan de opschoning worden toegevoegd.",
             "- Status en advies zijn geen garantie; registerwijzigingen vereisen een aparte waarschuwing en exacte bevestiging.",
             "- Permanente bestandsverwijdering buiten de bewaartermijn en wijzigingen aan beschermde kernbestanden blijven technisch uitgesloten.",
             "",
@@ -452,8 +452,8 @@ def _md(value: object) -> str:
 
 def _markdown_recipes(value: object, status: str) -> list[str]:
     if not isinstance(value, list) or not value:
-        return ["Geen recepten gevonden."]
-    lines = ["| Recept | Producer | Bestanden | Grootte | Bewijspoort | Advies |", "|---|---|---:|---:|---|---|"]
+        return ["Geen opruimcategorieën gevonden."]
+    lines = ["| Opruimcategorie | Producer | Bestanden | Grootte | Beoordeling | Advies |", "|---|---|---:|---:|---|---|"]
     for recipe in value:
         if not isinstance(recipe, dict):
             continue

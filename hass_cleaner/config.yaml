@@ -24,6 +24,7 @@ options:
   retention_days: 7
   advanced_mode: false
   report_retention_count: 10
+  language: auto
 schema:
   min_temp_age_days: int(1,365)
   min_log_age_days: int(1,365)
@@ -31,3 +32,4 @@ schema:
   retention_days: int(1,10)
   advanced_mode: bool
   report_retention_count: int(1,50)
+  language: list(auto|nl|en)

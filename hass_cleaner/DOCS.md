@@ -29,10 +29,10 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
 6. Open **Entiteiten**. De veilige standaard toont alleen bewezen aandachtspunten; kies **Tijdelijke signalen gegroepeerd bekijken** om de nulmeting en gevolgde signalen per integratie te openen.
-7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Selecteer geregistreerde entities voor een opruimplan; controleer advies en relaties en maak bewust een back-upkeuze.
+7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Selecteer geregistreerde entities en kies **Opschoning voorbereiden**; controleer advies en relaties en maak bewust een back-upkeuze.
 8. Open **Bundels** om apparaten, entities en integraties samen te beoordelen.
 9. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
-10. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
+10. Kies **Exporteren** bij Scanstatus of Scanresultaten. Het venster legt uit welk formaat geschikt is.
 11. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
 
 ## Impact- en hersteladvies
@@ -49,7 +49,7 @@ JSON- en YAML-previews bevatten alleen sleutelnamen en tellingen. Wachtwoorden, 
 
 ## Geavanceerde beoordeling
 
-Review-items en persoonlijke inhoud zijn selecteerbaar voor een opruimplan en vereisen extra risicobevestiging voor quarantaine. Beschermde items blijven altijd geblokkeerd. Het plan kan als JSON of Markdown worden gedownload en bevat risico en herstelstappen.
+Review-items en persoonlijke inhoud zijn selecteerbaar bij **Opschoning voorbereiden** en vereisen extra risicobevestiging voor quarantaine. Beschermde items blijven altijd geblokkeerd. Het overzicht kan als JSON of Markdown worden gedownload en bevat risico en herstelstappen.
 
 ## Registercontrole
 
@@ -59,7 +59,7 @@ De app vergelijkt read-only:
 - configuratie-entries;
 - de momenteel geladen entity-states.
 
-Entities zonder apparaat, apparaten zonder entities, uitgeschakelde entities en statussignalen worden als feiten en advies getoond. De gebruiker bepaalt de functionele noodzaak. Iedere geregistreerde entity kan aan een opruimplan worden toegevoegd; runtime-only states niet. Verwijderen kan relaties breken of door een integratie ongedaan worden gemaakt en heeft geen individuele undo. Herstel gebeurt via een Home Assistant-back-up.
+Entities zonder apparaat, apparaten zonder entities, uitgeschakelde entities en statussignalen worden als feiten en advies getoond. De gebruiker bepaalt de functionele noodzaak. Iedere geregistreerde entity kan aan de voorbereide opschoning worden toegevoegd; runtime-only states niet. Verwijderen kan relaties breken of door een integratie ongedaan worden gemaakt en heeft geen individuele undo. Herstel gebeurt via een Home Assistant-back-up.
 
 De lokale keuzes **Volgen**, **Verwacht** en **Uitstellen** verbergen alleen een melding in Hass-Cleaner. Ze schakelen geen entity uit en wijzigen geen Home Assistant-register. In **Historie** zie je wat sinds de voorgaande scan nieuw, gewijzigd, hersteld of verdwenen is.
 
@@ -72,6 +72,12 @@ Iedere voltooide scan levert drie rapporten:
 - Markdown voor menselijke beoordeling;
 - CSV voor filteren en sorteren;
 - JSON voor technische controle.
+
+In de interface staan deze onder één knop **Exporteren**. Markdown is bedoeld om te lezen of met ondersteuning te delen, CSV om grote resultaten in Excel te filteren en JSON voor foutonderzoek, automatisering en volledige technische details.
+
+## Taal
+
+Onder **Instellingen → Interfacetaal** kies je **Automatisch**, **Nederlands** of **English**. Automatisch gebruikt de taalvoorkeur van de browser waarin Home Assistant draait en valt bij een andere taal terug op Engels. Dezelfde optie staat in de Home Assistant App-configuratie. Een opgeslagen keuze in Hass-Cleaner zelf heeft voorrang op de App-configuratie.
 
 Rapporten leggen scanresultaten en keuzes vast. Onder **Instellingen** bepaal je hoeveel complete rapportsets Hass-Cleaner bewaart. Alleen bestanden met de eigen naamstructuur in `/data/reports` worden beheerd. Via **Historie → Schone start** kun je scan-, plan-, register- en Recorder-logboeken wissen; actieve quarantainebestanden blijven altijd behouden.
 
