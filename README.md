@@ -4,7 +4,12 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, evidence and recovery come before reclaimed space.
 
-> **Release status:** version 1.0.0 is being prepared for controlled testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
+> **Release status:** version 1.0.0 is the first stable release and is available for controlled early testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
+
+> [!WARNING]
+> **Testversie — voorzichtig gebruiken / Test version — handle with care.** Hass-Cleaner kan bestanden, Home Assistant-registerobjecten en Recorder-gegevens wijzigen. Controleer iedere selectie en maak vooraf bij voorkeur een volledige Home Assistant-back-up. Test bij voorkeur eerst op een niet-kritische installatie. Gebruik is op eigen risico; quarantaine en herstelvoorzieningen verkleinen het risico, maar kunnen niet garanderen dat iedere integratie of gebruikersconfiguratie zonder gevolgen blijft werken.
+>
+> Hass-Cleaner can modify files, Home Assistant registry objects and Recorder data. Review every selection and preferably create a full Home Assistant backup first. Test on a non-critical installation where possible. Use is at your own risk; quarantine and recovery safeguards reduce risk, but cannot guarantee that every integration or user configuration remains unaffected.
 
 ## Nederlands
 
@@ -58,7 +63,7 @@ Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registerop
 4. Start de app en open de webinterface.
 5. Voer eerst alleen een scan uit en beoordeel het rapport.
 
-Versie 1.0.0 moet eerst naar GitHub worden gepusht en door de containerworkflow worden gebouwd voordat deze installatiestappen de nieuwe release opleveren.
+GitHub Actions bouwt versie 1.0.0 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
 
 ### Lokaal ontwikkelen en testen
 
@@ -135,7 +140,7 @@ Personal or uncertain content requires an additional content acknowledgement. Re
 4. Start the App and open its web interface.
 5. Run a scan first and review the report before preparing an action.
 
-Version 1.0.0 must be pushed to GitHub and built by the container workflow before these steps install the new release.
+GitHub Actions builds version 1.0.0 for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update the release through this repository.
 
 ### Local development and tests
 

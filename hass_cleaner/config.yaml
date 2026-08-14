@@ -9,7 +9,6 @@ arch:
 init: false
 ingress: true
 panel_icon: mdi:broom
-stage: experimental
 image: "ghcr.io/dkwolf1/hass-cleaner"
 homeassistant_api: true
 hassio_api: true

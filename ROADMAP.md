@@ -14,14 +14,14 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 |---|---|---|
 | 0.7.2 | Afgerond | Betrouwbare tijdmetingen, verschillen tussen scans, opgeslagen gebruikersbeslissingen, beveiliging en paginering/performance. |
 | 0.7.3 | Afgerond | Duidelijkere entitysignalen, compacte bundels, apart onderscheid tussen tijdelijk, langdurig, `unavailable`, `unknown` en integratiespecifieke problemen. |
-| 0.8.0 | Lokaal geïmplementeerd | Werkende quarantaine voor bewezen veilige bestanden, batchvalidatie, SHA-256-manifest en veilig herstel. |
+| 0.8.0 | Afgerond | Werkende quarantaine voor bewezen veilige bestanden, batchvalidatie, SHA-256-manifest en veilig herstel. |
 | 0.9.0 | Afgerond | Supervisor-back-upverificatie, hersteltest, bewaartermijn en expliciete verwijdering na verval. |
 | 0.9.1 | Afgerond | Toegestane back-upcontrole, hergebruik van back-upbewijs, bewuste optionele back-upkeuze en selecteerbare entitybeoordeling. |
-| 1.0.0 | In ontwikkeling | Gebruikersgestuurde cleanup, registeruitvoering, persoonlijke inhoud, schone start en behoud van harde systeembescherming. |
+| 1.0.0 | Uitgebracht | Gebruikersgestuurde cleanup, registeruitvoering, persoonlijke inhoud, schone start en behoud van harde systeembescherming. |
 
-### Vereist vóór 1.0
+### Praktijkcontrole voor vroege testers
 
-- 1.0.0 bouwen en installeren via de echte GitHub/GHCR-workflow.
+- 1.0.0 installeren of bijwerken via de echte GitHub/GHCR-workflow.
 - Volledige back-up starten en voltooiing op Home Assistant OS verifiëren.
 - Zowel een veilige als een bewust gekozen reviewkandidaat naar quarantaine verplaatsen.
 - Hersteltest uitvoeren en hetzelfde bestand werkelijk terugplaatsen.
@@ -35,7 +35,7 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 
 ### 1.0.0 — Eerste stabiele versie
 
-- Alleen publiceren wanneer alle bovenstaande releasecriteria zijn afgetekend.
+- Gepubliceerd voor gecontroleerde vroege tests; meld onverwacht gedrag met het leesbare en technische scanrapport.
 - Stabiel quarantaine- en herstelcontract.
 - Tweetalige interface, documentatie en Home Assistant-instellingen.
 - Alleen expliciet door de gebruiker geselecteerde entity-, apparaat- en registerverwijdering via officiële API's.
@@ -63,14 +63,14 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 |---|---|---|
 | 0.7.2 | Completed | Reliable duration tracking, scan differences, saved user decisions, security controls and pagination/performance. |
 | 0.7.3 | Completed | Clearer entity signals, compact bundles and separate treatment of temporary, persistent, `unavailable`, `unknown` and integration-specific problems. |
-| 0.8.0 | Implemented locally | Working quarantine for proven-safe files, batch validation, SHA-256 manifests and safe recovery. |
+| 0.8.0 | Completed | Working quarantine for proven-safe files, batch validation, SHA-256 manifests and safe recovery. |
 | 0.9.0 | Completed | Supervisor backup verification, restore testing, retention and explicit post-expiry deletion. |
 | 0.9.1 | Completed | Permitted backup verification, reusable evidence, an explicit optional backup choice and selectable entity reviews. |
-| 1.0.0 | In development | User-directed cleanup, registry execution, personal content, clean-start controls and hard core-system protection. |
+| 1.0.0 | Released | User-directed cleanup, registry execution, personal content, clean-start controls and hard core-system protection. |
 
-### Required before 1.0
+### Practical checks for early testers
 
-- Build and install 1.0.0 through the real GitHub/GHCR workflow.
+- Install or update 1.0.0 through the real GitHub/GHCR workflow.
 - Start a full backup and verify completion on Home Assistant OS.
 - Move both a safe file and an explicitly accepted review candidate into quarantine.
 - Run the restore test and restore that file to its original location.
@@ -84,7 +84,7 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 
 ### 1.0.0 — First stable release
 
-- Publish only after every release gate above has been signed off.
+- Released for controlled early testing; report unexpected behaviour with the readable and technical scan reports.
 - Stable quarantine and recovery contract.
 - Bilingual interface, documentation and Home Assistant settings.
 - Only explicitly user-selected entity, device and registry removal through official APIs.

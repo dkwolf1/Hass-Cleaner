@@ -165,6 +165,11 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("version: ${{ steps.normalize.outputs.version }}", workflow)
         self.assertIn('echo "version=${version}"', workflow)
 
+    def test_stable_release_omits_default_stage(self) -> None:
+        app_root = Path(__file__).resolve().parents[1]
+        config = (app_root / "config.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("\nstage:", config)
+
     def test_report_retention_only_removes_owned_old_report_sets(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
