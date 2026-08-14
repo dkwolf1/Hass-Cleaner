@@ -1,7 +1,8 @@
 # Changelog
 
-## 1.0.0
+## 1.0.0 — 2026-08-14
 
+- Eerste stabiele release voor gecontroleerde vroege tests.
 - Voegt taalkeuze Automatisch/Nederlands/English toe aan zowel App-configuratie als de interface.
 - Bundelt Markdown, CSV en JSON onder één uitgelegd exportvenster.
 - Vervangt `Opruimplan` door **Opschoning voorbereiden** en `Recepten` door **Opruimcategorieën**.
