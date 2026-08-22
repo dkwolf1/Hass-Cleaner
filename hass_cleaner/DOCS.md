@@ -1,19 +1,23 @@
 # Hass-Cleaner
 
-Versie 0.7.2 toont geregistreerde entities en runtime-only states apart. Uitgeschakelde entities zijn informatief en tellen niet als statusprobleem. De app verzint geen historie: als Home Assistant `last_changed` levert, gebruikt Hass-Cleaner die duur; anders begint de teller met **Eerste meting** en daarna **< 24 uur**. Langdurig betekent 30 dagen, of minimaal 3 scans verspreid over minimaal 7 dagen. Markdown is een compacte beoordeling, terwijl JSON en CSV de volledige inventaris bevatten. Alle bestands- en entityacties blijven geblokkeerd.
+Versie 1.0.0 toont geregistreerde entities en runtime-only states apart. Status en meetduur zijn advies en filters, geen verwijdertoestemming. De gebruiker kan geregistreerde entities selecteren en na risico- en back-upkeuze via de officiële Home Assistant-API verwijderen. Runtime-only states hebben geen registeritem en blijven uitgesloten.
 
 Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 
 ## Veiligheidswaarborg
 
-- Home Assistant-configuratie is read-only gemount.
-- De app bevat geen verwijderendpoint voor bestanden, entities of apparaten.
+- Scannen en registeronderzoek zijn read-only. De beschrijfbare configuratiemount wordt uitsluitend gebruikt voor exact geselecteerde, opnieuw gevalideerde veilige bestanden.
+- De volledige batch wordt vóór de eerste wijziging gevalideerd op pad, type, grootte, wijzigingstijd en actuele beleidsclassificatie.
+- Quarantainekopieën en herstel worden met SHA-256 gecontroleerd; een bestaand doelbestand wordt nooit overschreven.
+- Na de bewaartermijn wordt niets automatisch gewist: definitief verwijderen vereist een nieuwe checksumcontrole en de exacte bevestiging `VERWIJDER`.
+- Permanent verwijderen van bestanden buiten verlopen quarantaine is technisch uitgesloten.
+- Registeruitvoering gebruikt uitsluitend officiële Home Assistant WebSocket-opdrachten en vereist een exacte aantalsbevestiging.
 - Scannen verandert geen bestanden of metadata.
 - Niets wordt vooraf geselecteerd.
 - Beschermde bestanden zijn niet selecteerbaar.
 - Registergegevens worden alleen via de officiële read-only WebSocket-commando's opgevraagd.
-- Entities, apparaten, gebieden en config-entries kunnen niet vanuit Hass-Cleaner worden gewijzigd.
-- Alleen `recorder.purge` is uitvoerbaar, na expliciete back-up- en tekstbevestiging.
+- Alleen expliciet geselecteerde entities en apparaat/config-entryrelaties kunnen worden gewijzigd; gebieden en config-entries zelf blijven buiten scope.
+- `recorder.purge`, bestandsquarantaine en expliciet gekozen registeropschoning hebben ieder hun eigen waarschuwing en bevestiging.
 - Inhoudsadvies toont nooit ruwe geheime waarden en verandert geen bestanden.
 - Geavanceerde beoordeling toont alleen technische analyse, geen uitvoering.
 
@@ -24,11 +28,11 @@ Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan a
 3. Open **Cleanup**.
 4. Kies **Nieuwe scan**.
 5. Controleer de bestandscategorieën veilig, beoordeling en beschermd.
-6. Open **Entiteiten** om te filteren op status, duur, integratie, apparaat of ruimte.
-7. Markeer tijdelijke signalen eventueel als verwacht of stel ze 7, 30 of 90 dagen uit. Selecteer alleen langdurige aandachtspunten voor een geblokkeerd onderzoeksplan en controleer per entity de officiële relaties.
+6. Open **Entiteiten**. De veilige standaard toont alleen bewezen aandachtspunten; kies **Tijdelijke signalen gegroepeerd bekijken** om de nulmeting en gevolgde signalen per integratie te openen.
+7. Filter zo nodig op `unavailable`, `unknown`, duur, integratie, apparaat of ruimte. Selecteer geregistreerde entities en kies **Opschoning voorbereiden**; controleer advies en relaties en maak bewust een back-upkeuze.
 8. Open **Bundels** om apparaten, entities en integraties samen te beoordelen.
 9. Open **Database** alleen wanneer je bewust Recorder-historie wilt opschonen.
-10. Download bij Scanstatus het Markdown-rapport, CSV of JSON.
+10. Kies **Exporteren** bij Scanstatus of Scanresultaten. Het venster legt uit welk formaat geschikt is.
 11. Deel het rapport voor controle voordat register- of bestandsopschoning wordt overwogen.
 
 ## Impact- en hersteladvies
@@ -45,7 +49,7 @@ JSON- en YAML-previews bevatten alleen sleutelnamen en tellingen. Wachtwoorden, 
 
 ## Geavanceerde beoordeling
 
-In **Instellingen** kan geavanceerde beoordeling worden ingeschakeld. Review-items worden dan selecteerbaar voor een impactplan. Beschermde items blijven geblokkeerd en ieder plan vermeldt `execution_locked: true` en `executable_actions: 0`. Het plan kan als JSON of Markdown worden gedownload en bevat de verwachte voor- en nasituatie plus herstelstappen.
+Review-items en persoonlijke inhoud zijn selecteerbaar bij **Opschoning voorbereiden** en vereisen extra risicobevestiging voor quarantaine. Beschermde items blijven altijd geblokkeerd. Het overzicht kan als JSON of Markdown worden gedownload en bevat risico en herstelstappen.
 
 ## Registercontrole
 
@@ -55,9 +59,11 @@ De app vergelijkt read-only:
 - configuratie-entries;
 - de momenteel geladen entity-states.
 
-Entities zonder apparaat, apparaten zonder entities, lege gebieden en uitgeschakelde entities zijn informatief. Verwijzingen naar ontbrekende apparaten, gebieden of config-entries en ingeschakelde entities zonder actuele state vragen om handmatige beoordeling. `unavailable`, `unknown` en `problem` worden qua duur gevolgd, maar tijdelijke waarnemingen blijven niet selecteerbaar. De duur komt eerst uit `last_changed` wanneer Home Assistant die waarde levert en wordt daarna door opeenvolgende Hass-Cleaner-scans onderbouwd. Integratiespecifieke signalen als `reachable=false` zijn alleen extra aanwijzingen. Ook een geselecteerde entity komt uitsluitend in een niet-uitvoerbaar onderzoeksplan terecht.
+Entities zonder apparaat, apparaten zonder entities, uitgeschakelde entities en statussignalen worden als feiten en advies getoond. De gebruiker bepaalt de functionele noodzaak. Iedere geregistreerde entity kan aan de voorbereide opschoning worden toegevoegd; runtime-only states niet. Verwijderen kan relaties breken of door een integratie ongedaan worden gemaakt en heeft geen individuele undo. Herstel gebeurt via een Home Assistant-back-up.
 
 De lokale keuzes **Volgen**, **Verwacht** en **Uitstellen** verbergen alleen een melding in Hass-Cleaner. Ze schakelen geen entity uit en wijzigen geen Home Assistant-register. In **Historie** zie je wat sinds de voorgaande scan nieuw, gewijzigd, hersteld of verdwenen is.
+
+Tijdelijke signalen worden standaard ingeklapt per integratie. Iedere groep toont afzonderlijk hoeveel entities `unavailable`, `unknown` of `problem` zijn, de langste gevolgde duur en het hoogste aantal metingen. Open een groep om de afzonderlijke apparaten en entities te beoordelen. Bij grote registerafwijkingen toont de app maximaal 100 apparaten in het dialoogvenster; JSON en CSV blijven volledig.
 
 ## Rapportbestanden
 
@@ -67,8 +73,14 @@ Iedere voltooide scan levert drie rapporten:
 - CSV voor filteren en sorteren;
 - JSON voor technische controle.
 
-Rapporten vermelden expliciet `audit_only: true` en `execution_locked: true`. Onder **Instellingen** bepaal je hoeveel complete rapportsets Hass-Cleaner bewaart. Alleen bestanden met de eigen naamstructuur in `/data/reports` worden verwijderd.
+In de interface staan deze onder één knop **Exporteren**. Markdown is bedoeld om te lezen of met ondersteuning te delen, CSV om grote resultaten in Excel te filteren en JSON voor foutonderzoek, automatisering en volledige technische details.
+
+## Taal
+
+Onder **Instellingen → Interfacetaal** kies je **Automatisch**, **Nederlands** of **English**. Automatisch gebruikt de taalvoorkeur van de browser waarin Home Assistant draait en valt bij een andere taal terug op Engels. Dezelfde optie staat in de Home Assistant App-configuratie. Een opgeslagen keuze in Hass-Cleaner zelf heeft voorrang op de App-configuratie.
+
+Rapporten leggen scanresultaten en keuzes vast. Onder **Instellingen** bepaal je hoeveel complete rapportsets Hass-Cleaner bewaart. Alleen bestanden met de eigen naamstructuur in `/data/reports` worden beheerd. Via **Historie → Schone start** kun je scan-, plan-, register- en Recorder-logboeken wissen; actieve quarantainebestanden blijven altijd behouden.
 
 ## Back-up
 
-Een scan vereist geen back-up. Vóór een Recorder-purge kan de app via de officiële Supervisor API een volledige back-up starten. Hass-Cleaner bewaart bewijs dat Supervisor het verzoek heeft geaccepteerd; dat is nog geen bewijs dat de back-up succesvol voltooid is. Controleer daarom in Home Assistant of de back-up voltooid, downloadbaar en bruikbaar is. De purge wordt pas geaccepteerd nadat de gebruiker dit bevestigt en exact `PURGE` typt. `repack` is standaard uitgeschakeld omdat dit een zware bewerking is en tijdelijk extra schijfruimte kan gebruiken.
+Een scan vereist geen back-up. Vóór bestandsquarantaine of Recorder-purge kan de app via de officiële Supervisor API een volledige back-up starten. Hass-Cleaner controleert voltooiing via de toegestane back-uplijst en kan recent bewijs maximaal 24 uur hergebruiken. Een geverifieerde back-up is sterk aanbevolen, maar de gebruiker kan ook een zelf gecontroleerde back-up bevestigen of bewust zonder back-up doorgaan; die keuze wordt geaudit. Recorder-purge vereist daarnaast exact `PURGE`. `repack` is standaard uitgeschakeld omdat dit een zware bewerking is en tijdelijk extra schijfruimte kan gebruiken.

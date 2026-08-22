@@ -124,6 +124,18 @@ def _append_bundle_anomalies(audit: RegistryAudit) -> None:
                 "summary": f"{len(long_items)} van {len(enabled)} ingeschakelde entiteiten zijn langdurig onbeschikbaar.",
                 "counts": {"enabled_entities": len(enabled), "long_unavailable": len(long_items)},
                 "sample_entity_ids": [str(item.get("entity_id", "")) for item in long_items[:10]],
+                "evidence_level": "insufficient",
+                "evidence_summary": "De status en meetduur zijn aangetoond; gebruik door dashboards, automatiseringen en integraties is nog niet uitgesloten.",
+                "risk_summary": "Verwijderen kan apparaten, dashboards, automatiseringen of integratielogica breken.",
+                "possible_consequences": [
+                    "De entiteiten kunnen na herstel van het apparaat of de integratie weer nodig zijn.",
+                    "Dashboardkaarten en automatiseringen kunnen ontbrekende verwijzingen krijgen.",
+                ],
+                "recovery_steps": [
+                    "Herstel eerst de integratie of het apparaat en voer een nieuwe scan uit.",
+                    "Gebruik bij registerwijzigingen een volledige Home Assistant-back-up om terug te keren.",
+                ],
+                "recommended_first_step": "Open de bundel, controleer de officiële relaties en bepaal waarom de entiteiten langdurig onbeschikbaar zijn.",
                 "execution_allowed": False,
             })
     audit.anomalies.sort(key=lambda item: -sum(value for value in item.get("counts", {}).values() if isinstance(value, int)))
@@ -156,7 +168,19 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
             attention = status in {"long_unavailable", "long_unknown", "long_problem", "broken_reference"} or (
                 status == "not_loaded" and bool(entity.get("persistent_issue"))
             )
-            selectable_for_plan = attention
+            # Temporary registered entities may be selected for a read-only
+            # research plan. Selection is not deletion permission.
+            selectable_for_plan = True
+            observations = int(entity.get("health_observations", 0) or 0)
+            duration_seconds = int(entity.get("health_duration_seconds", 0) or 0)
+            remaining_days = max(0, LONG_UNAVAILABLE_DAYS - duration_seconds // 86400)
+            remaining_observations = max(0, REQUIRED_OBSERVATIONS - observations)
+            evidence_needed = (
+                "Actiecriterium bereikt; controleer officiële relaties en actief gebruik."
+                if attention else
+                f"Nog {remaining_days} dag(en) tot {LONG_UNAVAILABLE_DAYS} dagen, of nog {remaining_observations} meting(en) "
+                f"met minimaal {REPEATED_OBSERVATION_DAYS} dagen tussen eerste en laatste meting."
+            )
             items.append({
                 "entity_id": entity_id,
                 "name": entity.get("name", entity_id),
@@ -189,6 +213,7 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
                 "informational": not attention and not watch,
                 "selectable_for_plan": selectable_for_plan,
                 "execution_allowed": False,
+                "evidence_needed": evidence_needed,
                 "reason": _entity_reason(status, signal_problem),
             })
     for entity in audit.state_only_entities:
@@ -243,8 +268,13 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for item in items:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
+    sorted_items = sorted(
+        items,
+        key=lambda item: (not item["attention"], -int(item["duration_days"]), item["entity_id"]),
+    )
     return {
-        "items": sorted(items, key=lambda item: (not item["attention"], -int(item["duration_days"]), item["entity_id"])),
+        "items": sorted_items,
+        "signal_groups": _build_signal_groups(sorted_items),
         "summary": {
             "total": len(items),
             "registered_total": sum(1 for item in items if item["registry_entry"]),
@@ -265,6 +295,80 @@ def _build_entity_workspace(audit: RegistryAudit) -> dict[str, Any]:
         "integration_signals_are_informational": True,
         "execution_locked": True,
     }
+
+
+def _build_signal_groups(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Summarize health signals per integration and device for a compact UI/export."""
+    groups: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not item.get("attention") and not item.get("watch"):
+            continue
+        integration = str(item.get("integration") or "Geen integratie")
+        group = groups.setdefault(
+            integration,
+            {
+                "integration": integration,
+                "total": 0,
+                "attention": 0,
+                "watch": 0,
+                "registered": 0,
+                "runtime_only": 0,
+                "status_counts": {},
+                "max_duration_seconds": 0,
+                "max_observations": 0,
+                "sample_entity_ids": [],
+                "devices": {},
+            },
+        )
+        status = str(item.get("status", "unknown"))
+        group["total"] += 1
+        group["attention"] += int(bool(item.get("attention")))
+        group["watch"] += int(bool(item.get("watch")))
+        group["registered"] += int(item.get("registry_entry") is not False)
+        group["runtime_only"] += int(item.get("registry_entry") is False)
+        group["status_counts"][status] = group["status_counts"].get(status, 0) + 1
+        group["max_duration_seconds"] = max(
+            int(group["max_duration_seconds"]), int(item.get("duration_seconds", 0) or 0)
+        )
+        group["max_observations"] = max(
+            int(group["max_observations"]), int(item.get("observations", 0) or 0)
+        )
+        if len(group["sample_entity_ids"]) < 10:
+            group["sample_entity_ids"].append(str(item.get("entity_id", "")))
+
+        device_id = str(item.get("device_id") or "")
+        device_name = str(item.get("device_name") or "Zonder apparaat")
+        device_key = device_id or f"none:{device_name}"
+        device = group["devices"].setdefault(
+            device_key,
+            {
+                "device_id": device_id,
+                "device_name": device_name,
+                "area_name": str(item.get("area_name") or ""),
+                "total": 0,
+                "attention": 0,
+                "watch": 0,
+                "status_counts": {},
+            },
+        )
+        device["total"] += 1
+        device["attention"] += int(bool(item.get("attention")))
+        device["watch"] += int(bool(item.get("watch")))
+        device["status_counts"][status] = device["status_counts"].get(status, 0) + 1
+
+    result: list[dict[str, Any]] = []
+    for group in groups.values():
+        devices = sorted(
+            group.pop("devices").values(),
+            key=lambda value: (-int(value["attention"]), -int(value["total"]), value["device_name"]),
+        )
+        group["device_groups"] = devices[:100]
+        group["omitted_device_groups"] = max(0, len(devices) - len(group["device_groups"]))
+        result.append(group)
+    return sorted(
+        result,
+        key=lambda value: (-int(value["attention"]), -int(value["total"]), value["integration"]),
+    )
 
 
 def update_entity_decision(

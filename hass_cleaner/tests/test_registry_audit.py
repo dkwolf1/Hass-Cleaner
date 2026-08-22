@@ -115,6 +115,12 @@ class RegistryAuditTests(unittest.TestCase):
         anomaly = audit.anomalies[0]
         self.assertEqual("large_orphan_device_group", anomaly["category"])
         self.assertEqual(120, anomaly["counts"]["orphans"])
+        self.assertEqual("insufficient", anomaly["evidence_level"])
+        self.assertIn("ouderdom", anomaly["evidence_summary"])
+        self.assertEqual(10, len(anomaly["sample_device_ids"]))
+        self.assertTrue(anomaly["possible_consequences"])
+        self.assertTrue(anomaly["recovery_steps"])
+        self.assertTrue(anomaly["recommended_first_step"])
         self.assertFalse(anomaly["execution_allowed"])
 
 

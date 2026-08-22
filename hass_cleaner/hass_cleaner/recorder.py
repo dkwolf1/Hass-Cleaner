@@ -87,6 +87,9 @@ class PurgeManager:
         except (FileNotFoundError, OSError, json.JSONDecodeError):
             return []
 
+    def clear_history(self) -> None:
+        self.history_path.unlink(missing_ok=True)
+
     def execute(self, *, keep_days: int, repack: bool, apply_filter: bool, backup_confirmed: bool,
                 confirmation: str, requested_by: str = "", backup_evidence: str = "manual-confirmation") -> PurgeRecord:
         if not 1 <= keep_days <= 365:

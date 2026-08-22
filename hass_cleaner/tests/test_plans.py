@@ -11,7 +11,7 @@ from hass_cleaner.settings import Settings
 
 
 class PlanTests(unittest.TestCase):
-    def test_entity_research_plan_is_never_executable(self) -> None:
+    def test_registered_entity_becomes_user_directed_cleanup_action(self) -> None:
         audit = RegistryAudit(status="completed", entity_workspace={
             "items": [{
                 "entity_id": "sensor.old",
@@ -38,9 +38,9 @@ class PlanTests(unittest.TestCase):
                 backup_choice="not_required_for_dry_run",
             )
         self.assertEqual(1, plan["summary"]["entity_count"])
-        self.assertEqual(0, plan["summary"]["executable_actions"])
-        self.assertFalse(plan["entities"][0]["execution_allowed"])
-        self.assertEqual("manual_review_only", plan["entities"][0]["proposed_action"])
+        self.assertEqual(1, plan["summary"]["executable_actions"])
+        self.assertTrue(plan["entities"][0]["execution_allowed"])
+        self.assertEqual("remove_from_entity_registry", plan["entities"][0]["proposed_action"])
 
     def test_non_candidate_entity_is_rejected_even_for_direct_api_use(self) -> None:
         audit = RegistryAudit(status="completed", entity_workspace={
