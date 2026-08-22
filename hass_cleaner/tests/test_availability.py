@@ -83,14 +83,19 @@ class AvailabilityTests(unittest.TestCase):
         self.assertTrue(items["sensor.unknown"]["selectable_for_plan"])
         self.assertEqual("available", items["sensor.vendor_offline"]["status"])
         self.assertTrue(items["sensor.vendor_offline"]["integration_signal_problem"])
-        self.assertFalse(items["sensor.vendor_offline"]["selectable_for_plan"])
+        self.assertTrue(items["sensor.vendor_offline"]["selectable_for_plan"])
         self.assertEqual({"reachable": False}, items["sensor.vendor_offline"]["connectivity_signals"])
         self.assertEqual("Meter", items["sensor.unknown"]["device_name"])
         self.assertEqual("Kantoor", items["sensor.unknown"]["area_name"])
         self.assertEqual("disabled_by_integration", items["sensor.disabled"]["status"])
-        self.assertFalse(items["sensor.disabled"]["selectable_for_plan"])
+        self.assertTrue(items["sensor.disabled"]["selectable_for_plan"])
         self.assertEqual("long_problem", items["binary_sensor.problem"]["status"])
         self.assertTrue(items["binary_sensor.problem"]["selectable_for_plan"])
+        groups = {item["integration"]: item for item in audit.entity_workspace["signal_groups"]}
+        self.assertEqual(2, groups["example"]["total"])
+        self.assertEqual(1, groups["example"]["status_counts"]["long_unknown"])
+        self.assertEqual(1, groups["example"]["status_counts"]["long_problem"])
+        self.assertEqual(2, len(groups["example"]["device_groups"]))
 
     def test_disabled_and_runtime_only_entities_are_separated_from_status_problems(self) -> None:
         now = datetime(2026, 8, 11, tzinfo=timezone.utc)
@@ -124,6 +129,9 @@ class AvailabilityTests(unittest.TestCase):
         self.assertFalse(items["sensor.runtime_bad"]["attention"])
         self.assertTrue(items["sensor.runtime_bad"]["watch"])
         self.assertFalse(items["sensor.runtime_bad"]["selectable_for_plan"])
+        runtime_group = next(item for item in audit.entity_workspace["signal_groups"] if item["integration"] == "sensor")
+        self.assertEqual(1, runtime_group["runtime_only"])
+        self.assertEqual(1, runtime_group["watch"])
 
     def test_first_measurement_and_saved_choice_are_explicit(self) -> None:
         now = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
@@ -132,6 +140,8 @@ class AvailabilityTests(unittest.TestCase):
             root = Path(folder)
             apply_availability_history(audit, root / "availability-history.json", now=now)
             item = audit.entity_workspace["items"][0]
+            self.assertTrue(item["selectable_for_plan"])
+            self.assertIn("nog 2 meting(en)", item["evidence_needed"])
             self.assertEqual(0, item["duration_seconds"])
             self.assertEqual(1, item["observations"])
             self.assertEqual("baseline", item["diff_status"])

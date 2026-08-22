@@ -21,6 +21,8 @@ from .plans import PlanError, PlanManager
 from .settings import Settings, environment, load_effective_settings, save_local_settings
 from .supervisor import BackupEvidenceManager, SupervisorError, supervisor_available
 from .availability import apply_saved_decisions, update_entity_decision
+from .quarantine import QuarantineError, QuarantineManager
+from .registry_cleanup import RegistryCleanupError, RegistryCleanupManager
 
 
 class AppState:
@@ -37,6 +39,8 @@ class AppState:
         self.purge_manager = PurgeManager(data_root)
         self.plan_manager = PlanManager(data_root)
         self.backup_manager = BackupEvidenceManager(data_root)
+        self.quarantine_manager = QuarantineManager(config_root, data_root)
+        self.registry_cleanup_manager = RegistryCleanupManager(data_root)
         self.csrf_token = secrets.token_urlsafe(32)
         self.rate_limits: dict[tuple[str, str], list[float]] = {}
 
@@ -62,24 +66,29 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     "version": __version__,
                     "mode": "local" if not supervisor_available() else "home_assistant",
                     "config_root_available": self.state.config_root.is_dir(),
-                    "audit_only": True,
+                    "audit_only": False,
                     "destructive_execution_enabled": supervisor_available(),
-                    "destructive_scope": "recorder_only",
-                    "file_execution_enabled": False,
-                    "registry_execution_enabled": False,
+                    "destructive_scope": "user_directed_cleanup_with_protected_core",
+                    "file_execution_enabled": supervisor_available(),
+                    "registry_execution_enabled": supervisor_available(),
                     "recorder_purge_enabled": supervisor_available(),
-                    "config_mount_expected_read_only": True,
+                    "config_mount_expected_read_only": False,
                     "backup_available": supervisor_available(),
                     "registry_scan_available": supervisor_available(),
                     "impact_advice_available": True,
                     "advanced_review_available": True,
                     "plan_download_available": True,
                     "beginner_recipes_available": True,
-                    "evidence_gate_enforced": True,
+                    "evidence_gate_enforced": False,
+                    "user_directed_risk_acceptance": True,
                     "availability_history_enabled": True,
                     "csrf_token": self.state.csrf_token,
                     "entity_decisions_enabled": True,
                     "scan_diff_enabled": True,
+                    "quarantine_enabled": supervisor_available(),
+                    "permanent_file_deletion_enabled": False,
+                    "backup_completion_verification": True,
+                    "restore_test_enabled": True,
                 }
             )
         elif path == "/api/settings":
@@ -107,6 +116,12 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 self._json(_paged_scan_items(scan, parts[4], parse_qs(parsed.query)))
         elif path == "/api/recorder/purges":
             self._json({"items": self.state.purge_manager.history()})
+        elif path == "/api/quarantine":
+            self._json({"items": self.state.quarantine_manager.list()})
+        elif path == "/api/registry-cleanups":
+            self._json({"items": self.state.registry_cleanup_manager.history()})
+        elif path == "/api/backups/evidence":
+            self._json({"items": self.state.backup_manager.history()})
         elif path.startswith("/api/scans/"):
             scan_id = path.rsplit("/", 1)[-1]
             scan = self.state.scan_manager.get(scan_id)
@@ -165,6 +180,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     retention_days=int(body.get("retention_days", 7)),
                     advanced_mode=_optional_bool(body, "advanced_mode", False),
                     report_retention_count=int(body.get("report_retention_count", 10)),
+                    language=str(body.get("language", "auto")),
                 ).validated()
                 save_local_settings(self.state.data_root, settings)
             except (TypeError, ValueError) as exc:
@@ -178,6 +194,98 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
                 return
             self._json({"status": "accepted", "evidence": result}, HTTPStatus.ACCEPTED)
+        elif re.fullmatch(r"/api/backups/[a-zA-Z0-9]+/verify", path):
+            try:
+                result = self.state.backup_manager.refresh(path.split("/")[3])
+            except SupervisorError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+                return
+            self._json({"status": result.get("status"), "evidence": result})
+        elif path == "/api/quarantine":
+            body = self._read_json()
+            try:
+                plan = self.state.plan_manager.get(str(body.get("plan_id", "")))
+                backup_token = str(body.get("backup_evidence_token", ""))
+                operation = self.state.quarantine_manager.execute(
+                    self.state.scan_manager.latest(),
+                    load_effective_settings(self.state.data_root),
+                    plan=plan,
+                    backup_token=backup_token,
+                    backup_valid=self.state.backup_manager.valid(backup_token),
+                    backup_choice=str(body.get("backup_choice", "verified")),
+                    risk_acknowledged=_optional_bool(body, "risk_acknowledged", False),
+                    content_risk_acknowledged=_optional_bool(body, "content_risk_acknowledged", False),
+                    confirmation=str(body.get("confirmation", "")),
+                    requested_by=self._remote_user(),
+                )
+            except (PlanError, QuarantineError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "quarantined", "operation": operation}, HTTPStatus.CREATED)
+        elif path == "/api/registry-cleanup":
+            body = self._read_json()
+            try:
+                plan = self.state.plan_manager.get(str(body.get("plan_id", "")))
+                backup_token = str(body.get("backup_evidence_token", ""))
+                operation = self.state.registry_cleanup_manager.execute(
+                    self.state.scan_manager.latest(), plan,
+                    backup_choice=str(body.get("backup_choice", "verified")),
+                    backup_token=backup_token,
+                    backup_valid=self.state.backup_manager.valid(backup_token),
+                    risk_acknowledged=_optional_bool(body, "risk_acknowledged", False),
+                    confirmation=str(body.get("confirmation", "")),
+                    requested_by=self._remote_user(),
+                )
+            except (PlanError, RegistryCleanupError) as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "completed", "operation": operation}, HTTPStatus.CREATED)
+        elif path == "/api/history/clear":
+            body = self._read_json()
+            if str(body.get("confirmation", "")) not in {"WIS HISTORIE", "CLEAR HISTORY"}:
+                self._json({"error": "Typ exact WIS HISTORIE of CLEAR HISTORY"}, HTTPStatus.BAD_REQUEST)
+                return
+            self.state.scan_manager.clear_history()
+            self.state.registry_cleanup_manager.clear_history()
+            self.state.purge_manager.clear_history()
+            self._json({"status": "cleared"})
+        elif path == "/api/quarantine/history/clear":
+            body = self._read_json()
+            if str(body.get("confirmation", "")) not in {"WIS LOGBOEK", "CLEAR LOG"}:
+                self._json({"error": "Typ exact WIS LOGBOEK of CLEAR LOG"}, HTTPStatus.BAD_REQUEST)
+                return
+            removed = self.state.quarantine_manager.clear_completed_history()
+            self._json({"status": "cleared", "removed": removed})
+        elif re.fullmatch(r"/api/quarantine/[a-zA-Z0-9]+/[a-zA-Z0-9]+/restore", path):
+            body = self._read_json()
+            parts = path.split("/")
+            try:
+                operation = self.state.quarantine_manager.restore(
+                    parts[3], parts[4], confirmation=str(body.get("confirmation", "")), requested_by=self._remote_user()
+                )
+            except QuarantineError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "restored", "operation": operation})
+        elif re.fullmatch(r"/api/quarantine/[a-zA-Z0-9]+/[a-zA-Z0-9]+/test", path):
+            parts = path.split("/")
+            try:
+                result = self.state.quarantine_manager.test_restore(parts[3], parts[4])
+            except QuarantineError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "passed", "test": result})
+        elif re.fullmatch(r"/api/quarantine/[a-zA-Z0-9]+/[a-zA-Z0-9]+/purge", path):
+            body = self._read_json()
+            parts = path.split("/")
+            try:
+                operation = self.state.quarantine_manager.purge_expired(
+                    parts[3], parts[4], confirmation=str(body.get("confirmation", "")), requested_by=self._remote_user()
+                )
+            except QuarantineError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+                return
+            self._json({"status": "deleted", "operation": operation})
         elif path == "/api/entity-decisions":
             body = self._read_json()
             try:
@@ -217,6 +325,9 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 repack = _required_bool(body, "repack")
                 apply_filter = _required_bool(body, "apply_filter")
                 backup_confirmed = _required_bool(body, "backup_confirmed")
+                backup_token = str(body.get("backup_evidence_token", ""))
+                if not backup_confirmed:
+                    raise ValueError("Bevestig dat je de back-upafweging bewust hebt gecontroleerd")
                 record = self.state.purge_manager.execute(
                     keep_days=keep_days,
                     repack=repack,
@@ -224,11 +335,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     backup_confirmed=backup_confirmed,
                     confirmation=str(body.get("confirmation", "")),
                     requested_by=self._remote_user(),
-                    backup_evidence=(
-                        "app-request:" + str(body.get("backup_evidence_token"))
-                        if self.state.backup_manager.valid(str(body.get("backup_evidence_token", "")))
-                        else "manual-confirmation"
-                    ),
+                    backup_evidence=("app-verified:" + backup_token if self.state.backup_manager.valid(backup_token) else "manual-confirmation"),
                 )
             except (TypeError, ValueError) as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
@@ -256,8 +363,8 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 return
             self._json(
                 {
-                    "status": "dry_run_only",
-                    "message": "Impact- en herstelplan opgeslagen; destructieve uitvoering blijft vergrendeld.",
+                    "status": plan["status"],
+                    "message": "Opschoning voorbereid. De gebruiker kiest na advies, back-upafweging en bevestiging welke acties worden uitgevoerd.",
                     "plan": plan,
                     "downloads": {
                         "json": f"api/plans/{plan['id']}.json",
@@ -289,7 +396,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
         ):
             self._json({"error": "Ongeldige beveiligingstoken; vernieuw de pagina"}, HTTPStatus.FORBIDDEN)
             return False
-        limits = {"/api/scans": 4, "/api/backups": 3, "/api/recorder/purge": 3}
+        limits = {"/api/scans": 4, "/api/backups": 3, "/api/recorder/purge": 3, "/api/quarantine": 3, "/api/registry-cleanup": 2, "/api/history/clear": 2, "/api/quarantine/history/clear": 2}
         limit = limits.get(path, 30)
         key = (self.client_address[0], path)
         now = time.monotonic()

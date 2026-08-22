@@ -15,7 +15,7 @@ from hass_cleaner.settings import Settings
 
 
 class ReportingTests(unittest.TestCase):
-    def test_all_report_formats_are_written_and_audit_locked(self) -> None:
+    def test_all_report_formats_are_written_with_execution_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as source_folder, tempfile.TemporaryDirectory() as output_folder:
             source = Path(source_folder)
             cache = source / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
@@ -53,6 +53,23 @@ class ReportingTests(unittest.TestCase):
                         informational_count=1,
                     )
                 ],
+                anomalies=[{
+                    "id": "large-orphan-group:entry-1",
+                    "category": "large_orphan_device_group",
+                    "severity": "review",
+                    "bundle_id": "entry-1",
+                    "domain": "demo",
+                    "title": "Grote anonieme apparaatgroep",
+                    "summary": "120 apparaten zonder entities",
+                    "evidence_level": "insufficient",
+                    "evidence_summary": "Omvang bewezen; gebruik onbekend.",
+                    "risk_summary": "Integratie kan apparaten opnieuw aanmaken.",
+                    "possible_consequences": ["Apparaatrelaties kunnen verdwijnen."],
+                    "recovery_steps": ["Herstel de volledige back-up."],
+                    "recommended_first_step": "Controleer officiële relaties.",
+                    "sample_device_ids": ["device-1"],
+                    "execution_allowed": False,
+                }],
                 entity_workspace={"items": [{
                     "entity_id": "sensor.runtime_only",
                     "name": "Runtime only",
@@ -67,7 +84,7 @@ class ReportingTests(unittest.TestCase):
 
             self.assertEqual({"json", "csv", "md"}, set(paths))
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
-            self.assertEqual(9, payload["schema_version"])
+            self.assertEqual(11, payload["schema_version"])
             self.assertNotIn("ultra-private-report-value", paths["json"].read_text(encoding="utf-8"))
             self.assertTrue(payload["audit_only"])
             self.assertTrue(payload["execution_locked"])
@@ -98,11 +115,32 @@ class ReportingTests(unittest.TestCase):
             runtime_row = next(row for row in rows if row["record_type"] == "entity_health")
             self.assertEqual("info", runtime_row["risk"])
             self.assertIn('"registry_entry": false', runtime_row["content_preview"])
+            anomaly_row = next(row for row in rows if row["record_type"] == "registry_anomaly")
+            self.assertIn("Apparaatrelaties", anomaly_row["possible_consequences"])
+            self.assertIn("Controleer officiële relaties", anomaly_row["content_preview"])
 
-    def test_manifest_mount_is_read_only(self) -> None:
+    def test_073_ui_defaults_to_action_and_caps_large_bundle_details(self) -> None:
+        app_root = Path(__file__).resolve().parents[1]
+        html = (app_root / "web" / "index.html").read_text(encoding="utf-8")
+        javascript = (app_root / "web" / "assets" / "app.js").read_text(encoding="utf-8")
+        translations = (app_root / "web" / "assets" / "i18n.js").read_text(encoding="utf-8")
+
+        self.assertIn('<option value="attention" selected>Alleen actie nodig</option>', html)
+        self.assertIn('<option value="integration" selected>Per integratie</option>', html)
+        self.assertIn("MAX_BUNDLE_DEVICE_DETAILS = 100", javascript)
+        self.assertIn("Tijdelijke signalen gegroepeerd bekijken", javascript)
+        self.assertIn("entityGroupOpen: new Map()", javascript)
+        self.assertIn("state.entityGroupOpen.set(details.dataset.entityGroup, details.open)", javascript)
+        self.assertIn('id="language-setting"', html)
+        self.assertIn('value="auto"', html)
+        self.assertIn('id="export-dialog"', html)
+        self.assertIn("Readable report", translations)
+        self.assertIn("Cleanup categories", translations)
+        self.assertIn("HassCleanerI18n?.setPreference", javascript)
+
+    def test_manifest_mount_allows_only_application_guarded_quarantine(self) -> None:
         manifest = (Path(__file__).resolve().parents[1] / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn("read_only: true", manifest)
-        self.assertNotIn("read_only: false", manifest)
+        self.assertIn("read_only: false", manifest)
 
     def test_build_uses_published_multi_arch_python_tag(self) -> None:
         app_root = Path(__file__).resolve().parents[1]
@@ -126,6 +164,11 @@ class ReportingTests(unittest.TestCase):
         self.assertIn("HEALTHCHECK", dockerfile)
         self.assertIn("version: ${{ steps.normalize.outputs.version }}", workflow)
         self.assertIn('echo "version=${version}"', workflow)
+
+    def test_stable_release_omits_default_stage(self) -> None:
+        app_root = Path(__file__).resolve().parents[1]
+        config = (app_root / "config.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("\nstage:", config)
 
     def test_report_retention_only_removes_owned_old_report_sets(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

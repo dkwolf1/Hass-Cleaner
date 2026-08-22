@@ -13,8 +13,7 @@ ENV PYTHONUNBUFFERED=1 \
     HASS_CLEANER_HOST=0.0.0.0 \
     HASS_CLEANER_PORT=8099 \
     HASS_CLEANER_CONFIG_ROOT=/homeassistant \
-    HASS_CLEANER_DATA_ROOT=/data \
-    HASS_CLEANER_AUDIT_ONLY=1
+    HASS_CLEANER_DATA_ROOT=/data
 
 EXPOSE 8099
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
