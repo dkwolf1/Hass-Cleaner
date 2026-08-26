@@ -1,6 +1,6 @@
 # Hass-Cleaner
 
-Versie 1.0.0 toont geregistreerde entities en runtime-only states apart. Status en meetduur zijn advies en filters, geen verwijdertoestemming. De gebruiker kan geregistreerde entities selecteren en na risico- en back-upkeuze via de officiële Home Assistant-API verwijderen. Runtime-only states hebben geen registeritem en blijven uitgesloten.
+Versie 1.0.1 toont geregistreerde entities en runtime-only states apart. Status en meetduur zijn advies en filters, geen verwijdertoestemming. De gebruiker kan geregistreerde entities selecteren en na risico- en back-upkeuze via de officiële Home Assistant-API verwijderen. Runtime-only states hebben geen registeritem en blijven uitgesloten.
 
 Deze versie inventariseert veilig bestanden en Home Assistant-registers en kan afzonderlijk de officiële Recorder-purgeactie uitvoeren.
 

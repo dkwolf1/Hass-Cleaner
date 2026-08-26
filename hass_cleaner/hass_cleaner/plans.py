@@ -54,21 +54,20 @@ class PlanManager:
         files = []
         for item_id in selected_ids:
             item = file_map[item_id]
-            requested_action = settings.deletion_mode
             files.append(
                 {
                     "id": item.id,
                     "path": item.path,
                     "before": {"exists": True, "size_bytes": item.size_bytes, "category": item.category, "sha256": item.sha256},
-                    "proposed_action": requested_action,
+                    "proposed_action": "quarantine",
                     "after": {
                         "source_exists": False,
-                        "quarantine_copy": settings.deletion_mode == "quarantine",
-                        "retention_days": settings.retention_days if settings.deletion_mode == "quarantine" else 0,
+                        "quarantine_copy": True,
+                        "retention_days": settings.retention_days,
                     },
                     "advice": item.advice,
                     "risk": item.risk,
-                    "execution_allowed": settings.deletion_mode == "quarantine",
+                    "execution_allowed": True,
                 }
             )
         bundles = []
@@ -146,7 +145,7 @@ class PlanManager:
                 "entity_count": len(entities),
                 "device_count": len(devices),
                 "planned_bytes": sum(item["before"]["size_bytes"] for item in files),
-                "executable_actions": (len(files) if settings.deletion_mode == "quarantine" else 0) + len(entities) + len(devices),
+                "executable_actions": len(files) + len(entities) + len(devices),
             },
             "global_recovery": [
                 "Annuleer bij twijfel; dit plan voert zelf niets uit.",

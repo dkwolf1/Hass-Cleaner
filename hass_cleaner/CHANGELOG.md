@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1 — 2026-08-26
+
+- Quarantaine en registeropschoning crashbestendiger en volledig geaudit gemaakt.
+- Oude selecties bij een nieuwe scan gewist en alleen quarantaine als bestandsroute behouden.
+- Grote scans laden bestanden, entities en bundels nu per pagina.
+- Lokale instellingen, metingen en keuzes atomisch opgeslagen met zichtbare fouten.
+- Scanthreads eindigen altijd met een definitieve status.
+- Engelse dynamische teksten, toetsenbordtabs en benoemde dialogen verbeterd.
+- Versiegebonden frontendassets en expliciete cacheheaders toegevoegd.
+
 ## 1.0.0 — 2026-08-14
 
 - Eerste stabiele release voor gecontroleerde vroege tests.

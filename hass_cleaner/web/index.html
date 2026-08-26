@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Hass-Cleaner</title>
-    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="stylesheet" href="assets/styles.css?v=1.0.1">
   </head>
   <body>
     <div class="app-shell">
@@ -25,15 +25,15 @@
         </div>
       </header>
 
-      <nav class="tabs" aria-label="Hoofdnavigatie">
-        <button class="tab active" data-tab="overview">Overzicht</button>
-        <button class="tab" data-tab="results">Scanresultaten</button>
-        <button class="tab" data-tab="entities">Entiteiten</button>
-        <button class="tab" data-tab="registry">Bundels</button>
-        <button class="tab" data-tab="database">Database</button>
-        <button class="tab" data-tab="quarantine">Quarantaine</button>
-        <button class="tab" data-tab="history">Historie</button>
-        <button class="tab" data-tab="settings">Instellingen <span class="dot"></span></button>
+      <nav class="tabs" aria-label="Hoofdnavigatie" role="tablist">
+        <button class="tab active" id="tab-overview" data-tab="overview" role="tab" aria-controls="view-overview" aria-selected="true" tabindex="0">Overzicht</button>
+        <button class="tab" id="tab-results" data-tab="results" role="tab" aria-controls="view-results" aria-selected="false" tabindex="-1">Scanresultaten</button>
+        <button class="tab" id="tab-entities" data-tab="entities" role="tab" aria-controls="view-entities" aria-selected="false" tabindex="-1">Entiteiten</button>
+        <button class="tab" id="tab-registry" data-tab="registry" role="tab" aria-controls="view-registry" aria-selected="false" tabindex="-1">Bundels</button>
+        <button class="tab" id="tab-database" data-tab="database" role="tab" aria-controls="view-database" aria-selected="false" tabindex="-1">Database</button>
+        <button class="tab" id="tab-quarantine" data-tab="quarantine" role="tab" aria-controls="view-quarantine" aria-selected="false" tabindex="-1">Quarantaine</button>
+        <button class="tab" id="tab-history" data-tab="history" role="tab" aria-controls="view-history" aria-selected="false" tabindex="-1">Historie</button>
+        <button class="tab" id="tab-settings" data-tab="settings" role="tab" aria-controls="view-settings" aria-selected="false" tabindex="-1">Instellingen <span class="dot"></span></button>
       </nav>
 
       <main>
@@ -289,21 +289,12 @@
             </section>
             <section class="panel settings-card">
               <div class="panel-heading"><div><div class="eyebrow">VERWIJDERBELEID</div><h3>Wat gebeurt er met bestanden?</h3></div></div>
-              <label class="choice-card">
-                <input type="radio" name="deletion-mode" value="quarantine" checked>
-                <span class="choice-control"></span>
-                <span><strong>Eerst in quarantaine <em>Aanbevolen</em></strong><small>Bestanden blijven tijdelijk herstelbaar en worden daarna permanent verwijderd.</small></span>
-              </label>
+              <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Altijd eerst in quarantaine</strong><p>Bestanden blijven tijdelijk herstelbaar en kunnen na afloop handmatig permanent worden verwijderd.</p></div></div>
               <div class="retention-control" id="retention-control">
                 <div class="range-label"><span>Bewaartermijn</span><strong><span id="retention-value">7</span> dagen</strong></div>
                 <input type="range" id="retention-days" min="1" max="10" value="7">
                 <div class="range-scale"><span>1 dag</span><span>10 dagen</span></div>
               </div>
-              <label class="choice-card danger-choice">
-                <input type="radio" name="deletion-mode" value="permanent">
-                <span class="choice-control"></span>
-                <span><strong>Direct permanent verwijderen</strong><small>Uit veiligheid niet beschikbaar. Bestanden gaan eerst naar herstelbare quarantaine en kunnen pas na de bewaartermijn definitief worden gewist.</small></span>
-              </label>
             </section>
 
             <section class="panel settings-card">
@@ -334,12 +325,12 @@
       </main>
     </div>
 
-    <dialog id="cleanup-dialog">
+    <dialog id="cleanup-dialog" aria-labelledby="cleanup-dialog-title">
       <form method="dialog" class="dialog-card" id="cleanup-form">
         <button class="dialog-close" value="cancel" aria-label="Sluiten">×</button>
         <div class="dialog-icon">i</div>
         <div class="eyebrow">IMPACTANALYSE</div>
-        <h2>Opschoning voorbereiden</h2>
+        <h2 id="cleanup-dialog-title">Opschoning voorbereiden</h2>
         <p>Dit overzicht legt de voor- en nasituatie, risico's en herstelstappen vast. Omdat niets wordt gewijzigd, is voor deze stap geen back-up nodig.</p>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong>Uitvoering is apart beveiligd</strong><p>Vóór uitvoering wordt ieder bestand opnieuw gecontroleerd. Een voltooide back-up is sterk aanbevolen, maar geen technische verplichting.</p></div></div>
         <div class="dialog-summary" id="dialog-summary"></div>
@@ -347,7 +338,7 @@
       </form>
     </dialog>
 
-    <dialog id="file-advice-dialog">
+    <dialog id="file-advice-dialog" aria-labelledby="file-advice-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="file-advice-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">INHOUD, IMPACT EN HERSTEL</div>
@@ -358,7 +349,7 @@
       </div>
     </dialog>
 
-    <dialog id="bundle-dialog">
+    <dialog id="bundle-dialog" aria-labelledby="bundle-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="bundle-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">BUNDELBEOORDELING</div>
@@ -371,7 +362,7 @@
       </div>
     </dialog>
 
-    <dialog id="entity-dialog">
+    <dialog id="entity-dialog" aria-labelledby="entity-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="entity-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">ENTITEITDETAILS</div>
@@ -383,22 +374,22 @@
       </div>
     </dialog>
 
-    <dialog id="plan-dialog">
+    <dialog id="plan-dialog" aria-labelledby="plan-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="plan-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">VOORBEREIDE OPSCHONING</div>
-        <h2>Impact- en hersteloverzicht gereed</h2>
+        <h2 id="plan-dialog-title">Impact- en hersteloverzicht gereed</h2>
         <p id="plan-dialog-summary"></p>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">De voorbereiding heeft nog niets gewijzigd.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">Technische gegevens downloaden</button><button class="button button-ghost plan-download" data-format="md">Leesbaar overzicht downloaden</button><button class="button button-primary" id="open-quarantine-execution">Bestanden naar quarantaine</button><button class="button button-danger" id="open-registry-execution">Registeropschoning uitvoeren</button></div>
       </div>
     </dialog>
 
-    <dialog id="export-dialog">
+    <dialog id="export-dialog" aria-labelledby="export-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="export-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">EXPORTEREN</div>
-        <h2>Exporteer scanresultaten</h2>
+        <h2 id="export-dialog-title">Exporteer scanresultaten</h2>
         <p>Kies het formaat dat past bij wat je wilt doen.</p>
         <div class="export-options">
           <button class="export-option report-action" data-report="md"><span><strong>Leesbaar rapport</strong><small>Markdown (.md) voor lezen, delen en ondersteuning.</small></span><em>Downloaden</em></button>
@@ -408,11 +399,11 @@
       </div>
     </dialog>
 
-    <dialog id="quarantine-dialog">
+    <dialog id="quarantine-dialog" aria-labelledby="quarantine-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="quarantine-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">VEILIGE UITVOERING</div>
-        <h2>Back-up verifiëren en verplaatsen</h2>
+        <h2 id="quarantine-dialog-title">Back-up verifiëren en verplaatsen</h2>
         <p>De volledige selectie wordt vlak vóór uitvoering opnieuw gecontroleerd. Bij één afwijking stopt de hele batch.</p>
         <button class="button button-ghost" id="quarantine-backup-button">Volledige back-up starten</button>
         <button class="button button-ghost" id="quarantine-verify-button" disabled>Back-upstatus controleren</button>
@@ -429,11 +420,11 @@
       </div>
     </dialog>
 
-    <dialog id="registry-execution-dialog">
+    <dialog id="registry-execution-dialog" aria-labelledby="registry-execution-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="registry-execution-dialog" aria-label="Sluiten">&times;</button>
         <div class="eyebrow">REGISTEROPSCHONING OP EIGEN RISICO</div>
-        <h2>Entiteiten en apparaten verwijderen</h2>
+        <h2 id="registry-execution-dialog-title">Entiteiten en apparaten verwijderen</h2>
         <p id="registry-execution-summary"></p>
         <div class="notice notice-warning"><div class="notice-icon">!</div><div><strong>Geen quarantaine of individuele undo</strong><p>Integraties kunnen objecten opnieuw aanmaken. Dashboards en automatiseringen kunnen breken. Herstel gebeurt via een volledige Home Assistant-back-up.</p></div></div>
         <button class="button button-ghost" id="registry-backup-button">Volledige back-up starten</button>
@@ -449,12 +440,12 @@
       </div>
     </dialog>
 
-    <dialog id="purge-dialog">
+    <dialog id="purge-dialog" aria-labelledby="purge-dialog-title">
       <div class="dialog-card">
         <button class="dialog-close" data-close-dialog="purge-dialog" aria-label="Sluiten">&times;</button>
         <div class="dialog-icon">!</div>
         <div class="eyebrow">DESTRUCTIEVE DATABASEACTIE</div>
-        <h2>Recorder-database opschonen</h2>
+        <h2 id="purge-dialog-title">Recorder-database opschonen</h2>
         <p id="purge-dialog-summary"></p>
         <button class="button button-ghost" id="purge-backup-button">Eerst volledige back-up starten</button>
         <label class="confirm-row"><input type="checkbox" id="purge-backup-confirmed"><span>Ik bevestig dat een recente, voltooide en bruikbare back-up beschikbaar is.</span></label>
@@ -464,7 +455,7 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="assets/i18n.js"></script>
-    <script src="assets/app.js"></script>
+    <script src="assets/i18n.js?v=1.0.1"></script>
+    <script src="assets/app.js?v=1.0.1"></script>
   </body>
 </html>

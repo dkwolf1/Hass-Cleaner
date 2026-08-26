@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from hass_cleaner.scanner import scan_tree
+from hass_cleaner.scanner import ScanManager, scan_tree
 from hass_cleaner.settings import Settings
 
 
@@ -58,6 +59,39 @@ class ScannerTests(unittest.TestCase):
             os.utime(log, (old, old))
             result = scan_tree(root, Settings(min_log_age_days=14))
             self.assertEqual("old_log", result.items[0].category)
+
+    def test_manager_finishes_failed_when_settings_loader_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            manager = ScanManager(Path(folder), lambda: (_ for _ in ()).throw(RuntimeError("settings kapot")))
+            started = manager.start()
+            result = self._wait_for_scan(manager, started.id)
+
+        self.assertEqual("failed", result.status)
+        self.assertIn("settings kapot", result.error or "")
+        self.assertIsNotNone(result.finished_at)
+
+    def test_manager_finishes_failed_when_registry_scan_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            manager = ScanManager(
+                Path(folder),
+                Settings,
+                registry_scanner=lambda: (_ for _ in ()).throw(RuntimeError("registry kapot")),
+            )
+            started = manager.start()
+            result = self._wait_for_scan(manager, started.id)
+
+        self.assertEqual("failed", result.status)
+        self.assertIn("registry kapot", result.error or "")
+        self.assertIsNotNone(result.finished_at)
+
+    @staticmethod
+    def _wait_for_scan(manager: ScanManager, scan_id: str):
+        for _ in range(100):
+            result = manager.get(scan_id)
+            if result and result.status not in {"queued", "running"}:
+                return result
+            time.sleep(0.01)
+        raise AssertionError("scanthread bleef actief")
 
 
 if __name__ == "__main__":

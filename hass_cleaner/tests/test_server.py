@@ -58,6 +58,15 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(payload["file_execution_enabled"])
         self.assertFalse(payload["registry_execution_enabled"])
 
+    def test_frontend_cache_policy_separates_shell_and_versioned_assets(self) -> None:
+        with urllib.request.urlopen(f"{self.base}/", timeout=5) as response:
+            html = response.read().decode("utf-8")
+            self.assertEqual("no-cache", response.headers["Cache-Control"])
+            self.assertIn("assets/app.js?v=1.0.1", html)
+        with urllib.request.urlopen(f"{self.base}/assets/app.js?v=1.0.1", timeout=5) as response:
+            response.read()
+            self.assertEqual("public, max-age=31536000, immutable", response.headers["Cache-Control"])
+
     def test_retention_range_is_enforced(self) -> None:
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request(
@@ -91,6 +100,18 @@ class ServerTests(unittest.TestCase):
                 "language": "de",
             })
         self.assertEqual(400, raised.exception.code)
+
+    def test_removed_permanent_mode_is_not_exposed_or_accepted_as_state(self) -> None:
+        status, saved = self.request("/api/settings", "POST", {
+            "min_temp_age_days": 30, "min_log_age_days": 14,
+            "deletion_mode": "permanent", "retention_days": 7,
+            "advanced_mode": False, "report_retention_count": 10,
+            "language": "nl",
+        })
+        self.assertEqual(200, status)
+        self.assertNotIn("deletion_mode", saved)
+        stored = json.loads((Path(self.data_temp.name) / "ui-settings.json").read_text(encoding="utf-8"))
+        self.assertNotIn("deletion_mode", stored)
 
     def test_plan_endpoint_allows_only_verified_quarantine_followup(self) -> None:
         cache = Path(self.config_temp.name) / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
@@ -193,6 +214,13 @@ class ServerTests(unittest.TestCase):
         _, page = self.request(f"/api/scans/{scan_id}/files?limit=1")
         self.assertEqual(1, page["limit"])
         self.assertLessEqual(len(page["items"]), 1)
+        _, entity_page = self.request(f"/api/scans/{scan_id}/entities?limit=1&status=problems")
+        self.assertEqual(1, entity_page["limit"])
+        self.assertIn("facets", entity_page)
+        self.assertLessEqual(len(entity_page["items"]), 1)
+        _, bundle_page = self.request(f"/api/scans/{scan_id}/bundles?limit=1&status=attention")
+        self.assertEqual(1, bundle_page["limit"])
+        self.assertLessEqual(len(bundle_page["items"]), 1)
         _, history = self.request("/api/scans/history")
         self.assertEqual(scan_id, history["items"][0]["id"])
 

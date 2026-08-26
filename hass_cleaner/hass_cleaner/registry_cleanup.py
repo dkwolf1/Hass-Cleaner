@@ -15,6 +15,14 @@ class RegistryCleanupError(RuntimeError):
     pass
 
 
+class RegistryExecutionError(RegistryCleanupError):
+    """A registry command failed after zero or more commands completed."""
+
+    def __init__(self, message: str, completed: list[dict[str, str]]):
+        super().__init__(message)
+        self.completed = list(completed)
+
+
 def execute_registry_commands(
     entities: list[str],
     devices: list[dict[str, str]],
@@ -59,10 +67,17 @@ def execute_registry_commands(
             _receive_result(connection, command_id)
             completed.append({"type": "device", "id": device["device_id"], "status": "config_entry_removed"})
             command_id += 1
-    except HomeAssistantApiError as exc:
-        raise RegistryCleanupError(str(exc)) from exc
+    except Exception as exc:
+        if isinstance(exc, RegistryExecutionError):
+            raise
+        message = str(exc) if isinstance(exc, (HomeAssistantApiError, RegistryCleanupError)) else f"{type(exc).__name__}: {exc}"
+        raise RegistryExecutionError(message, completed) from exc
     finally:
-        connection.close()
+        try:
+            connection.close()
+        except Exception:
+            # Closing the transport does not undo commands Home Assistant already accepted.
+            pass
     return completed
 
 
@@ -136,6 +151,11 @@ class RegistryCleanupManager:
         try:
             record["completed"] = self.executor(entities, devices)
             record["status"] = "completed"
+        except RegistryExecutionError as exc:
+            record["completed"] = exc.completed
+            record["status"] = "partial" if exc.completed else "failed"
+            record["error"] = f"{type(exc).__name__}: {exc}"
+            raise RegistryCleanupError(str(exc)) from exc
         except Exception as exc:
             record["status"] = "failed"
             record["error"] = f"{type(exc).__name__}: {exc}"
