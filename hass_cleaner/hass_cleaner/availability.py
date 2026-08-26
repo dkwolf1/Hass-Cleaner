@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .registry_audit import RegistryAudit
+from .storage import StorageError, atomic_write_json, json_file_lock, read_json_object
 
 
 LONG_UNAVAILABLE_DAYS = 30
@@ -33,12 +33,23 @@ def apply_availability_history(audit: RegistryAudit, path: Path, *, now: datetim
         if observation is not None:
             observations[str(entity.get("entity_id", ""))] = observation
 
-    _save(path, observations)
+    persistence_errors: list[str] = []
+    try:
+        _save(path, observations)
+    except StorageError as exc:
+        persistence_errors.append(str(exc))
+        print(f"Hass-Cleaner opslagwaarschuwing: {exc}", flush=True)
     _append_bundle_anomalies(audit)
     audit.entity_workspace = _build_entity_workspace(audit)
     _apply_decisions(audit.entity_workspace, decisions, current)
     _apply_scan_diff(audit.entity_workspace, previous_snapshot)
-    _save(snapshot_path, _workspace_snapshot(audit.entity_workspace))
+    try:
+        _save(snapshot_path, _workspace_snapshot(audit.entity_workspace))
+    except StorageError as exc:
+        persistence_errors.append(str(exc))
+        print(f"Hass-Cleaner opslagwaarschuwing: {exc}", flush=True)
+    if persistence_errors:
+        audit.entity_workspace["persistence_errors"] = persistence_errors
 
 
 def _annotate_entity(
@@ -379,22 +390,23 @@ def update_entity_decision(
         raise ValueError("Ongeldige entitykeuze")
     if not entity_id or len(entity_id) > 255:
         raise ValueError("Ongeldige entity-id")
-    decisions = _load(path)
-    if action == "clear":
-        decisions.pop(entity_id, None)
-        _save(path, decisions)
-        return {"entity_id": entity_id, "action": "clear"}
-    current = now or datetime.now(timezone.utc)
-    days = {"snooze_7": 7, "snooze_30": 30, "snooze_90": 90}.get(action)
-    until = ""
-    if days:
-        from datetime import timedelta
+    with json_file_lock(path):
+        decisions = _load(path)
+        if action == "clear":
+            decisions.pop(entity_id, None)
+            _save(path, decisions)
+            return {"entity_id": entity_id, "action": "clear"}
+        current = now or datetime.now(timezone.utc)
+        days = {"snooze_7": 7, "snooze_30": 30, "snooze_90": 90}.get(action)
+        until = ""
+        if days:
+            from datetime import timedelta
 
-        until = (current + timedelta(days=days)).isoformat()
-    record = {"action": action, "set_at": current.isoformat(), "until": until}
-    decisions[entity_id] = record
-    _save(path, decisions)
-    return {"entity_id": entity_id, **record}
+            until = (current + timedelta(days=days)).isoformat()
+        record = {"action": action, "set_at": current.isoformat(), "until": until}
+        decisions[entity_id] = record
+        _save(path, decisions)
+        return {"entity_id": entity_id, **record}
 
 
 def apply_saved_decisions(workspace: dict[str, Any], path: Path, *, now: datetime | None = None) -> None:
@@ -489,19 +501,11 @@ def _entity_reason(status: str, signal_problem: bool) -> str:
 
 
 def _load(path: Path) -> dict[str, dict[str, Any]]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        return value if isinstance(value, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
+    return read_json_object(path)
 
 
 def _save(path: Path, observations: dict[str, dict[str, Any]]) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(observations, ensure_ascii=False, indent=2), encoding="utf-8")
-    except OSError:
-        pass
+    atomic_write_json(path, observations)
 
 
 def _parse(value: str) -> datetime | None:

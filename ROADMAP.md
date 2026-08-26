@@ -18,10 +18,11 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 | 0.9.0 | Afgerond | Supervisor-back-upverificatie, hersteltest, bewaartermijn en expliciete verwijdering na verval. |
 | 0.9.1 | Afgerond | Toegestane back-upcontrole, hergebruik van back-upbewijs, bewuste optionele back-upkeuze en selecteerbare entitybeoordeling. |
 | 1.0.0 | Uitgebracht | Gebruikersgestuurde cleanup, registeruitvoering, persoonlijke inhoud, schone start en behoud van harde systeembescherming. |
+| 1.0.1 | Voorbereid | Technische hardening: crashbestendige uitvoering, paginering, atomaire opslag, toegankelijkheid en betrouwbaar frontendcachebeleid. |
 
 ### Praktijkcontrole voor vroege testers
 
-- 1.0.0 installeren of bijwerken via de echte GitHub/GHCR-workflow.
+- 1.0.1 installeren of bijwerken via de echte GitHub/GHCR-workflow.
 - Volledige back-up starten en voltooiing op Home Assistant OS verifiëren.
 - Zowel een veilige als een bewust gekozen reviewkandidaat naar quarantaine verplaatsen.
 - Hersteltest uitvoeren en hetzelfde bestand werkelijk terugplaatsen.
@@ -67,10 +68,11 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 | 0.9.0 | Completed | Supervisor backup verification, restore testing, retention and explicit post-expiry deletion. |
 | 0.9.1 | Completed | Permitted backup verification, reusable evidence, an explicit optional backup choice and selectable entity reviews. |
 | 1.0.0 | Released | User-directed cleanup, registry execution, personal content, clean-start controls and hard core-system protection. |
+| 1.0.1 | Prepared | Technical hardening: crash-safe execution, pagination, atomic storage, accessibility and reliable frontend caching. |
 
 ### Practical checks for early testers
 
-- Install or update 1.0.0 through the real GitHub/GHCR workflow.
+- Install or update 1.0.1 through the real GitHub/GHCR workflow.
 - Start a full backup and verify completion on Home Assistant OS.
 - Move both a safe file and an explicitly accepted review candidate into quarantine.
 - Run the restore test and restore that file to its original location.

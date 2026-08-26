@@ -17,16 +17,31 @@ const state = {
   csrfToken: "",
   backupEvidenceToken: "",
   backupVerified: false,
-  scanFullLoaded: false,
-  fullScanPromise: null,
+  pages: {
+    files: { offset: 0, total: 0, loading: false, query: "" },
+    entities: { offset: 0, total: 0, loading: false, query: "" },
+    bundles: { offset: 0, total: 0, loading: false, query: "" },
+  },
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const MAX_BUNDLE_DEVICE_DETAILS = 100;
 
+function debounce(callback, delay = 300) {
+  let timer;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => callback(...args), delay);
+  };
+}
+
 function englishInterface() {
   return window.HassCleanerI18n?.locale === "en";
+}
+
+function interfaceLocale() {
+  return englishInterface() ? "en-GB" : "nl-NL";
 }
 
 function apiUrl(path) {
@@ -59,10 +74,44 @@ function showToast(message, error = false) {
 }
 
 function activateTab(name) {
-  $$(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
-  $$(".view").forEach((view) => view.classList.toggle("active", view.id === `view-${name}`));
-  if (["results", "entities", "registry"].includes(name)) loadFullScan();
+  $$(".tab").forEach((tab) => {
+    const active = tab.dataset.tab === name;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  $$(".view").forEach((view) => {
+    const active = view.id === `view-${name}`;
+    view.classList.toggle("active", active);
+    view.hidden = !active;
+  });
+  if (name === "results") loadFilesPage(true);
+  if (name === "entities") loadEntitiesPage(true);
+  if (name === "registry") loadBundlesPage(true);
   if (name === "quarantine") loadQuarantine();
+}
+
+function initializeTabAccessibility() {
+  const tabs = $$(".tab");
+  tabs.forEach((tab, index) => {
+    const panel = $(`#view-${tab.dataset.tab}`);
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", panel.id);
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", tab.id);
+    panel.hidden = index !== 0;
+    tab.addEventListener("keydown", (event) => {
+      const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      const current = tabs.indexOf(tab);
+      const target = event.key === "Home" ? 0
+        : event.key === "End" ? tabs.length - 1
+        : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+      activateTab(tabs[target].dataset.tab);
+      tabs[target].focus();
+    });
+  });
 }
 
 function formatBytes(bytes) {
@@ -136,20 +185,16 @@ async function loadSettings() {
   $("#min-log-age").value = state.settings.min_log_age_days;
   $("#retention-days").value = state.settings.retention_days;
   $("#retention-value").textContent = state.settings.retention_days;
-  const selected = $(`input[name="deletion-mode"][value="${state.settings.deletion_mode}"]`);
-  if (selected) selected.checked = true;
   $("#advanced-mode").checked = Boolean(state.settings.advanced_mode);
   $("#report-retention-count").value = state.settings.report_retention_count || 10;
   renderAdvancedVisibility();
-  updateRetentionVisibility();
   renderPolicy();
 }
 
 function renderPolicy() {
   if (!state.settings) return;
-  const quarantine = state.settings.deletion_mode === "quarantine";
-  $("#policy-title").textContent = quarantine ? `${state.settings.retention_days} dagen herstelbaar` : "Direct permanent verwijderen";
-  $("#policy-description").textContent = quarantine ? "Verplaatsen naar beveiligde quarantaine" : "Extra waarschuwing en back-upvraag verplicht";
+  $("#policy-title").textContent = `${state.settings.retention_days} dagen herstelbaar`;
+  $("#policy-description").textContent = "Verplaatsen naar beveiligde quarantaine";
 }
 
 function renderAdvancedVisibility() {
@@ -160,15 +205,38 @@ function renderAdvancedVisibility() {
 
 async function startScan() {
   try {
-    state.selected.clear();
-    state.scanFullLoaded = false;
     const scan = await api("api/scans", { method: "POST", body: "{}" });
+    resetScanWorkspace();
     state.scan = scan;
     showScanProgress(scan);
     pollScan(scan.id);
   } catch (error) {
     showToast(error.message, true);
   }
+}
+
+function resetScanWorkspace() {
+  state.scan = null;
+  state.items = [];
+  state.registryAudit = null;
+  state.guidance = null;
+  state.activeBundle = null;
+  state.activeEntity = null;
+  state.latestPlan = null;
+  state.selected.clear();
+  state.selectedEntities.clear();
+  state.selectedBundles.clear();
+  state.entityGroupOpen.clear();
+  state.visibleEntityIds = [];
+  Object.values(state.pages).forEach((page) => Object.assign(page, { offset: 0, total: 0, loading: false, query: "" }));
+  window.clearTimeout(state.pollTimer);
+  state.pollTimer = null;
+  $$("dialog[open]").forEach((dialog) => dialog.close());
+  $("#recipe-list").innerHTML = '<div class="table-empty panel">Wacht op de nieuwe scan.</div>';
+  $("#entity-list").innerHTML = '<div class="table-empty panel">Wacht op de nieuwe scan.</div>';
+  $("#bundle-list").innerHTML = '<div class="table-empty panel">Wacht op de nieuwe scan.</div>';
+  updatePrepareButton();
+  updateEntityButtons();
 }
 
 function showScanProgress(scan) {
@@ -182,13 +250,13 @@ function pollScan(id) {
   window.clearTimeout(state.pollTimer);
   state.pollTimer = window.setTimeout(async () => {
     try {
-      const scan = await api(`api/scans/${id}`);
+      const scan = await api(`api/scans/${id}/summary`);
       state.scan = scan;
       if (scan.status === "queued" || scan.status === "running") {
         showScanProgress(scan);
         pollScan(id);
       } else {
-        finishScan(scan);
+        finishScanSummary(scan, true);
       }
     } catch (error) {
       showToast(error.message, true);
@@ -196,65 +264,32 @@ function pollScan(id) {
   }, 450);
 }
 
-function finishScan(scan, showCompletionToast = true) {
+function finishScanSummary(scan, showCompletionToast = false) {
+  state.scan = scan;
+  state.registryAudit = scan.registry_audit || null;
+  state.guidance = scan.cleanup_guidance || null;
   $("#scan-progress").classList.add("hidden");
   $("#scan-empty").classList.remove("hidden");
   if (scan.status === "failed") {
     $("#scan-state").textContent = "Mislukt";
     $("#scan-empty strong").textContent = "Scan kon niet worden voltooid";
-    $("#scan-empty p").textContent = scan.error;
-    showToast(scan.error, true);
+    $("#scan-empty p").textContent = scan.error || "Onbekende scanfout";
+    showToast(scan.error || "Scan kon niet worden voltooid", true);
     return;
   }
-  state.items = scan.items || [];
-  state.scan = scan;
-  state.scanFullLoaded = true;
-  state.registryAudit = scan.registry_audit || null;
-  state.guidance = scan.cleanup_guidance || null;
-  $$(".export-action").forEach((button) => button.classList.remove("hidden"));
-  $("#scan-state").textContent = "Voltooid";
-  $("#scan-empty strong").textContent = `${scan.visited_files} bestanden gecontroleerd`;
-  $("#scan-empty p").textContent = `${state.items.length} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. De scan heeft niets gewijzigd.`;
-  renderMetrics(scan);
-  renderRecipes();
-  renderResults();
-  renderRegistryAudit();
-  populateEntityFilters();
-  renderEntities();
-  $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
-  loadScanHistory();
-  if (showCompletionToast) showToast("Veilige scan voltooid");
-}
-
-function finishScanSummary(scan) {
-  state.scan = scan;
-  state.scanFullLoaded = false;
-  state.registryAudit = scan.registry_audit || null;
-  state.guidance = scan.cleanup_guidance || null;
-  $("#scan-progress").classList.add("hidden");
-  $("#scan-empty").classList.remove("hidden");
   $$(".export-action").forEach((button) => button.classList.remove("hidden"));
   $("#scan-state").textContent = "Voltooid";
   $("#scan-empty strong").textContent = `${scan.visited_files || 0} bestanden gecontroleerd`;
   const reported = Object.values(scan.counts || {}).reduce((total, value) => total + Number(value || 0), 0);
   $("#scan-empty p").textContent = `${reported} gerapporteerd · ${scan.ignored_files || 0} volgens beleid genegeerd. Details worden pas geopend wanneer nodig.`;
   renderMetrics(scan);
-}
-
-async function loadFullScan() {
-  if (!state.scan?.id || state.scanFullLoaded || state.scan.status !== "completed") return;
-  if (state.fullScanPromise) return state.fullScanPromise;
-  state.fullScanPromise = (async () => {
-    try {
-      const full = await api(`api/scans/${state.scan.id}`);
-      finishScan(full, false);
-    } catch (error) {
-      showToast(error.message, true);
-    } finally {
-      state.fullScanPromise = null;
-    }
-  })();
-  return state.fullScanPromise;
+  renderRecipes();
+  renderRegistryAudit();
+  const persistenceErrors = state.registryAudit?.entity_workspace?.persistence_errors || [];
+  if (persistenceErrors.length) showToast(persistenceErrors[0], true);
+  $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
+  loadScanHistory();
+  if (showCompletionToast) showToast("Veilige scan voltooid");
 }
 
 function renderMetrics(scan) {
@@ -315,6 +350,40 @@ function selectAllSafe() {
   renderResults();
 }
 
+function appendLoadMore(target, kind, loaded, total, load) {
+  if (loaded >= total) return;
+  target.insertAdjacentHTML("beforeend", `<div class="pagination-row"><button class="button button-ghost" data-load-page="${kind}">Meer laden (${loaded} van ${total})</button></div>`);
+  $(`[data-load-page="${kind}"]`, target).addEventListener("click", load);
+}
+
+async function loadFilesPage(reset = false) {
+  if (!state.scan?.id || state.scan.status !== "completed") return;
+  const page = state.pages.files;
+  const status = $("#risk-filter").value;
+  const query = `status=${encodeURIComponent(status)}`;
+  if (reset || page.query !== query) {
+    Object.assign(page, { offset: 0, total: 0, query });
+    state.items = [];
+  }
+  if ((page.loading && !reset) || (page.offset && page.offset >= page.total)) return;
+  page.loading = true;
+  const generation = (page.generation || 0) + 1;
+  page.generation = generation;
+  const expectedQuery = page.query;
+  try {
+    const response = await api(`api/scans/${state.scan.id}/files?${query}&offset=${page.offset}&limit=100`);
+    if (page.query !== expectedQuery || page.generation !== generation) return;
+    state.items.push(...(response.items || []));
+    page.offset = state.items.length;
+    page.total = Number(response.total || 0);
+    renderResults();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (page.generation === generation) page.loading = false;
+  }
+}
+
 function renderResults() {
   const body = $("#results-body");
   const filter = $("#risk-filter").value;
@@ -343,6 +412,7 @@ function renderResults() {
     event.preventDefault();
     openFileAdvice(button.dataset.adviceId);
   }));
+  appendLoadMore(body, "files", state.items.length, state.pages.files.total, () => loadFilesPage(false));
   updatePrepareButton();
 }
 
@@ -453,18 +523,54 @@ function renderEntityChanges(changes) {
   target.textContent = `${counts.new || 0} nieuw · ${counts.changed || 0} gewijzigd · ${counts.recovered || 0} hersteld · ${counts.removed || 0} verdwenen`;
 }
 
-function populateEntityFilters() {
-  const items = state.registryAudit?.entity_workspace?.items || [];
+function populateEntityFilters(facets = {}) {
   const integration = $("#entity-integration-filter");
   const area = $("#entity-area-filter");
   const currentIntegration = integration.value;
   const currentArea = area.value;
-  const integrations = [...new Set(items.map((item) => item.integration).filter(Boolean))].sort();
-  const areas = [...new Set(items.map((item) => item.area_name || item.area_id).filter(Boolean))].sort();
+  const integrations = facets.integrations || [];
+  const areas = facets.areas || [];
   integration.innerHTML = '<option value="all">Alle integraties</option>' + integrations.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
   area.innerHTML = '<option value="all">Alle ruimtes</option>' + areas.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
   if (integrations.includes(currentIntegration)) integration.value = currentIntegration;
   if (areas.includes(currentArea)) area.value = currentArea;
+}
+
+async function loadEntitiesPage(reset = false) {
+  if (!state.scan?.id || state.scan.status !== "completed") return;
+  const page = state.pages.entities;
+  const parameters = new URLSearchParams({
+    status: $("#entity-status-filter").value,
+    integration: $("#entity-integration-filter").value,
+    area: $("#entity-area-filter").value,
+    min_days: String(Math.max(0, Number($("#entity-days-filter").value) || 0)),
+    q: $("#entity-search").value.trim(),
+  });
+  const query = parameters.toString();
+  if (reset || page.query !== query) {
+    Object.assign(page, { offset: 0, total: 0, query });
+    state.registryAudit.entity_workspace.items = [];
+  }
+  if ((page.loading && !reset) || (page.offset && page.offset >= page.total)) return;
+  page.loading = true;
+  const generation = (page.generation || 0) + 1;
+  page.generation = generation;
+  const expectedQuery = page.query;
+  try {
+    parameters.set("offset", String(page.offset));
+    parameters.set("limit", "100");
+    const response = await api(`api/scans/${state.scan.id}/entities?${parameters}`);
+    if (page.query !== expectedQuery || page.generation !== generation) return;
+    state.registryAudit.entity_workspace.items.push(...(response.items || []));
+    page.offset = state.registryAudit.entity_workspace.items.length;
+    page.total = Number(response.total || 0);
+    populateEntityFilters(response.facets || {});
+    renderEntities();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (page.generation === generation) page.loading = false;
+  }
 }
 
 function filteredEntities() {
@@ -519,7 +625,7 @@ function renderEntities() {
   renderEntityChanges(workspace.changes || {});
   const items = filteredEntities();
   state.visibleEntityIds = items.filter((item) => item.selectable_for_plan).map((item) => item.entity_id);
-  $("#entity-result-summary").textContent = `${items.length} resultaten · ${state.selectedEntities.size} geselecteerd · jij beslist na advies en back-upkeuze`;
+  $("#entity-result-summary").textContent = `${state.pages.entities.total} resultaten · ${state.selectedEntities.size} geselecteerd · jij beslist na advies en back-upkeuze`;
   if (!items.length) {
     const temporary = workspace.summary?.temporary_visible ?? workspace.summary?.temporary_signals ?? 0;
     if ($("#entity-status-filter").value === "attention" && temporary) {
@@ -581,6 +687,7 @@ function renderEntities() {
     renderEntities();
   }));
   $$(".entity-detail", list).forEach((button) => button.addEventListener("click", () => openEntity(button.dataset.entityDetail)));
+  appendLoadMore(list, "entities", workspace.items.length, state.pages.entities.total, () => loadEntitiesPage(false));
   updateEntityButtons();
 }
 
@@ -597,7 +704,7 @@ async function openEntity(entityId) {
   $("#entity-dialog-title").textContent = item.name || item.entity_id;
   $("#entity-dialog-summary").textContent = `${item.entity_id} · ${entityStatusLabel(item.status)} · ${entityDurationLabel(item)}${item.registry_entry === false ? " · runtime-only" : ""}`;
   const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
-  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p><strong>Nog nodig:</strong> ${escapeHtml(item.evidence_needed || "Controleer duur, herhaalde metingen en officiële relaties.")}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString("nl-NL"))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString("nl-NL") : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString("nl-NL") : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
+  $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p><strong>Nog nodig:</strong> ${escapeHtml(item.evidence_needed || "Controleer duur, herhaalde metingen en officiële relaties.")}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString(interfaceLocale()))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString(interfaceLocale()) : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString(interfaceLocale()) : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
   $("#entity-dialog").showModal();
   try {
     const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });
@@ -632,6 +739,42 @@ async function createEntityPlan() {
   }
 }
 
+async function loadBundlesPage(reset = false) {
+  if (!state.scan?.id || state.scan.status !== "completed") return;
+  const page = state.pages.bundles;
+  const parameters = new URLSearchParams({
+    status: $("#registry-severity-filter").value,
+    q: $("#bundle-search").value.trim(),
+  });
+  const query = parameters.toString();
+  if (reset || page.query !== query) {
+    Object.assign(page, { offset: 0, total: 0, query });
+    state.registryAudit.bundles = [];
+  }
+  if ((page.loading && !reset) || (page.offset && page.offset >= page.total)) return;
+  page.loading = true;
+  const generation = (page.generation || 0) + 1;
+  page.generation = generation;
+  const expectedQuery = page.query;
+  try {
+    parameters.set("offset", String(page.offset));
+    parameters.set("limit", "100");
+    const response = await api(`api/scans/${state.scan.id}/bundles?${parameters}`);
+    if (page.query !== expectedQuery || page.generation !== generation) return;
+    state.registryAudit.bundles.push(...(response.items || []));
+    page.offset = state.registryAudit.bundles.length;
+    page.total = Number(response.total || 0);
+    renderBundles();
+  } catch (error) {
+    showToast(error.message, true);
+  } finally {
+    if (page.generation === generation) page.loading = false;
+  }
+}
+
+const bundleDeviceCount = (bundle) => Number(bundle.device_count ?? bundle.devices?.length ?? 0);
+const bundleEntityCount = (bundle) => Number(bundle.entity_count ?? bundle.entities?.length ?? 0);
+
 function renderBundles() {
   const list = $("#bundle-list");
   const filter = $("#registry-severity-filter").value;
@@ -641,8 +784,8 @@ function renderBundles() {
   const bundles = (state.registryAudit?.bundles || []).filter((bundle) => {
     if (filter === "attention" && !anomalyByBundle.has(bundle.id)) return false;
     if (filter === "review" && !bundle.review_count) return false;
-    if (filter === "devices" && !bundle.devices.length) return false;
-    if (filter === "entities" && !bundle.entities.length) return false;
+    if (filter === "devices" && !bundleDeviceCount(bundle)) return false;
+    if (filter === "entities" && !bundleEntityCount(bundle)) return false;
     if (!query) return true;
     const haystack = [bundle.title, bundle.domain, ...bundle.devices.map((item) => item.name), ...bundle.entities.map((item) => item.entity_id)].join(" ").toLowerCase();
     return haystack.includes(query);
@@ -662,12 +805,13 @@ function renderBundles() {
     return `<article class="panel bundle-card">
       <div class="bundle-main">
         <div class="bundle-icon">${escapeHtml((bundle.domain || "?").slice(0, 2).toUpperCase())}</div>
-        <div class="bundle-copy"><div class="eyebrow">${escapeHtml(bundle.domain || "ONBEKEND")} · ${escapeHtml(bundle.state)}</div><h3>${escapeHtml(bundle.title)}</h3><p>${bundle.devices.length} apparaten · ${bundle.entities.length} entities</p>${anomaly ? `<p class="bundle-anomaly">${escapeHtml(anomaly.summary)}</p><p class="bundle-evidence">Bewijs: ${escapeHtml(anomaly.evidence_summary || "aanvullende controle vereist")}</p>` : ""}<div class="device-preview">${devicePreview}${bundle.devices.length > 3 ? `<span>+${bundle.devices.length - 3}</span>` : ""}</div></div>
+        <div class="bundle-copy"><div class="eyebrow">${escapeHtml(bundle.domain || "ONBEKEND")} · ${escapeHtml(bundle.state)}</div><h3>${escapeHtml(bundle.title)}</h3><p>${bundleDeviceCount(bundle)} apparaten · ${bundleEntityCount(bundle)} entities</p>${anomaly ? `<p class="bundle-anomaly">${escapeHtml(anomaly.summary)}</p><p class="bundle-evidence">Bewijs: ${escapeHtml(anomaly.evidence_summary || "aanvullende controle vereist")}</p>` : ""}<div class="device-preview">${devicePreview}${bundleDeviceCount(bundle) > 3 ? `<span>+${bundleDeviceCount(bundle) - 3}</span>` : ""}</div></div>
       </div>
       <div class="bundle-actions">${warning}<button class="button button-primary bundle-review" data-bundle-id="${escapeHtml(bundle.id)}">Bundel beoordelen</button></div>
     </article>`;
   }).join("");
   $$(".bundle-review", list).forEach((button) => button.addEventListener("click", () => openBundle(button.dataset.bundleId)));
+  appendLoadMore(list, "bundles", state.registryAudit?.bundles?.length || 0, state.pages.bundles.total, () => loadBundlesPage(false));
 }
 
 async function openBundle(bundleId) {
@@ -676,7 +820,7 @@ async function openBundle(bundleId) {
   const anomaly = (state.registryAudit?.anomalies || []).find((item) => item.bundle_id === bundleId);
   state.activeBundle = bundle;
   $("#bundle-dialog-title").textContent = bundle.title;
-  $("#bundle-dialog-summary").textContent = `${bundle.devices.length} apparaten en ${bundle.entities.length} entities. ${anomaly ? "1 registerafwijking voor eigen beoordeling." : `${bundle.review_count} waarschuwingen.`}`;
+  $("#bundle-dialog-summary").textContent = `${bundleDeviceCount(bundle)} apparaten en ${bundleEntityCount(bundle)} entities. ${anomaly ? "1 registerafwijking voor eigen beoordeling." : `${bundle.review_count} waarschuwingen.`}`;
   const generalAdvice = renderAdvice(bundle.advice || {});
   $("#bundle-advice").innerHTML = anomaly
     ? `${renderAnomalyAdvice(anomaly)}<details class="general-bundle-advice"><summary>Algemene bundelanalyse tonen</summary>${generalAdvice}</details>`
@@ -710,12 +854,12 @@ function renderLocalBundleDetails(bundle) {
   const devices = bundle.devices.length
     ? visibleDevices.map((device) => `<li><strong>${escapeHtml(device.name)}</strong><small>${device.entity_ids.length} entities${device.child_device_ids.length ? ` · ${device.child_device_ids.length} onderliggende apparaten` : ""}</small></li>`).join("")
     : "<li>Geen apparaten in deze bundel</li>";
-  const omittedDevices = Math.max(0, bundle.devices.length - visibleDevices.length);
+  const omittedDevices = Math.max(0, bundleDeviceCount(bundle) - visibleDevices.length);
   const loose = bundle.entities.filter((entity) => !entity.device_id);
   const availability = bundle.entities.filter((entity) => entity.availability_status && entity.availability_status !== "available");
-  return `<details class="bundle-details" open><summary>Apparaten (${bundle.devices.length})</summary><ul>${devices}${omittedDevices ? `<li class="bundle-omitted"><strong>Nog ${omittedDevices} apparaten</strong><small>De volledige inventaris staat in JSON en CSV; de interface begrenst deze lijst voor snelheid.</small></li>` : ""}</ul></details>
-    <details class="bundle-details"><summary>Losse entities (${loose.length})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities</li>"}</ul></details>
-    <details class="bundle-details"><summary>Beschikbaarheid (${availability.length})</summary><ul>${availability.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)} · ${escapeHtml(availabilityLabel(entity.availability_status))}${entity.health_duration_days !== undefined ? ` · ${entity.health_duration_days} dagen` : ""}</small></li>`).join("") || "<li>Geen beschikbaarheidsproblemen</li>"}</ul></details>`;
+  return `<details class="bundle-details" open><summary>Apparaten (${bundleDeviceCount(bundle)})</summary><ul>${devices}${omittedDevices ? `<li class="bundle-omitted"><strong>Nog ${omittedDevices} apparaten</strong><small>De volledige inventaris staat in JSON en CSV; de interface begrenst deze lijst voor snelheid.</small></li>` : ""}</ul></details>
+    <details class="bundle-details"><summary>Geladen losse entities (${loose.length} van maximaal ${bundleEntityCount(bundle)})</summary><ul>${loose.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)}</small></li>`).join("") || "<li>Geen losse entities in deze pagina</li>"}</ul></details>
+    <details class="bundle-details"><summary>Geladen beschikbaarheid (${availability.length})</summary><ul>${availability.slice(0, 100).map((entity) => `<li><strong>${escapeHtml(entity.name)}</strong><small>${escapeHtml(entity.entity_id)} · ${escapeHtml(availabilityLabel(entity.availability_status))}${entity.health_duration_days !== undefined ? ` · ${entity.health_duration_days} dagen` : ""}</small></li>`).join("") || "<li>Geen beschikbaarheidsproblemen in deze pagina</li>"}</ul></details>`;
 }
 
 function availabilityLabel(status) {
@@ -961,7 +1105,7 @@ async function loadQuarantine() {
     const rows = operations.flatMap((operation) => (operation.files || []).map((file) => ({ operation, file })));
     target.innerHTML = rows.length ? rows.map(({ operation, file }) => {
       const expired = new Date(operation.expires_at).getTime() <= Date.now();
-      return `<div class="history-row"><span class="risk-chip ${file.status === "quarantined" ? (expired ? "review" : "safe") : "info"}">${escapeHtml(file.status)}</span><div><strong>${escapeHtml(file.original_path)}</strong><small>${formatBytes(file.size_bytes)} · ${expired ? "bewaartermijn verstreken" : `bewaard tot ${new Date(operation.expires_at).toLocaleString("nl-NL")}`} · checksum ${escapeHtml(String(file.sha256 || "").slice(0, 12))}</small></div>${file.status === "quarantined" ? `<button class="button button-ghost quarantine-test" data-operation="${operation.id}" data-file="${file.id}">Hersteltest</button><button class="button button-primary quarantine-restore" data-operation="${operation.id}" data-file="${file.id}">Herstellen</button>${expired ? `<button class="button button-danger quarantine-purge" data-operation="${operation.id}" data-file="${file.id}">Definitief verwijderen</button>` : ""}` : ""}</div>`;
+      return `<div class="history-row"><span class="risk-chip ${file.status === "quarantined" ? (expired ? "review" : "safe") : "info"}">${escapeHtml(file.status)}</span><div><strong>${escapeHtml(file.original_path)}</strong><small>${formatBytes(file.size_bytes)} · ${expired ? "bewaartermijn verstreken" : `bewaard tot ${new Date(operation.expires_at).toLocaleString(interfaceLocale())}`} · checksum ${escapeHtml(String(file.sha256 || "").slice(0, 12))}</small></div>${file.status === "quarantined" ? `<button class="button button-ghost quarantine-test" data-operation="${operation.id}" data-file="${file.id}">Hersteltest</button><button class="button button-primary quarantine-restore" data-operation="${operation.id}" data-file="${file.id}">Herstellen</button>${expired ? `<button class="button button-danger quarantine-purge" data-operation="${operation.id}" data-file="${file.id}">Definitief verwijderen</button>` : ""}` : ""}</div>`;
     }).join("") : '<div class="table-empty">Nog geen bestanden in quarantaine.</div>';
     $$(".quarantine-test", target).forEach((button) => button.addEventListener("click", () => testQuarantineRestore(button.dataset.operation, button.dataset.file)));
     $$(".quarantine-restore", target).forEach((button) => button.addEventListener("click", () => restoreQuarantine(button.dataset.operation, button.dataset.file)));
@@ -1014,7 +1158,7 @@ async function loadPurgeHistory() {
   try {
     const response = await api("api/recorder/purges");
     const items = response.items || [];
-    $("#purge-history").innerHTML = items.length ? items.map((item) => `<div class="history-row"><span class="risk-chip ${item.status === "accepted" ? "safe" : "review"}">${escapeHtml(item.status)}</span><div><strong>${item.keep_days} dagen bewaard${item.repack ? " · herverpakt" : ""}</strong><small>${new Date(item.requested_at).toLocaleString("nl-NL")}</small></div></div>`).join("") : '<div class="table-empty compact">Nog geen purgeactie uitgevoerd.</div>';
+    $("#purge-history").innerHTML = items.length ? items.map((item) => `<div class="history-row"><span class="risk-chip ${item.status === "accepted" ? "safe" : "review"}">${escapeHtml(item.status)}</span><div><strong>${item.keep_days} dagen bewaard${item.repack ? " · herverpakt" : ""}</strong><small>${new Date(item.requested_at).toLocaleString(interfaceLocale())}</small></div></div>`).join("") : '<div class="table-empty compact">Nog geen purgeactie uitgevoerd.</div>';
   } catch (error) {
     $("#purge-history").innerHTML = `<div class="table-empty compact">${escapeHtml(error.message)}</div>`;
   }
@@ -1097,7 +1241,7 @@ async function loadScanHistory() {
     const items = response.items || [];
     target.innerHTML = items.length ? items.map((item) => {
       const changes = item.entity_changes?.counts || {};
-      return `<div class="history-row"><span class="risk-chip info">Scan</span><div><strong>${item.visited_files || 0} bestanden · ${item.entity_summary?.attention_visible || 0} actie nodig</strong><small>${new Date(item.finished_at).toLocaleString("nl-NL")} · ${changes.new || 0} nieuw · ${changes.recovered || 0} hersteld · ${changes.changed || 0} gewijzigd</small></div></div>`;
+      return `<div class="history-row"><span class="risk-chip info">Scan</span><div><strong>${item.visited_files || 0} bestanden · ${item.entity_summary?.attention_visible || 0} actie nodig</strong><small>${new Date(item.finished_at).toLocaleString(interfaceLocale())} · ${changes.new || 0} nieuw · ${changes.recovered || 0} hersteld · ${changes.changed || 0} gewijzigd</small></div></div>`;
     }).join("") : '<div class="table-empty">Nog geen voltooide scans opgeslagen.</div>';
   } catch (error) {
     target.innerHTML = `<div class="table-empty">${escapeHtml(error.message)}</div>`;
@@ -1140,16 +1284,10 @@ function downloadReport(extension) {
   window.location.assign(apiUrl(`api/reports/${state.scan.id}.${extension}`));
 }
 
-function updateRetentionVisibility() {
-  const mode = $('input[name="deletion-mode"]:checked').value;
-  $("#retention-control").classList.toggle("hidden", mode !== "quarantine");
-}
-
 async function saveSettings() {
   const payload = {
     min_temp_age_days: Number($("#min-temp-age").value),
     min_log_age_days: Number($("#min-log-age").value),
-    deletion_mode: $('input[name="deletion-mode"]:checked').value,
     retention_days: Number($("#retention-days").value),
     advanced_mode: $("#advanced-mode").checked,
     report_retention_count: Number($("#report-retention-count").value),
@@ -1182,7 +1320,6 @@ async function confirmPlan() {
       method: "POST",
       body: JSON.stringify({
         backup_choice: "not_required_for_dry_run",
-        deletion_mode: state.settings.deletion_mode,
         retention_days: state.settings.retention_days,
         selected_ids: [...state.selected],
       }),
@@ -1204,15 +1341,18 @@ function escapeHtml(value) {
 }
 
 function bindEvents() {
+  initializeTabAccessibility();
   $$(".tab").forEach((tab) => tab.addEventListener("click", () => activateTab(tab.dataset.tab)));
   $$('[data-tab-jump]').forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.tabJump)));
   $("#scan-button").addEventListener("click", startScan);
   $("#hero-scan-button").addEventListener("click", startScan);
-  $("#risk-filter").addEventListener("change", renderResults);
-  $("#registry-severity-filter").addEventListener("change", renderBundles);
-  $("#bundle-search").addEventListener("input", renderBundles);
-  ["#entity-search", "#entity-days-filter"].forEach((selector) => $(selector).addEventListener("input", renderEntities));
-  ["#entity-status-filter", "#entity-integration-filter", "#entity-area-filter", "#entity-group-filter"].forEach((selector) => $(selector).addEventListener("change", renderEntities));
+  $("#risk-filter").addEventListener("change", () => loadFilesPage(true));
+  $("#registry-severity-filter").addEventListener("change", () => loadBundlesPage(true));
+  $("#bundle-search").addEventListener("input", debounce(() => loadBundlesPage(true)));
+  $("#entity-search").addEventListener("input", debounce(() => loadEntitiesPage(true)));
+  $("#entity-days-filter").addEventListener("change", () => loadEntitiesPage(true));
+  ["#entity-status-filter", "#entity-integration-filter", "#entity-area-filter"].forEach((selector) => $(selector).addEventListener("change", () => loadEntitiesPage(true)));
+  $("#entity-group-filter").addEventListener("change", renderEntities);
   $("#entity-select-visible").addEventListener("click", () => {
     const allSelected = state.visibleEntityIds.length && state.visibleEntityIds.every((id) => state.selectedEntities.has(id));
     state.visibleEntityIds.forEach((id) => allSelected ? state.selectedEntities.delete(id) : state.selectedEntities.add(id));
@@ -1260,7 +1400,6 @@ function bindEvents() {
     $("#export-dialog").close();
     downloadReport(button.dataset.report);
   }));
-  $$('input[name="deletion-mode"]').forEach((input) => input.addEventListener("change", updateRetentionVisibility));
   $("#retention-days").addEventListener("input", (event) => {
     $("#retention-value").textContent = event.target.value;
     const percent = ((Number(event.target.value) - 1) / 9) * 100;

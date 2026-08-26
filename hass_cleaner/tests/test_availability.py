@@ -4,9 +4,11 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from hass_cleaner.availability import apply_availability_history, apply_saved_decisions, update_entity_decision
 from hass_cleaner.registry_audit import audit_registry_snapshot
+from hass_cleaner.storage import StorageError
 
 
 def snapshot(last_changed: str, *, disabled_by=None, count: int = 3):
@@ -163,6 +165,19 @@ class AvailabilityTests(unittest.TestCase):
             item = recovered.entity_workspace["items"][0]
             self.assertEqual("recovered", item["diff_status"])
             self.assertEqual(1, recovered.entity_workspace["changes"]["counts"]["recovered"])
+
+    def test_persistence_failure_is_visible_but_does_not_abort_scan(self) -> None:
+        now = datetime(2026, 8, 11, tzinfo=timezone.utc)
+        audit = audit_registry_snapshot(snapshot(now.isoformat(), count=1))
+        with tempfile.TemporaryDirectory() as folder, patch(
+            "hass_cleaner.availability.atomic_write_json",
+            side_effect=StorageError("opslag niet beschikbaar"),
+        ):
+            apply_availability_history(audit, Path(folder) / "history.json", now=now)
+
+        self.assertEqual("completed", audit.status)
+        self.assertEqual(2, len(audit.entity_workspace["persistence_errors"]))
+        self.assertTrue(audit.entity_workspace["items"])
 
 
 if __name__ == "__main__":

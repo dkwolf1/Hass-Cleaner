@@ -5,9 +5,6 @@ configuration:
   min_log_age_days:
     name: Minimum age for old logs
     description: Log files younger than this remain excluded.
-  deletion_mode:
-    name: Deletion policy
-    description: Safe files can enter quarantine; direct permanent deletion remains disabled.
   retention_days:
     name: Quarantine retention
     description: Days files remain recoverable in quarantine before explicit deletion becomes available.

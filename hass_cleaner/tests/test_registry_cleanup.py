@@ -30,6 +30,15 @@ class FakeConnection:
         self.closed = True
 
 
+class PartiallyFailingConnection(FakeConnection):
+    def __init__(self) -> None:
+        super().__init__()
+        self.responses[-1] = json.dumps({
+            "id": 2, "type": "result", "success": False,
+            "error": {"message": "device removal failed"},
+        })
+
+
 class RegistryCleanupTests(unittest.TestCase):
     @staticmethod
     def _scan() -> SimpleNamespace:
@@ -105,6 +114,35 @@ class RegistryCleanupTests(unittest.TestCase):
         self.assertEqual("entry1", connection.sent[2]["config_entry_id"])
         self.assertEqual(2, len(result))
         self.assertTrue(connection.closed)
+
+    def test_partial_failure_records_commands_that_already_completed(self) -> None:
+        connection = PartiallyFailingConnection()
+
+        def executor(entities, devices):
+            return execute_registry_commands(
+                entities, devices, token="token", connect=lambda *args, **kwargs: connection,
+            )
+
+        with tempfile.TemporaryDirectory() as folder:
+            manager = RegistryCleanupManager(Path(folder), executor=executor)
+            plan = {
+                "scan_id": "scan1",
+                "entities": [{"entity_id": "sensor.old", "execution_allowed": True}],
+                "devices": [{"device_id": "device1", "config_entry_id": "entry1", "execution_allowed": True}],
+            }
+            with self.assertRaisesRegex(RegistryCleanupError, "device removal failed"):
+                manager.execute(
+                    self._scan(), plan, backup_choice="none", backup_token="", backup_valid=False,
+                    risk_acknowledged=True, confirmation="VERWIJDER 2", requested_by="Dennis",
+                )
+
+            record = manager.history()[0]
+            self.assertEqual("partial", record["status"])
+            self.assertEqual(
+                [{"type": "entity", "id": "sensor.old", "status": "removed"}],
+                record["completed"],
+            )
+            self.assertTrue(connection.closed)
 
 
 if __name__ == "__main__":

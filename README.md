@@ -4,7 +4,7 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, evidence and recovery come before reclaimed space.
 
-> **Release status:** version 1.0.0 is the first stable release and is available for controlled early testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
+> **Release status:** version 1.0.1 is the current maintenance release for controlled early testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
 
 > [!WARNING]
 > **Testversie — voorzichtig gebruiken / Test version — handle with care.** Hass-Cleaner kan bestanden, Home Assistant-registerobjecten en Recorder-gegevens wijzigen. Controleer iedere selectie en maak vooraf bij voorkeur een volledige Home Assistant-back-up. Test bij voorkeur eerst op een niet-kritische installatie. Gebruik is op eigen risico; quarantaine en herstelvoorzieningen verkleinen het risico, maar kunnen niet garanderen dat iedere integratie of gebruikersconfiguratie zonder gevolgen blijft werken.
@@ -32,7 +32,7 @@ Een gevonden item is nooit automatisch verwijderbewijs. De app toont waarom iets
 - Wisbare lokale scan- en afgeronde quarantainelogboeken voor een schone start.
 - Hersteltest en terugplaatsen zonder bestaande bestanden te overschrijven.
 
-### Veiligheidsmodel van 1.0.0
+### Veiligheidsmodel van 1.0.x
 
 Een bestand kan alleen naar quarantaine als aan alle voorwaarden wordt voldaan:
 
@@ -63,7 +63,7 @@ Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registerop
 4. Start de app en open de webinterface.
 5. Voer eerst alleen een scan uit en beoordeel het rapport.
 
-GitHub Actions bouwt versie 1.0.0 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
+GitHub Actions bouwt versie 1.0.1 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
 
 ### Lokaal ontwikkelen en testen
 
@@ -109,7 +109,7 @@ A finding is never treated as deletion evidence by itself. The App explains why 
 - Clearable local scan and completed-quarantine logs for a clean start.
 - Restore testing and recovery without overwriting existing files.
 
-### 1.0.0 safety model
+### 1.0.x safety model
 
 A file can enter quarantine only when all conditions are satisfied:
 
@@ -140,7 +140,7 @@ Personal or uncertain content requires an additional content acknowledgement. Re
 4. Start the App and open its web interface.
 5. Run a scan first and review the report before preparing an action.
 
-GitHub Actions builds version 1.0.0 for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update the release through this repository.
+GitHub Actions builds version 1.0.1 for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update the release through this repository.
 
 ### Local development and tests
 

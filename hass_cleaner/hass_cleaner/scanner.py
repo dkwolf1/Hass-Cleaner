@@ -200,20 +200,35 @@ class ScanManager:
         return scan
 
     def _run(self, scan_id: str) -> None:
-        settings = self.settings_loader()
-        completed = scan_tree(self.root, settings, scan_id)
-        if completed.status == "completed":
-            completed.registry_audit = self.registry_scanner()
-            if self.report_dir is not None:
-                apply_availability_history(completed.registry_audit, self.report_dir.parent / "availability-history.json")
-        if completed.status == "completed" and self.report_dir is not None:
-            from .reporting import prune_report_files, write_report_files
-
-            write_report_files(completed, settings, self.report_dir)
-            prune_report_files(self.report_dir, settings.report_retention_count)
-            self._append_history(completed)
         with self._lock:
-            self._scans[scan_id] = completed
+            current = self._scans[scan_id]
+            current.status = "running"
+            current.started_at = datetime.now(timezone.utc).isoformat()
+        completed = current
+        try:
+            settings = self.settings_loader()
+            completed = scan_tree(self.root, settings, scan_id)
+            if completed.status == "completed":
+                completed.registry_audit = self.registry_scanner()
+                if self.report_dir is not None:
+                    apply_availability_history(
+                        completed.registry_audit,
+                        self.report_dir.parent / "availability-history.json",
+                    )
+            if completed.status == "completed" and self.report_dir is not None:
+                from .reporting import prune_report_files, write_report_files
+
+                write_report_files(completed, settings, self.report_dir)
+                prune_report_files(self.report_dir, settings.report_retention_count)
+                self._append_history(completed)
+        except Exception as exc:
+            completed.status = "failed"
+            completed.error = f"{type(exc).__name__}: {exc}"
+        finally:
+            completed.current_path = ""
+            completed.finished_at = completed.finished_at or datetime.now(timezone.utc).isoformat()
+            with self._lock:
+                self._scans[scan_id] = completed
 
     def get(self, scan_id: str) -> ScanResult | None:
         with self._lock:

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import json
 import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from .storage import atomic_write_json, read_json_object
 
 
 @dataclass(frozen=True)
 class Settings:
     min_temp_age_days: int = 30
     min_log_age_days: int = 14
-    deletion_mode: str = "quarantine"
     retention_days: int = 7
     advanced_mode: bool = False
     report_retention_count: int = 10
@@ -21,8 +21,6 @@ class Settings:
             raise ValueError("min_temp_age_days moet tussen 1 en 365 liggen")
         if not 1 <= self.min_log_age_days <= 365:
             raise ValueError("min_log_age_days moet tussen 1 en 365 liggen")
-        if self.deletion_mode not in {"permanent", "quarantine"}:
-            raise ValueError("deletion_mode moet permanent of quarantine zijn")
         if not 1 <= self.retention_days <= 10:
             raise ValueError("retention_days moet tussen 1 en 10 liggen")
         if not isinstance(self.advanced_mode, bool):
@@ -47,18 +45,12 @@ def load_settings(data_root: Path) -> Settings:
     values: dict[str, object] = {}
     path = _options_path(data_root)
     if path.exists():
-        try:
-            loaded = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                values = loaded
-        except (OSError, json.JSONDecodeError):
-            values = {}
+        values = read_json_object(path)
 
     advanced_value = values.get("advanced_mode", False)
     return Settings(
         min_temp_age_days=int(values.get("min_temp_age_days", 30)),
         min_log_age_days=int(values.get("min_log_age_days", 14)),
-        deletion_mode=str(values.get("deletion_mode", "quarantine")),
         retention_days=int(values.get("retention_days", 7)),
         advanced_mode=advanced_value if isinstance(advanced_value, bool) else False,
         report_retention_count=int(values.get("report_retention_count", 10)),
@@ -74,16 +66,18 @@ def save_local_settings(data_root: Path, settings: Settings) -> None:
     """
     data_root.mkdir(parents=True, exist_ok=True)
     path = data_root / "ui-settings.json"
-    path.write_text(json.dumps(asdict(settings), indent=2), encoding="utf-8")
+    atomic_write_json(path, asdict(settings))
 
 
 def load_effective_settings(data_root: Path) -> Settings:
     override = data_root / "ui-settings.json"
     if override.exists():
         try:
-            values = json.loads(override.read_text(encoding="utf-8"))
+            values = read_json_object(override)
+            # Ignore the removed legacy option so old installations migrate safely.
+            values.pop("deletion_mode", None)
             return Settings(**values).validated()
-        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        except (TypeError, ValueError):
             pass
     return load_settings(data_root)
 

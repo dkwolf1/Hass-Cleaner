@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import threading
 import time
 import unittest
 import hashlib
@@ -148,6 +149,83 @@ class QuarantineTests(unittest.TestCase):
             manager.restore(active["id"], "file1", confirmation="HERSTEL", requested_by="Dennis")
             self.assertEqual(1, manager.clear_completed_history())
             self.assertEqual([], manager.list())
+
+    def test_startup_reconciles_completed_copy_after_interrupted_journal_update(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            config = Path(config_folder)
+            data = Path(data_folder)
+            relative = Path("custom_components/demo/__pycache__/demo.pyc")
+            payload = b"recoverable cache"
+            destination = data / "quarantine" / "operation1" / "files" / relative
+            destination.parent.mkdir(parents=True)
+            destination.write_bytes(payload)
+            operation = {
+                "id": "operation1", "status": "running", "files": [{
+                    "id": "file1", "relative_path": relative.as_posix(),
+                    "sha256": hashlib.sha256(payload).hexdigest(), "status": "planned",
+                }],
+            }
+            first = QuarantineManager(config, data)
+            first._save([operation])
+
+            recovered = QuarantineManager(config, data).list()[0]
+            self.assertEqual("quarantined", recovered["status"])
+            self.assertEqual("quarantined", recovered["files"][0]["status"])
+            self.assertTrue(destination.is_file())
+
+    def test_startup_rolls_back_duplicate_copy_when_original_still_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            config = Path(config_folder)
+            data = Path(data_folder)
+            relative = Path("custom_components/demo/__pycache__/demo.pyc")
+            payload = b"original preserved"
+            source = config / relative
+            destination = data / "quarantine" / "operation2" / "files" / relative
+            source.parent.mkdir(parents=True)
+            destination.parent.mkdir(parents=True)
+            source.write_bytes(payload)
+            destination.write_bytes(payload)
+            operation = {
+                "id": "operation2", "status": "running", "files": [{
+                    "id": "file1", "relative_path": relative.as_posix(),
+                    "sha256": hashlib.sha256(payload).hexdigest(), "status": "copied",
+                }],
+            }
+            first = QuarantineManager(config, data)
+            first._save([operation])
+
+            recovered = QuarantineManager(config, data).list()[0]
+            self.assertEqual("rolled_back", recovered["status"])
+            self.assertEqual("rolled_back", recovered["files"][0]["status"])
+            self.assertTrue(source.is_file())
+            self.assertFalse(destination.exists())
+
+    def test_second_quarantine_action_is_rejected_while_lock_is_held(self) -> None:
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            locked = threading.Event()
+            release = threading.Event()
+
+            def hold_lock() -> None:
+                with manager._lock:
+                    locked.set()
+                    release.wait(timeout=5)
+
+            thread = threading.Thread(target=hold_lock)
+            thread.start()
+            self.assertTrue(locked.wait(timeout=2))
+            try:
+                with self.assertRaisesRegex(QuarantineError, "al een quarantaineactie"):
+                    manager.execute(
+                        scan, Settings(), plan=plan, backup_token="", backup_valid=False,
+                        backup_choice="none", risk_acknowledged=True,
+                        confirmation="QUARANTAINE", requested_by="Dennis",
+                    )
+                self.assertTrue(source.exists())
+            finally:
+                release.set()
+                thread.join(timeout=2)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from .recorder import PurgeManager
 from .registry_audit import HomeAssistantApiError, fetch_related
 from .plans import PlanError, PlanManager
 from .settings import Settings, environment, load_effective_settings, save_local_settings
+from .storage import StorageError
 from .supervisor import BackupEvidenceManager, SupervisorError, supervisor_available
 from .availability import apply_saved_decisions, update_entity_decision
 from .quarantine import QuarantineError, QuarantineManager
@@ -176,7 +177,6 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 settings = Settings(
                     min_temp_age_days=int(body.get("min_temp_age_days", 30)),
                     min_log_age_days=int(body.get("min_log_age_days", 14)),
-                    deletion_mode=str(body.get("deletion_mode", "quarantine")),
                     retention_days=int(body.get("retention_days", 7)),
                     advanced_mode=_optional_bool(body, "advanced_mode", False),
                     report_retention_count=int(body.get("report_retention_count", 10)),
@@ -185,6 +185,9 @@ class CleanupHandler(BaseHTTPRequestHandler):
                 save_local_settings(self.state.data_root, settings)
             except (TypeError, ValueError) as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            except StorageError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
                 return
             self._json(settings.public_dict())
         elif path == "/api/backups":
@@ -299,6 +302,9 @@ class CleanupHandler(BaseHTTPRequestHandler):
                     apply_saved_decisions(latest.registry_audit.entity_workspace, self.state.data_root / "entity-decisions.json")
             except ValueError as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            except StorageError as exc:
+                self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
                 return
             self._json({
                 "status": "saved",
@@ -428,6 +434,10 @@ class CleanupHandler(BaseHTTPRequestHandler):
         mime, _ = mimetypes.guess_type(path.name)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", (mime or "application/octet-stream") + ("; charset=utf-8" if path.suffix in {".html", ".css", ".js"} else ""))
+        if path.suffix == ".html":
+            self.send_header("Cache-Control", "no-cache")
+        elif path.suffix in {".css", ".js"}:
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -470,10 +480,15 @@ def _scan_summary(scan) -> dict[str, object]:
         "status": audit.get("status"),
         "summary": audit.get("summary", {}),
         "anomalies": audit.get("anomalies", []),
+        "findings": [
+            *[item for item in audit.get("findings", []) if item.get("severity") == "review"],
+            *[item for item in audit.get("findings", []) if item.get("severity") != "review"][:250],
+        ],
         "entity_workspace": {
             "summary": workspace.get("summary", {}) if isinstance(workspace, dict) else {},
             "changes": workspace.get("changes", {}) if isinstance(workspace, dict) else {},
             "persistence_thresholds": workspace.get("persistence_thresholds", {}) if isinstance(workspace, dict) else {},
+            "persistence_errors": workspace.get("persistence_errors", []) if isinstance(workspace, dict) else [],
         },
     }
     return payload
@@ -488,29 +503,86 @@ def _paged_scan_items(scan, kind: str, query: dict[str, list[str]]) -> dict[str,
     search = query.get("q", [""])[0].strip().lower()
     status = query.get("status", ["all"])[0]
     if kind == "entities":
-        items = list(scan.registry_audit.entity_workspace.get("items", []))
+        all_items = list(scan.registry_audit.entity_workspace.get("items", []))
+        items = all_items
         if status == "watch":
             items = [item for item in items if item.get("watch")]
         elif status == "attention":
             items = [item for item in items if item.get("attention")]
         elif status == "muted":
             items = [item for item in items if item.get("muted_by_decision")]
+        elif status == "problems":
+            items = [item for item in items if (item.get("attention") or item.get("watch")) and not item.get("muted_by_decision")]
+        elif status == "unavailable":
+            items = [item for item in items if "unavailable" in str(item.get("status", ""))]
+        elif status == "unknown":
+            items = [item for item in items if "unknown" in str(item.get("status", ""))]
+        elif status == "problem":
+            items = [item for item in items if "problem" in str(item.get("status", ""))]
+        elif status == "disabled":
+            items = [item for item in items if str(item.get("status", "")).startswith("disabled_by_")]
+        elif status == "state_only":
+            items = [item for item in items if item.get("registry_entry") is False]
+        elif status != "all":
+            items = [item for item in items if str(item.get("status", "")) == status]
+        integration = query.get("integration", ["all"])[0]
+        area = query.get("area", ["all"])[0]
+        try:
+            minimum_days = max(0, int(query.get("min_days", ["0"])[0]))
+        except ValueError:
+            minimum_days = 0
+        if integration != "all":
+            items = [item for item in items if str(item.get("integration", "")) == integration]
+        if area != "all":
+            items = [item for item in items if str(item.get("area_name") or item.get("area_id") or "") == area]
+        if minimum_days:
+            items = [item for item in items if int(item.get("duration_days", 0) or 0) >= minimum_days]
         if search:
             items = [
                 item for item in items
                 if search in " ".join(str(item.get(key, "")) for key in ("entity_id", "name", "integration", "device_name", "area_name")).lower()
             ]
+        facets = {
+            "integrations": sorted({str(item.get("integration")) for item in all_items if item.get("integration")}),
+            "areas": sorted({str(item.get("area_name") or item.get("area_id")) for item in all_items if item.get("area_name") or item.get("area_id")}),
+        }
     elif kind == "bundles":
         items = [asdict(bundle) for bundle in scan.registry_audit.bundles]
+        anomaly_ids = {str(item.get("bundle_id", "")) for item in scan.registry_audit.anomalies}
+        if status == "attention":
+            items = [item for item in items if str(item.get("id", "")) in anomaly_ids]
+        elif status == "review":
+            items = [item for item in items if int(item.get("review_count", 0) or 0) > 0]
+        elif status == "devices":
+            items = [item for item in items if item.get("devices")]
+        elif status == "entities":
+            items = [item for item in items if item.get("entities")]
         if search:
-            items = [item for item in items if search in " ".join(str(item.get(key, "")) for key in ("title", "domain", "config_entry_id")).lower()]
+            items = [
+                item for item in items
+                if search in " ".join([
+                    *(str(item.get(key, "")) for key in ("title", "domain", "config_entry_id")),
+                    *(str(device.get("name", "")) for device in item.get("devices", [])),
+                    *(str(entity.get("entity_id", "")) for entity in item.get("entities", [])),
+                ]).lower()
+            ]
+        for item in items:
+            devices = list(item.get("devices", []))
+            entities = list(item.get("entities", []))
+            item["device_count"] = len(devices)
+            item["entity_count"] = len(entities)
+            item["devices"] = devices[:100]
+            item["entities"] = entities[:100]
     else:
         items = [asdict(item) for item in scan.items]
         if status != "all":
             items = [item for item in items if item.get("risk") == status]
         if search:
             items = [item for item in items if search in str(item.get("path", "")).lower()]
-    return {"items": items[offset:offset + limit], "offset": offset, "limit": limit, "total": len(items)}
+    result: dict[str, object] = {"items": items[offset:offset + limit], "offset": offset, "limit": limit, "total": len(items)}
+    if kind == "entities":
+        result["facets"] = facets
+    return result
 
 
 def _required_bool(body: dict[str, object], key: str) -> bool:
