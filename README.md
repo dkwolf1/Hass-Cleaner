@@ -1,94 +1,15 @@
 # Hass-Cleaner
 
-[Nederlands](#nederlands) · [English](#english)
+[English](#english) · [Nederlands](#nederlands) · [Wiki](https://github.com/dkwolf1/Hass-Cleaner/wiki) · [Releases](https://github.com/dkwolf1/Hass-Cleaner/releases)
 
-Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, evidence and recovery come before reclaimed space.
+Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, informed user choice and recovery come before reclaimed space.
 
-> **Release status:** version 1.0.1 is the current maintenance release for controlled early testing. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
-
-> [!WARNING]
-> **Testversie — voorzichtig gebruiken / Test version — handle with care.** Hass-Cleaner kan bestanden, Home Assistant-registerobjecten en Recorder-gegevens wijzigen. Controleer iedere selectie en maak vooraf bij voorkeur een volledige Home Assistant-back-up. Test bij voorkeur eerst op een niet-kritische installatie. Gebruik is op eigen risico; quarantaine en herstelvoorzieningen verkleinen het risico, maar kunnen niet garanderen dat iedere integratie of gebruikersconfiguratie zonder gevolgen blijft werken.
->
-> Hass-Cleaner can modify files, Home Assistant registry objects and Recorder data. Review every selection and preferably create a full Home Assistant backup first. Test on a non-critical installation where possible. Use is at your own risk; quarantine and recovery safeguards reduce risk, but cannot guarantee that every integration or user configuration remains unaffected.
-
-## Nederlands
-
-### Wat is Hass-Cleaner?
-
-Hass-Cleaner helpt Home Assistant-gebruikers om vervuiling begrijpelijk en gecontroleerd te beoordelen. De app zoekt onder andere naar oude logs, opnieuw op te bouwen cachebestanden, langdurig onbeschikbare entities en afwijkende registerrelaties.
-
-Een gevonden item is nooit automatisch verwijderbewijs. De app toont waarom iets is gevonden, wat het risico is, wat er kan gebeuren en hoe herstel werkt.
-
-### Belangrijkste functies
-
-- Veilige opslagscan met één duidelijk exportvenster: een leesbaar Markdownrapport, CSV voor Excel en JSON voor technische analyse.
-- Begrijpelijke opruimcategorieën en de actie **Opschoning voorbereiden**.
-- Entities filteren op status, duur, integratie, apparaat en ruimte.
-- Apparaten en entities bundelen per integratie of apparaat.
-- Verschillen tussen scans: nieuw, gewijzigd, hersteld en verdwenen.
-- Officiële Home Assistant Recorder-purge met afzonderlijke bevestiging.
-- Quarantaine voor veilige, persoonlijke en door de gebruiker beoordeelde bestanden; beschermde kernbestanden blijven uitgesloten.
-- Gebruikersgestuurde verwijdering van geregistreerde entities en ondersteunde apparaatbundels via de officiële Home Assistant-API.
-- Wisbare lokale scan- en afgeronde quarantainelogboeken voor een schone start.
-- Hersteltest en terugplaatsen zonder bestaande bestanden te overschrijven.
-
-### Veiligheidsmodel van 1.0.x
-
-Een bestand kan alleen naar quarantaine als aan alle voorwaarden wordt voldaan:
-
-1. Het bestand komt uit de laatste voltooide scan.
-2. Bestandstype, pad, leeftijd, risicoklasse en beschermde scopes komen nog overeen met de scan.
-3. Grootte, wijzigingstijd en SHA-256 komen overeen met de scan.
-4. De gebruiker kiest bewust voor een door Supervisor geverifieerde back-up, een zelf gecontroleerde recente back-up of doorgaan zonder back-up.
-5. Een afwijking van de aanbevolen geverifieerde back-up vereist een extra risicobevestiging.
-6. De gebruiker bevestigt de actie met `QUARANTAINE`.
-
-De volledige selectie wordt gecontroleerd voordat het eerste bestand wordt verplaatst. Quarantaine bewaart oorsprong, checksum, gebruiker, back-upbewijs en vervaldatum. Herstel vereist `HERSTEL` en overschrijft nooit een bestaand bestand.
-
-Na de ingestelde bewaartermijn van 1–10 dagen wordt niets automatisch gewist. Definitief verwijderen is pas daarna beschikbaar, voert opnieuw een checksumcontrole uit en vereist `VERWIJDER`.
-
-Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registeropschoning vereist adviesweergave, back-upkeuze, risicobevestiging en een exact aantal. Runtime-only entities en beschermde kernbestanden blijven technisch uitgesloten.
-
-### Talen
-
-- Interface en Home Assistant App-instellingen: Automatisch, Nederlands en English.
-- Automatisch gebruikt de browser-/Home Assistant-weergavetaal en valt bij een niet-ondersteunde taal terug op Engels.
-- De taalkeuze binnen Hass-Cleaner heeft voorrang op de Home Assistant App-configuratie.
-
-### Installeren vanuit GitHub
-
-1. Open Home Assistant en ga naar **Instellingen → Apps → App store → Repositories**.
-2. Voeg `https://github.com/dkwolf1/Hass-Cleaner` toe.
-3. Installeer **Hass-Cleaner**.
-4. Start de app en open de webinterface.
-5. Voer eerst alleen een scan uit en beoordeel het rapport.
-
-GitHub Actions bouwt versie 1.0.1 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
-
-### Lokaal ontwikkelen en testen
-
-Voer deze opdrachten uit vanuit de map `hass_cleaner`:
-
-```powershell
-$env:HASS_CLEANER_CONFIG_ROOT = "$PWD\..\dev-fixtures\homeassistant"
-$env:HASS_CLEANER_DATA_ROOT = "$PWD\..\data"
-$env:HASS_CLEANER_HOST = "127.0.0.1"
-$env:HASS_CLEANER_PORT = "8099"
-python -m hass_cleaner
-```
-
-Open vervolgens `http://127.0.0.1:8099`.
-
-```powershell
-python -m unittest discover -s tests -v
-node --check web/assets/app.js
-```
-
-Lees [ROADMAP.md](ROADMAP.md) voor de resterende releasecriteria.
-
----
+> **Release status:** version 1.0.1 is the current maintenance release for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
 
 ## English
+
+> [!WARNING]
+> **Test version — handle with care.** Hass-Cleaner can modify files, Home Assistant registry objects and Recorder data. Review every selection and preferably create a full Home Assistant backup first. Test on a non-critical installation where possible. Use is at your own risk; quarantine and recovery safeguards reduce risk, but cannot guarantee that every integration or user configuration remains unaffected.
 
 ### What is Hass-Cleaner?
 
@@ -98,7 +19,7 @@ A finding is never treated as deletion evidence by itself. The App explains why 
 
 ### Main features
 
-- Safe storage scanning with one clear export dialog: a readable Markdown report, CSV for Excel and JSON for technical analysis.
+- Safe storage scanning with one clear export dialog: a readable Markdown report, CSV for spreadsheet analysis and JSON for technical analysis.
 - Beginner-friendly cleanup categories and a clear **Prepare cleanup** action.
 - Entity filters for state, duration, integration, device and area.
 - Device and entity grouping by integration or device.
@@ -120,16 +41,32 @@ A file can enter quarantine only when all conditions are satisfied:
 5. Deviating from the recommended verified backup requires an additional risk acknowledgement.
 6. The user confirms the operation with `QUARANTAINE`.
 
-The entire selection is validated before the first file is moved. Quarantine records the original path, checksum, user, backup evidence and expiry time. Recovery requires `HERSTEL` and never overwrites an existing file.
+The complete selection is validated before the first file is moved. Quarantine records the original path, checksum, user, backup evidence and expiry time. Recovery requires `HERSTEL` and never overwrites an existing file.
 
 Nothing is deleted automatically after the configured 1–10 day retention period. Permanent removal becomes available only after expiry, verifies the checksum again and requires `VERWIJDER`.
 
 Personal or uncertain content requires an additional content acknowledgement. Registry cleanup requires displayed advice, a backup choice, risk acknowledgement and exact count confirmation. Runtime-only entities and protected core files remain technically excluded.
 
+### Documentation
+
+The [Hass-Cleaner Wiki](https://github.com/dkwolf1/Hass-Cleaner/wiki) contains the user guide, including:
+
+- installation and updates;
+- the recommended first scan;
+- file classification and quarantine;
+- entity and bundle review;
+- Recorder cleanup and backups;
+- settings, reports and troubleshooting;
+- safety and recovery guidance;
+- a concise Dutch quick-start.
+
+For version-specific changes, see [CHANGELOG.md](hass_cleaner/CHANGELOG.md). For planned work and release criteria, see [ROADMAP.md](ROADMAP.md).
+
 ### Languages
 
-- Interface and Home Assistant App settings: Automatic, Dutch and English.
-- Automatic uses the browser/Home Assistant display language and falls back to English for unsupported languages.
+- Project documentation and GitHub communication use English as the primary language and Dutch as the secondary language.
+- Interface and Home Assistant App settings support Automatic, English and Nederlands.
+- Automatic uses the browser or Home Assistant display language and falls back to English for unsupported languages.
 - The language selected inside Hass-Cleaner takes precedence over the Home Assistant App configuration.
 
 ### Install from GitHub
@@ -144,7 +81,7 @@ GitHub Actions builds version 1.0.1 for `amd64` and `aarch64`. After the contain
 
 ### Local development and tests
 
-Run the following from the `hass_cleaner` directory:
+Run the following commands from the `hass_cleaner` directory:
 
 ```powershell
 $env:HASS_CLEANER_CONFIG_ROOT = "$PWD\..\dev-fixtures\homeassistant"
@@ -161,7 +98,98 @@ python -m unittest discover -s tests -v
 node --check web/assets/app.js
 ```
 
-See [ROADMAP.md](ROADMAP.md) for the remaining release gates.
+---
+
+## Nederlands
+
+> [!WARNING]
+> **Testversie — voorzichtig gebruiken.** Hass-Cleaner kan bestanden, Home Assistant-registerobjecten en Recorder-gegevens wijzigen. Controleer iedere selectie en maak vooraf bij voorkeur een volledige Home Assistant-back-up. Test waar mogelijk eerst op een niet-kritische installatie. Gebruik is op eigen risico; quarantaine en herstelvoorzieningen verkleinen het risico, maar kunnen niet garanderen dat iedere integratie of gebruikersconfiguratie zonder gevolgen blijft werken.
+
+### Wat is Hass-Cleaner?
+
+Hass-Cleaner helpt Home Assistant-gebruikers om verzamelde gegevens begrijpelijk en gecontroleerd te beoordelen. De App zoekt onder andere naar oude logs, opnieuw op te bouwen cachebestanden, langdurig onbeschikbare entities en afwijkende registerrelaties.
+
+Een gevonden onderdeel is nooit automatisch verwijderbewijs. De App toont waarom iets is gevonden, wat het risico is, wat er kan gebeuren en hoe herstel werkt.
+
+### Belangrijkste functies
+
+- Veilige opslagscan met één duidelijk exportvenster: een leesbaar Markdownrapport, CSV voor spreadsheetanalyse en JSON voor technische analyse.
+- Begrijpelijke opruimcategorieën en de actie **Opschoning voorbereiden**.
+- Entities filteren op status, duur, integratie, apparaat en ruimte.
+- Apparaten en entities bundelen per integratie of apparaat.
+- Verschillen tussen scans: nieuw, gewijzigd, hersteld en verdwenen.
+- Officiële Home Assistant Recorder-purge met afzonderlijke bevestiging.
+- Quarantaine voor veilige, persoonlijke en door de gebruiker beoordeelde bestanden; beschermde kernbestanden blijven uitgesloten.
+- Gebruikersgestuurde verwijdering van geregistreerde entities en ondersteunde apparaatbundels via de officiële Home Assistant-API.
+- Wisbare lokale scan- en afgeronde quarantainelogboeken voor een schone start.
+- Hersteltest en terugplaatsen zonder bestaande bestanden te overschrijven.
+
+### Veiligheidsmodel van 1.0.x
+
+Een bestand kan alleen naar quarantaine als aan alle voorwaarden wordt voldaan:
+
+1. Het bestand komt uit de laatste voltooide scan.
+2. Bestandstype, pad, leeftijd, risicoklasse en beschermde scopes komen vlak voor uitvoering nog overeen met de scan.
+3. Grootte, wijzigingstijd en SHA-256 komen overeen met de scan.
+4. De gebruiker kiest bewust voor een door Supervisor geverifieerde back-up, een zelf gecontroleerde recente back-up of doorgaan zonder back-up.
+5. Afwijken van de aanbevolen geverifieerde back-up vereist een extra risicobevestiging.
+6. De gebruiker bevestigt de actie met `QUARANTAINE`.
+
+De volledige selectie wordt gecontroleerd voordat het eerste bestand wordt verplaatst. Quarantaine bewaart het oorspronkelijke pad, de checksum, de gebruiker, het back-upbewijs en de vervaldatum. Herstel vereist `HERSTEL` en overschrijft nooit een bestaand bestand.
+
+Na de ingestelde bewaartermijn van 1–10 dagen wordt niets automatisch gewist. Definitief verwijderen is pas daarna beschikbaar, voert opnieuw een checksumcontrole uit en vereist `VERWIJDER`.
+
+Persoonlijke of onzekere inhoud vereist een extra inhoudsbevestiging. Registeropschoning vereist adviesweergave, back-upkeuze, risicobevestiging en een exact aantal. Runtime-only entities en beschermde kernbestanden blijven technisch uitgesloten.
+
+### Documentatie
+
+De [Hass-Cleaner Wiki](https://github.com/dkwolf1/Hass-Cleaner/wiki) bevat de uitgebreide Engelstalige handleiding en een korte Nederlandse snelstart. Onderwerpen zijn onder andere:
+
+- installatie en updates;
+- de aanbevolen eerste scan;
+- bestandsclassificatie en quarantaine;
+- beoordeling van entities en bundels;
+- Recorder-opschoning en back-ups;
+- instellingen, rapporten en probleemoplossing;
+- veiligheid en herstel.
+
+Versiegebonden wijzigingen staan in [CHANGELOG.md](hass_cleaner/CHANGELOG.md). Gepland werk en releasecriteria staan in [ROADMAP.md](ROADMAP.md).
+
+### Talen
+
+- Projectdocumentatie en GitHub-communicatie gebruiken Engels als primaire taal en Nederlands als tweede taal.
+- De interface en Home Assistant App-instellingen ondersteunen Automatisch, English en Nederlands.
+- Automatisch gebruikt de browser- of Home Assistant-weergavetaal en valt bij een niet-ondersteunde taal terug op Engels.
+- De taalkeuze binnen Hass-Cleaner heeft voorrang op de Home Assistant App-configuratie.
+
+### Installeren vanuit GitHub
+
+1. Open in Home Assistant **Instellingen → Apps → App store → Repositories**.
+2. Voeg `https://github.com/dkwolf1/Hass-Cleaner` toe.
+3. Installeer **Hass-Cleaner**.
+4. Start de App en open de webinterface.
+5. Voer eerst een scan uit en beoordeel het rapport voordat je een actie voorbereidt.
+
+GitHub Actions bouwt versie 1.0.1 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
+
+### Lokaal ontwikkelen en testen
+
+Voer de volgende opdrachten uit vanuit de map `hass_cleaner`:
+
+```powershell
+$env:HASS_CLEANER_CONFIG_ROOT = "$PWD\..\dev-fixtures\homeassistant"
+$env:HASS_CLEANER_DATA_ROOT = "$PWD\..\data"
+$env:HASS_CLEANER_HOST = "127.0.0.1"
+$env:HASS_CLEANER_PORT = "8099"
+python -m hass_cleaner
+```
+
+Open daarna `http://127.0.0.1:8099`.
+
+```powershell
+python -m unittest discover -s tests -v
+node --check web/assets/app.js
+```
 
 ## Repository layout
 
