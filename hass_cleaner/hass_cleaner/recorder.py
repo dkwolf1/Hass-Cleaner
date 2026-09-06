@@ -78,7 +78,7 @@ class PurgeManager:
     def __init__(self, data_root: Path, purge_caller: Callable[[int, bool, bool], None] = call_recorder_purge):
         self.history_path = data_root / "recorder-purge-history.json"
         self.purge_caller = purge_caller
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def history(self) -> list[dict[str, object]]:
         try:

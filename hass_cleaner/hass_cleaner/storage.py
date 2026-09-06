@@ -52,6 +52,12 @@ def atomic_write_json(path: Path, value: Any) -> None:
                 handle.flush()
                 os.fsync(handle.fileno())
             temporary.replace(path)
+            if os.name != "nt":
+                descriptor = os.open(path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
         except (OSError, TypeError, ValueError) as exc:
             try:
                 temporary.unlink(missing_ok=True)

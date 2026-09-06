@@ -42,6 +42,73 @@
   };
 
   Object.assign(english, {
+    "Risico-indicatie": "Risk indication",
+    "Sterk bewijs": "Strong evidence",
+    "Waarschijnlijk veilig": "Likely safe",
+    "Hoog risico": "High risk",
+    "Meer bewijs nodig": "Review required",
+    "Behouden": "Retain",
+    "Geblokkeerd": "Blocked",
+    "Wat is dit?": "What is this?",
+    "Wat kan er gebeuren?": "What could happen?",
+    "Hoe herstel je dit?": "How do you recover?",
+    "Geen gevolgadvies beschikbaar.": "No consequence guidance is available.",
+    "Hersteladvies ontbreekt; niet uitvoeren.": "Recovery guidance is missing; do not execute.",
+    "Geen beschrijving beschikbaar.": "No description is available.",
+    "Niet wijzigen zonder aanvullende controle.": "Do not change without further review.",
+    "Samenhangende Home Assistant-objecten van dezelfde integratie of hetzelfde platform.": "Related Home Assistant objects belonging to the same integration or platform.",
+    "Entities kunnen uit dashboards, automatiseringen en scripts verdwijnen.": "Entities may disappear from dashboards, automations and scripts.",
+    "Een apparaat kan opnieuw door de integratie worden aangemaakt.": "The integration may recreate a device.",
+    "Het verwijderen van een config-entry kan de volledige integratie uitschakelen.": "Removing a config entry can disable the entire integration.",
+    "Herstel de Home Assistant-back-up als registrygegevens verloren zijn.": "Restore the Home Assistant backup if registry data is lost.",
+    "Voeg de eigenaar-integratie opnieuw toe en configureer het apparaat opnieuw.": "Add the owning integration again and reconfigure the device.",
+    "Herstel daarna afhankelijke automatiseringen en dashboards uit het planrapport.": "Then restore dependent automations and dashboards using the preparation report.",
+    "Beoordeel eerst alle officiële search/related-verwijzingen; schakel losse entities zo mogelijk tijdelijk uit.": "Review official search/related references first; temporarily disable individual entities where possible.",
+    "Gegenereerde Python-bytecode met aantoonbare broncode.": "Generated Python bytecode with matching source code.",
+    "De cache wordt bij gebruik opnieuw opgebouwd; de eerste start kan iets langer duren.": "The cache is rebuilt when used; the first startup may take longer.",
+    "Herstart de integratie of Home Assistant zodat Python de cache opnieuw maakt.": "Restart the integration or Home Assistant so Python recreates the cache.",
+    "Plaats eerst in quarantaine; permanent verwijderen is doorgaans herstelbaar.": "Quarantine first; generated cache can usually be rebuilt after permanent removal.",
+    "Gegenereerde Home Assistant-pictogramcache op het exact bekende cachepad.": "Generated Home Assistant icons at the known cache path.",
+    "Pictogrammen kunnen kort ontbreken terwijl Home Assistant ze opnieuw ophaalt.": "Icons may briefly be missing while Home Assistant downloads them again.",
+    "Herlaad Home Assistant; de pictogramcache wordt opnieuw opgebouwd.": "Reload Home Assistant to rebuild the icon cache.",
+    "Kies Opschoning voorbereiden en gebruik daarna quarantaine.": "Choose Prepare cleanup, then use quarantine.",
+    "Bekend editor- of besturingssysteemrestant.": "Known editor or operating-system leftover.",
+    "Een editor of besturingssysteem kan het bestand opnieuw aanmaken.": "An editor or operating system may recreate the file.",
+    "Geen herstel nodig; plaats het bestand desgewenst terug uit quarantaine.": "Recovery is not required; restore from quarantine if needed.",
+    "Quarantaine is de veiligste eerste stap.": "Quarantine is the safest first step.",
+    "Niet-actief oud Home Assistant-logbestand.": "Inactive old Home Assistant log file.",
+    "Oude diagnose-informatie gaat verloren.": "Old diagnostic information will be lost.",
+    "Zet het bestand vanuit quarantaine terug als oude logregels nodig zijn.": "Restore from quarantine if the old log entries are needed.",
+    "Controleer of er geen lopend onderzoek is en gebruik daarna quarantaine.": "Check that no investigation needs the log, then use quarantine.",
+    "Bestandsnaam wijst op een tijdelijke kopie of handmatige back-up.": "The filename suggests a temporary copy or manual backup.",
+    "Dit kan de enige werkende kopie van configuratie of code zijn.": "This may be the only working copy of configuration or code.",
+    "Zet het bestand terug uit quarantaine en vergelijk het met de actieve versie.": "Restore from quarantine and compare it with the active version.",
+    "Vergelijk inhoud en wijzigingsdatum met het actieve bestand.": "Compare its contents and modification date with the active file.",
+    "Bytecode zonder aantoonbaar bijbehorend bronbestand.": "Bytecode without a matching source file.",
+    "Een custom integratie kan hierdoor niet meer laden.": "This can prevent a custom integration from loading.",
+    "Zet de bytecode terug of installeer de bijbehorende integratie opnieuw.": "Restore the bytecode or reinstall its integration.",
+    "Niet verwijderen totdat de eigenaar van de bytecode bekend is.": "Identify the owner of the bytecode before removing it.",
+    "Padnaam wijst op cache van een integratie of toepassing.": "The path suggests an integration or application cache.",
+    "Actieve previews, afdrukken, camerabeelden of indexen kunnen verdwijnen.": "Active previews, prints, camera images or indexes may disappear.",
+    "Laat de eigenaar-integratie de cache opnieuw opbouwen of herstel een back-up.": "Let the owning integration rebuild the cache or restore a backup.",
+    "Controleer producent, verwijzingen en herbouwgedrag; nog niet verwijderen.": "Check ownership, references and rebuilding behaviour before removing it.",
+    "Opname, snapshot of timelapse is gebruikersdata.": "Recordings, snapshots and time-lapses are user data.",
+    "De opname of afbeelding kan permanent verloren gaan.": "The recording or image may be permanently lost.",
+    "Herstel uit een volledige back-up of externe mediakopie.": "Restore from a full backup or an external media copy.",
+    "Alleen bewust beoordelen; nooit als cache behandelen.": "Review deliberately; never treat this as cache.",
+    "Bestands- en registeracties beschikbaar": "File and registry actions available",
+    "Bestandsquarantaine beschikbaar": "File quarantine available",
+    "Registeropschoning beschikbaar": "Registry cleanup available",
+    "Een back-up is sterk aanbevolen. Ieder bestand wordt vlak vóór verplaatsing opnieuw gecontroleerd.": "A backup is strongly recommended. Every file is rechecked immediately before moving.",
+    "Entities en apparaten zijn registerobjecten. De gebruiker kan ze na advies, back-upkeuze en zware bevestiging verwijderen.": "Entities and devices are registry objects. Removal requires reviewing guidance, choosing a backup option and explicit confirmation.",
+    "Filter op risico": "Filter by risk",
+    "Zoek entiteiten": "Search entities",
+    "Filter op status": "Filter by state",
+    "Filter op integratie": "Filter by integration",
+    "Filter op ruimte": "Filter by area",
+    "Groepeer entiteiten": "Group entities",
+    "Zoek bundels": "Search bundles",
+    "Filter bundels": "Filter bundles",
     "Scan kon niet worden voltooid": "The scan could not be completed",
     "Onbekende scanfout": "Unknown scan error",
     "Deze scan is de nulmeting. Vanaf de volgende scan worden nieuw, hersteld en gewijzigd apart getoond.": "This scan is the baseline. New, recovered and changed entities will be shown separately from the next scan onward.",
@@ -87,6 +154,11 @@
   });
 
   const patterns = [
+    [/^(\d+) entiteiten · (\d+) actie nodig · (\d+) tijdelijk · maximaal (.+) \/ (\d+) meting\(en\)$/, (match, total, attention, temporary, duration, observations) => `${total} entities · ${attention} need attention · ${temporary} temporary · up to ${translated(duration)} / ${observations} observations`],
+    [/^(\d+) meting\(en\) · (.+)$/, (match, count, status) => `${count} observations · ${translated(status)}`],
+    [/^Back-up voltooid en geverifieerd(.*)$/, "Backup completed and verified$1"],
+    [/^Back-upstatus controleren \((\d+)%\)$/, "Check backup status ($1%)"],
+    [/^Back-upstatus: (.+)$/, "Backup status: $1"],
     [/^(\d+) dagen herstelbaar$/, "$1 days recoverable"],
     [/^(\d+) bestanden bekeken$/, "$1 files checked"],
     [/^(\d+) bestanden gecontroleerd$/, "$1 files checked"],
@@ -102,8 +174,6 @@
     [/^(\d+) bestanden · (.+)$/, (match, count, rest) => `${count} ${count === "1" ? "file" : "files"} · ${rest}`],
     [/^producer: (.+)$/, "producer: $1"],
     [/^(\d+) apparaten · (\d+) entities$/, "$1 devices · $2 entities"],
-    [/^(\d+) apparaten en (\d+) entities\.(.*)$/, "$1 devices and $2 entities.$3"],
-    [/^(\d+) resultaten · (\d+) geselecteerd · (.*)$/, "$1 results · $2 selected · $3"],
     [/^Nog (\d+) apparaten$/, "$1 more devices"],
     [/^(\d+) resultaten · (\d+) geselecteerd$/, "$1 results · $2 selected"],
     [/^(\d+) geregistreerde entities, (\d+) runtime-only states en (\d+) apparaten read-only gecontroleerd\. (\d+) langdurig onbeschikbaar; (\d+) voorlopig alleen informatief\.$/, "$1 registered entities, $2 runtime-only states and $3 devices checked read-only. $4 persistently unavailable; $5 currently informational only."],
@@ -121,6 +191,8 @@
     [/^Scanroot bestaat niet of is geen directory: (.+)$/, "Scan root does not exist or is not a directory: $1"],
   ];
   const originals = new WeakMap();
+  const rendered = new WeakMap();
+  const observationOptions = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["placeholder", "aria-label", "title"] };
   let preference = "auto";
   let locale = "en";
   let observer;
@@ -128,7 +200,11 @@
   function resolve(value) {
     if (value === "nl" || value === "en") return value;
     const languages = navigator.languages?.length ? navigator.languages : [navigator.language || "en"];
-    return languages.some((language) => String(language).toLowerCase().startsWith("nl")) ? "nl" : "en";
+    for (const language of languages) {
+      const base = String(language).toLowerCase().split("-")[0];
+      if (base === "nl" || base === "en") return base;
+    }
+    return "en";
   }
 
   function translated(value) {
@@ -145,20 +221,25 @@
 
   function localizeNode(node) {
     if (node.nodeType === Node.TEXT_NODE) {
-      if (!originals.has(node)) originals.set(node, node.nodeValue);
+      if (!originals.has(node) || node.nodeValue !== rendered.get(node)) originals.set(node, node.nodeValue);
       const source = originals.get(node);
       const wanted = locale === "en" ? translated(source) : source;
       if (node.nodeValue !== wanted) node.nodeValue = wanted;
+      rendered.set(node, wanted);
       return;
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (["SCRIPT", "STYLE", "CODE", "PRE"].includes(node.tagName)) return;
     for (const attribute of ["placeholder", "aria-label", "title"]) {
       if (!node.hasAttribute(attribute)) continue;
-      const key = `${attribute}:${node.getAttribute(attribute)}`;
       if (!originals.has(node) || typeof originals.get(node) !== "object") originals.set(node, {});
+      if (!rendered.has(node)) rendered.set(node, {});
       const record = originals.get(node);
-      if (!(attribute in record)) record[attribute] = node.getAttribute(attribute);
-      node.setAttribute(attribute, locale === "en" ? translated(record[attribute]) : record[attribute]);
+      const last = rendered.get(node);
+      if (!(attribute in record) || node.getAttribute(attribute) !== last[attribute]) record[attribute] = node.getAttribute(attribute);
+      const wanted = locale === "en" ? translated(record[attribute]) : record[attribute];
+      if (node.getAttribute(attribute) !== wanted) node.setAttribute(attribute, wanted);
+      last[attribute] = wanted;
     }
     node.childNodes.forEach(localizeNode);
   }
@@ -167,7 +248,7 @@
     observer?.disconnect();
     document.documentElement.lang = locale;
     localizeNode(root);
-    observer?.observe(document.body, { childList: true, subtree: true });
+    observer?.observe(document.body, observationOptions);
   }
 
   function setPreference(value) {
@@ -183,8 +264,11 @@
 
   observer = new MutationObserver((mutations) => {
     observer.disconnect();
-    for (const mutation of mutations) mutation.addedNodes.forEach(localizeNode);
-    observer.observe(document.body, { childList: true, subtree: true });
+    for (const mutation of mutations) {
+      if (mutation.type === "childList") mutation.addedNodes.forEach(localizeNode);
+      else if (!["SCRIPT", "STYLE", "CODE", "PRE"].includes(mutation.target.parentElement?.tagName)) localizeNode(mutation.target);
+    }
+    observer.observe(document.body, observationOptions);
   });
   document.addEventListener("DOMContentLoaded", () => {
     locale = resolve(preference);

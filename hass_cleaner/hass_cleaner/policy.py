@@ -64,6 +64,10 @@ def classify(root: Path, path: Path, mode: int, modified: float, *, min_temp_age
     in_custom_components = "custom_components" in parts
     if "__pycache__" in parts and suffix in {".pyc", ".pyo"}:
         if item_age >= min_temp_age_days:
+            stem = path.name.split(".cpython-", 1)[0]
+            if path.parent.name != "__pycache__" or stem == path.name or not (path.parent.parent / f"{stem}.py").is_file():
+                return Classification("python_cache_without_source", RISK_REVIEW,
+                                      "Python-cache heeft geen aantoonbaar bijbehorend .py-bronbestand", "review")
             return Classification("python_cache", RISK_SAFE, f"Gegenereerde Python-bytecode van {item_age} dagen oud", "delete")
         return None
     if in_custom_components:

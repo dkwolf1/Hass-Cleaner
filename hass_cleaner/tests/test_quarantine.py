@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 import hashlib
+import json
 from dataclasses import replace
 from datetime import datetime, timezone
 from datetime import timedelta
@@ -165,8 +166,7 @@ class QuarantineTests(unittest.TestCase):
                     "sha256": hashlib.sha256(payload).hexdigest(), "status": "planned",
                 }],
             }
-            first = QuarantineManager(config, data)
-            first._save([operation])
+            (data / "quarantine" / "manifest.json").write_text(json.dumps([operation]), encoding="utf-8")
 
             recovered = QuarantineManager(config, data).list()[0]
             self.assertEqual("quarantined", recovered["status"])
@@ -191,8 +191,7 @@ class QuarantineTests(unittest.TestCase):
                     "sha256": hashlib.sha256(payload).hexdigest(), "status": "copied",
                 }],
             }
-            first = QuarantineManager(config, data)
-            first._save([operation])
+            (data / "quarantine" / "manifest.json").write_text(json.dumps([operation]), encoding="utf-8")
 
             recovered = QuarantineManager(config, data).list()[0]
             self.assertEqual("rolled_back", recovered["status"])

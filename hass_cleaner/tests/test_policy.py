@@ -48,6 +48,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(RISK_PROTECTED, decision.risk)
 
     def test_python_cache_inside_custom_component_is_safe(self) -> None:
+        self.classify_file("custom_components/example/code.py")
         decision = self.classify_file("custom_components/example/__pycache__/code.cpython-313.pyc")
         self.assertEqual(RISK_SAFE, decision.risk)
         self.assertEqual("python_cache", decision.category)
