@@ -44,7 +44,7 @@ class ScanResult:
     registry_audit: RegistryAudit = field(default_factory=lambda: RegistryAudit(status="not_run"))
     error: str | None = None
 
-    def to_dict(self, *, include_items: bool = True) -> dict[str, object]:
+    def to_dict(self, *, include_items: bool = True, include_registry: bool = True) -> dict[str, object]:
         totals = {RISK_SAFE: 0, RISK_REVIEW: 0, RISK_PROTECTED: 0}
         counts = {RISK_SAFE: 0, RISK_REVIEW: 0, RISK_PROTECTED: 0}
         for item in self.items:
@@ -64,7 +64,8 @@ class ScanResult:
         }
         if include_items:
             payload["items"] = [asdict(item) for item in self.items]
-        payload["registry_audit"] = self.registry_audit.to_dict()
+        if include_registry:
+            payload["registry_audit"] = self.registry_audit.to_dict()
         payload["cleanup_guidance"] = build_cleanup_guidance(self.items)
         return payload
 
@@ -109,13 +110,6 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                 if decision is None:
                     result.ignored_files += 1
                     continue
-                if decision.category == "python_cache" and not _python_source_exists(path):
-                    decision = Classification(
-                        "python_cache_without_source",
-                        RISK_REVIEW,
-                        "Python-cache heeft geen aantoonbaar bijbehorend .py-bronbestand",
-                        "review",
-                    )
                 content_hash = _sha256(path) if decision.risk != RISK_PROTECTED else ""
                 if decision.risk != RISK_PROTECTED and not content_hash:
                     decision = Classification(
@@ -159,15 +153,6 @@ def _display_path(root: Path, path: Path) -> str:
     return "/homeassistant" if not relative.parts else "/homeassistant/" + relative.as_posix()
 
 
-def _python_source_exists(path: Path) -> bool:
-    if path.parent.name != "__pycache__":
-        return False
-    stem = path.name.split(".cpython-", 1)[0]
-    if stem == path.name:
-        return False
-    return (path.parent.parent / f"{stem}.py").is_file()
-
-
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     try:
@@ -180,6 +165,7 @@ def _sha256(path: Path) -> str:
 
 
 class ScanManager:
+    MAX_MEMORY_SCANS = 2
     def __init__(self, root: Path, settings_loader, report_dir: Path | None = None, registry_scanner=scan_home_assistant_registries):
         self.root = root
         self.settings_loader = settings_loader
@@ -188,14 +174,16 @@ class ScanManager:
         self._lock = threading.Lock()
         self._scans: dict[str, ScanResult] = {}
         self._latest_id: str | None = None
+        self._clearing = False
 
     def start(self) -> ScanResult:
         scan = ScanResult(id=uuid.uuid4().hex)
         with self._lock:
-            if any(item.status in {"queued", "running"} for item in self._scans.values()):
+            if self._clearing or any(item.status in {"queued", "running"} for item in self._scans.values()):
                 raise RuntimeError("Er loopt al een scan")
             self._scans[scan.id] = scan
             self._latest_id = scan.id
+            self._prune_memory()
         threading.Thread(target=self._run, args=(scan.id,), daemon=True, name=f"scan-{scan.id[:8]}").start()
         return scan
 
@@ -229,6 +217,16 @@ class ScanManager:
             completed.finished_at = completed.finished_at or datetime.now(timezone.utc).isoformat()
             with self._lock:
                 self._scans[scan_id] = completed
+                self._prune_memory()
+
+    def _prune_memory(self) -> None:
+        # Called only under _lock. Retain latest and one prior result for UI
+        # requests finishing while the next scan runs; disk reports are separate.
+        for scan_id in list(self._scans):
+            if len(self._scans) <= self.MAX_MEMORY_SCANS:
+                break
+            if scan_id != self._latest_id and self._scans[scan_id].status not in {"queued", "running"}:
+                del self._scans[scan_id]
 
     def get(self, scan_id: str) -> ScanResult | None:
         with self._lock:
@@ -252,10 +250,21 @@ class ScanManager:
         if self.report_dir is None:
             return
         with self._lock:
-            self._scans.clear()
-            self._latest_id = None
+            if self._clearing or any(item.status in {"queued", "running"} for item in self._scans.values()):
+                raise RuntimeError("Wait for the current scan to finish before clearing history")
+            self._clearing = True
+        try:
+            self._clear_history_files()
+            with self._lock:
+                self._scans.clear()
+                self._latest_id = None
+        finally:
+            with self._lock:
+                self._clearing = False
+
+    def _clear_history_files(self) -> None:
         data_root = self.report_dir.parent
-        for name in ("scan-history.json", "availability-history.json", "entity-decisions.json"):
+        for name in ("scan-history.json", "availability-history.json", "entity-decisions.json", "entity-snapshot.json"):
             (data_root / name).unlink(missing_ok=True)
         for pattern in ("hass-cleaner-audit-*.*",):
             for path in self.report_dir.glob(pattern):

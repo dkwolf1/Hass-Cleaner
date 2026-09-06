@@ -6,6 +6,9 @@ import os
 import re
 import secrets
 import time
+from functools import wraps
+from contextlib import ExitStack
+from itertools import islice
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,13 +49,39 @@ class AppState:
         self.rate_limits: dict[tuple[str, str], list[float]] = {}
 
 
+class RequestError(ValueError):
+    def __init__(self, message, status=HTTPStatus.BAD_REQUEST):
+        super().__init__(message)
+        self.status = status
+
+
+def operation_errors(method):
+    @wraps(method)
+    def wrapped(self):
+        try:
+            return method(self)
+        except RequestError as exc:
+            self.close_connection = True
+            self._json({"error": str(exc)}, exc.status)
+        except (QuarantineError, RegistryCleanupError, PlanError, StorageError, OSError, json.JSONDecodeError) as exc:
+            self._json({"error": str(exc)}, HTTPStatus.SERVICE_UNAVAILABLE)
+        except RuntimeError as exc:
+            self._json({"error": str(exc)}, HTTPStatus.CONFLICT)
+    return wrapped
+
+
 class CleanupHandler(BaseHTTPRequestHandler):
     server_version = f"HassCleaner/{__version__}"
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(15)
 
     @property
     def state(self) -> AppState:
         return self.server.state  # type: ignore[attr-defined]
 
+    @operation_errors
     def do_GET(self) -> None:
         parsed = urlsplit(self.path)
         path = parsed.path
@@ -136,14 +165,26 @@ class CleanupHandler(BaseHTTPRequestHandler):
             if file_path is None:
                 self._json({"error": "Rapport niet gevonden"}, HTTPStatus.NOT_FOUND)
             else:
-                self._download(file_path)
+                if match.group(2) == "md":
+                    from .reporting import _markdown
+                    source = report_path(self.state.report_root, match.group(1), "json")
+                    if source is None:
+                        raise RequestError("The source report is no longer available", HTTPStatus.NOT_FOUND)
+                    report = json.loads(source.read_text(encoding="utf-8"))
+                    self._text_download(file_path.name, _markdown(report, self._export_language(parsed.query)))
+                else:
+                    self._download(file_path)
         elif path.startswith("/api/plans/"):
             match = re.fullmatch(r"/api/plans/([a-zA-Z0-9]+)\.(json|md)", path)
             file_path = self.state.plan_manager.path(match.group(1), match.group(2)) if match else None
             if file_path is None:
                 self._json({"error": "Plan niet gevonden"}, HTTPStatus.NOT_FOUND)
             else:
-                self._download(file_path)
+                if match.group(2) == "md":
+                    from .plans import _markdown
+                    self._text_download(file_path.name, _markdown(self.state.plan_manager.get(match.group(1)), self._export_language(parsed.query)))
+                else:
+                    self._download(file_path)
         elif path == "/" or path.endswith("/index.html"):
             self._file(self.state.web_root / "index.html")
         elif "/assets/" in path:
@@ -157,11 +198,13 @@ class CleanupHandler(BaseHTTPRequestHandler):
             # keeps client-side navigation prefix-safe.
             self._file(self.state.web_root / "index.html")
 
+    @operation_errors
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
         if not self._ingress_allowed():
             self._json({"error": "Alleen toegang via Home Assistant-ingress is toegestaan"}, HTTPStatus.FORBIDDEN)
             return
+        self._read_json()
         if not self._mutation_allowed(path):
             return
         if path == "/api/scans":
@@ -248,9 +291,14 @@ class CleanupHandler(BaseHTTPRequestHandler):
             if str(body.get("confirmation", "")) not in {"WIS HISTORIE", "CLEAR HISTORY"}:
                 self._json({"error": "Typ exact WIS HISTORIE of CLEAR HISTORY"}, HTTPStatus.BAD_REQUEST)
                 return
-            self.state.scan_manager.clear_history()
-            self.state.registry_cleanup_manager.clear_history()
-            self.state.purge_manager.clear_history()
+            with ExitStack() as locks:
+                for manager in (self.state.registry_cleanup_manager, self.state.purge_manager):
+                    if not manager._lock.acquire(blocking=False):
+                        raise RuntimeError("Wait for active cleanup operations before clearing history")
+                    locks.callback(manager._lock.release)
+                self.state.scan_manager.clear_history()
+                self.state.registry_cleanup_manager.clear_history()
+                self.state.purge_manager.clear_history()
             self._json({"status": "cleared"})
         elif path == "/api/quarantine/history/clear":
             body = self._read_json()
@@ -383,13 +431,32 @@ class CleanupHandler(BaseHTTPRequestHandler):
             self._json({"error": "Endpoint niet gevonden"}, HTTPStatus.NOT_FOUND)
 
     def _read_json(self) -> dict[str, object]:
+        if hasattr(self, "_request_json"):
+            return self._request_json
+        if self.headers.get("Transfer-Encoding"):
+            raise RequestError("Transfer-Encoding is not supported")
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            raw = self.rfile.read(min(length, 1_000_000))
-            value = json.loads(raw or b"{}")
-            return value if isinstance(value, dict) else {}
-        except (ValueError, json.JSONDecodeError):
-            return {}
+        except ValueError as exc:
+            raise RequestError("Invalid Content-Length") from exc
+        if length < 0:
+            raise RequestError("Invalid Content-Length")
+        if length > 1_000_000:
+            raise RequestError("Request body exceeds 1 MB", HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
+        try:
+            raw = self.rfile.read(length)
+        except TimeoutError as exc:
+            raise RequestError("Request body timed out", HTTPStatus.REQUEST_TIMEOUT) from exc
+        if len(raw) != length:
+            raise RequestError("Incomplete request body")
+        try:
+            value = json.loads(raw) if length else {}
+        except (ValueError, UnicodeError) as exc:
+            raise RequestError("Request body must contain valid JSON") from exc
+        if not isinstance(value, dict):
+            raise RequestError("Request body must be a JSON object")
+        self._request_json = value
+        return value
 
     def _ingress_allowed(self) -> bool:
         if not supervisor_available():
@@ -460,7 +527,28 @@ class CleanupHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _export_language(self, query: str) -> str:
+        selected = parse_qs(query).get("language", [load_effective_settings(self.state.data_root).language])[0]
+        if selected not in {"auto", "en", "nl"}:
+            raise RequestError("Unsupported export language")
+        return "nl" if selected == "nl" else "en"
+
+    def _text_download(self, name: str, value: str) -> None:
+        data = value.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def log_message(self, fmt: str, *args: object) -> None:
+        # Docker polls this endpoint every 30 seconds. Successful health checks
+        # are expected and would otherwise drown useful application messages.
+        status = str(args[1]) if len(args) > 1 else ""
+        if urlsplit(self.path).path == "/health" and status.startswith("2"):
+            return
         print(f"{self.address_string()} - {fmt % args}", flush=True)
 
 
@@ -473,11 +561,16 @@ def create_server(host: str, port: int, config_root: Path, data_root: Path) -> T
 
 
 def _scan_summary(scan) -> dict[str, object]:
-    payload = scan.to_dict(include_items=False)
-    audit = scan.registry_audit.to_dict()
+    payload = scan.to_dict(include_items=False, include_registry=False)
+    source = scan.registry_audit
+    audit = {"status": source.status, "error": source.error, "summary": source.summary,
+             "anomalies": source.anomalies, "entity_workspace": source.entity_workspace,
+             "findings": [asdict(item) for item in source.findings if item.severity == "review"] +
+                         [asdict(item) for item in islice((item for item in source.findings if item.severity != "review"), 250)]}
     workspace = audit.get("entity_workspace", {})
     payload["registry_audit"] = {
         "status": audit.get("status"),
+        "error": audit.get("error"),
         "summary": audit.get("summary", {}),
         "anomalies": audit.get("anomalies", []),
         "findings": [

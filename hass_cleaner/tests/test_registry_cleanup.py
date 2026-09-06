@@ -55,7 +55,7 @@ class RegistryCleanupTests(unittest.TestCase):
     def test_user_directed_cleanup_requires_count_and_risk_confirmation(self) -> None:
         calls = []
         with tempfile.TemporaryDirectory() as folder:
-            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices: calls.append((entities, devices)) or [])
+            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices, **kwargs: calls.append((entities, devices)) or [])
             scan = self._scan()
             plan = {
                 "scan_id": "scan1",
@@ -72,7 +72,7 @@ class RegistryCleanupTests(unittest.TestCase):
 
     def test_verified_choice_requires_valid_backup(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices: [])
+            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices, **kwargs: [])
             scan = self._scan()
             plan = {"scan_id": "scan1", "entities": [{"entity_id": "sensor.old", "execution_allowed": True}]}
             with self.assertRaises(RegistryCleanupError):
@@ -83,7 +83,7 @@ class RegistryCleanupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             calls = []
             manager = RegistryCleanupManager(
-                Path(folder), executor=lambda entities, devices: calls.append((entities, devices)) or [],
+                Path(folder), executor=lambda entities, devices, **kwargs: calls.append((entities, devices)) or [],
             )
             plan = {"scan_id": "scan1", "entities": [{"entity_id": "sensor.old", "execution_allowed": True}]}
             record = manager.execute(
@@ -95,7 +95,7 @@ class RegistryCleanupTests(unittest.TestCase):
 
     def test_tampered_plan_object_is_rejected_against_latest_scan(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices: self.fail("must not execute"))
+            manager = RegistryCleanupManager(Path(folder), executor=lambda entities, devices, **kwargs: self.fail("must not execute"))
             plan = {"scan_id": "scan1", "entities": [{"entity_id": "sensor.not_scanned", "execution_allowed": True}]}
             with self.assertRaises(RegistryCleanupError):
                 manager.execute(self._scan(), plan, backup_choice="none", backup_token="", backup_valid=False,
@@ -118,9 +118,9 @@ class RegistryCleanupTests(unittest.TestCase):
     def test_partial_failure_records_commands_that_already_completed(self) -> None:
         connection = PartiallyFailingConnection()
 
-        def executor(entities, devices):
+        def executor(entities, devices, **kwargs):
             return execute_registry_commands(
-                entities, devices, token="token", connect=lambda *args, **kwargs: connection,
+                entities, devices, token="token", connect=lambda *args, **options: connection, **kwargs,
             )
 
         with tempfile.TemporaryDirectory() as folder:

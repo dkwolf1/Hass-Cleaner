@@ -1151,7 +1151,7 @@ function downloadPlan(format) {
     showToast("Maak eerst een impactplan", true);
     return;
   }
-  window.location.assign(apiUrl(path));
+  window.location.assign(apiUrl(`${path}?language=${englishInterface() ? "en" : "nl"}`));
 }
 
 async function loadPurgeHistory() {
@@ -1281,7 +1281,7 @@ function downloadReport(extension) {
     showToast("Voer eerst een scan uit", true);
     return;
   }
-  window.location.assign(apiUrl(`api/reports/${state.scan.id}.${extension}`));
+  window.location.assign(apiUrl(`api/reports/${state.scan.id}.${extension}?language=${englishInterface() ? "en" : "nl"}`));
 }
 
 async function saveSettings() {

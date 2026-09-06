@@ -243,7 +243,11 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
             )
 
 
-def _markdown(report: dict[str, object]) -> str:
+def _markdown(report: dict[str, object], language: str | None = None) -> str:
+    language = language or report.get("settings", {}).get("language", "en")
+    if language != "nl":
+        from .export_text import report_markdown
+        return report_markdown(report)
     scan = report["scan"]
     summary = report["review_summary"]
     assert isinstance(scan, dict)
@@ -274,7 +278,7 @@ def _markdown(report: dict[str, object]) -> str:
     if isinstance(guidance, dict):
         lines.extend(_markdown_recipes(guidance.get("safe_recipes", []), "Volledig bewezen"))
         lines.extend(["", "### Eerst nader onderzoeken", ""])
-        lines.extend(_markdown_recipes(guidance.get("investigation_recipes", []), "Geblokkeerd"))
+        lines.extend(_markdown_recipes(guidance.get("investigation_recipes", []), "Zelf beoordelen"))
         lines.extend(["", "### Systeeminventaris - behouden", ""])
         lines.extend(_markdown_inventory(guidance.get("inventory", [])))
     safe_items = [item for item in items if isinstance(item, dict) and item.get("risk") == "safe"]
@@ -282,7 +286,7 @@ def _markdown(report: dict[str, object]) -> str:
         "",
         "## Afzonderlijke bestanden",
         "",
-        f"{len(safe_items)} bestanden voldoen aan een bewezen veilig recept. Het Markdownrapport toont bewust geen duizenden losse paden.",
+        f"{len(safe_items)} bestanden vallen binnen de aanbevolen opruimcategorieën. De volledige lijst staat in JSON en CSV.",
         "",
         "> De volledige bestandsinventaris en alle technische details staan in de JSON- en CSV-export.",
     ])
@@ -345,7 +349,7 @@ def _markdown(report: dict[str, object]) -> str:
                     f"- Runtime-only: {entity_summary.get('state_only_total', 0)}",
                     f"- Statusproblemen: {entity_summary.get('attention', 0)}",
                     f"- Uitgeschakeld (informatief): {entity_summary.get('disabled', 0)}",
-                    f"- Selecteerbaar voor geblokkeerd onderzoek: {entity_summary.get('selectable_for_plan', 0)}",
+                    f"- Selecteerbaar voor opschoning: {entity_summary.get('selectable_for_plan', 0)}",
                 ])
                 lines.extend(["", "#### Statusverdeling", ""])
                 lines.extend(_markdown_status_summary(entity_summary.get("by_status", {})))
@@ -427,7 +431,7 @@ def _markdown_entity_table(items: list[dict[str, object]]) -> list[str]:
     if not items:
         return ["Geen entiteiten met een aandachtspunt gevonden."]
     lines = [
-        "| Entity | Status | Duur | Integratie | Apparaat | Ruimte | Selecteerbaar voor onderzoek | Reden |",
+        "| Entity | Status | Duur | Integratie | Apparaat | Ruimte | Selecteerbaar voor opschoning | Reden |",
         "|---|---|---:|---|---|---|---|---|",
     ]
     for item in items:
@@ -503,7 +507,7 @@ def _markdown_anomalies(value: object) -> list[str]:
     ]
     for item in value:
         if isinstance(item, dict):
-            lines.append("| {title} | `{domain}` | {evidence} | {risk} | {step} | Geblokkeerd |".format(
+            lines.append("| {title} | `{domain}` | {evidence} | {risk} | {step} | Zelf beoordelen |".format(
                 title=str(item.get("title", "")).replace("|", "\\|"),
                 domain=str(item.get("domain", "")).replace("|", "\\|"),
                 evidence=str(item.get("evidence_summary") or item.get("summary", "")).replace("|", "\\|"),

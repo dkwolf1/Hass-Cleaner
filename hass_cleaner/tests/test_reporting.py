@@ -80,7 +80,7 @@ class ReportingTests(unittest.TestCase):
                 }]},
             )
 
-            paths = write_report_files(result, Settings(), Path(output_folder))
+            paths = write_report_files(result, Settings(language="nl"), Path(output_folder))
 
             self.assertEqual({"json", "csv", "md"}, set(paths))
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
@@ -157,9 +157,9 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(9, html.count('aria-labelledby="'))
         self.assertIn("initializeTabAccessibility", javascript)
         self.assertIn('event.key === "ArrowRight"', javascript)
-        self.assertIn('assets/styles.css?v=1.0.1', html)
-        self.assertIn('assets/i18n.js?v=1.0.1', html)
-        self.assertIn('assets/app.js?v=1.0.1', html)
+        self.assertIn('assets/styles.css?v=1.0.2', html)
+        self.assertIn('assets/i18n.js?v=1.0.2', html)
+        self.assertIn('assets/app.js?v=1.0.2', html)
         self.assertIn("Persistently unavailable", translations)
         self.assertIn("Local entity choice saved", translations)
 

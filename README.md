@@ -4,7 +4,7 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, informed user choice and recovery come before reclaimed space.
 
-> **Release status:** version 1.0.1 is the current maintenance release for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
+> **Release status:** version 1.0.2 is the current maintenance release for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
 
 ## English
 
@@ -67,7 +67,7 @@ For version-specific changes, see [CHANGELOG.md](hass_cleaner/CHANGELOG.md). For
 - Project documentation and GitHub communication use English as the primary language and Dutch as the secondary language.
 - Interface and Home Assistant App settings support Automatic, English and Nederlands.
 - Automatic uses the browser or Home Assistant display language and falls back to English for unsupported languages.
-- The language selected inside Hass-Cleaner takes precedence over the Home Assistant App configuration.
+- Both configuration locations work: changed App configuration fields override their saved UI values; unchanged fields retain your UI choices. Saving in Hass-Cleaner applies your new choices again. Supervisor options are not rewritten by UI saves.
 
 ### Install from GitHub
 
@@ -77,7 +77,7 @@ For version-specific changes, see [CHANGELOG.md](hass_cleaner/CHANGELOG.md). For
 4. Start the App and open its web interface.
 5. Run a scan first and review the report before preparing an action.
 
-GitHub Actions builds version 1.0.1 for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update the release through this repository.
+GitHub Actions builds version 1.0.2 for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update the release through this repository.
 
 ### Local development and tests
 
@@ -160,7 +160,7 @@ Versiegebonden wijzigingen staan in [CHANGELOG.md](hass_cleaner/CHANGELOG.md). G
 - Projectdocumentatie en GitHub-communicatie gebruiken Engels als primaire taal en Nederlands als tweede taal.
 - De interface en Home Assistant App-instellingen ondersteunen Automatisch, English en Nederlands.
 - Automatisch gebruikt de browser- of Home Assistant-weergavetaal en valt bij een niet-ondersteunde taal terug op Engels.
-- De taalkeuze binnen Hass-Cleaner heeft voorrang op de Home Assistant App-configuratie.
+- Beide configuratieplekken werken: gewijzigde App-instellingen krijgen per veld voorrang; overige UI-keuzes blijven behouden. Opnieuw opslaan binnen Hass-Cleaner past je nieuwe keuze toe.
 
 ### Installeren vanuit GitHub
 
@@ -170,7 +170,7 @@ Versiegebonden wijzigingen staan in [CHANGELOG.md](hass_cleaner/CHANGELOG.md). G
 4. Start de App en open de webinterface.
 5. Voer eerst een scan uit en beoordeel het rapport voordat je een actie voorbereidt.
 
-GitHub Actions bouwt versie 1.0.1 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
+GitHub Actions bouwt versie 1.0.2 voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant de release via deze repository installeren of bijwerken.
 
 ### Lokaal ontwikkelen en testen
 

@@ -25,7 +25,10 @@ def _serialized(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         with self._lock:
-            return method(self, *args, **kwargs)
+            try:
+                return method(self, *args, **kwargs)
+            except OSError as exc:
+                raise QuarantineError(f"Quarantine storage operation failed: {exc}") from exc
 
     return wrapper
 
@@ -39,7 +42,12 @@ class QuarantineManager:
         self.manifest_path = self.root / "manifest.json"
         self._lock = threading.RLock()
         with self._lock:
-            self._reconcile_incomplete_operations()
+            try:
+                self._reconcile_incomplete_operations()
+            except (QuarantineError, OSError) as exc:
+                # Keep the interface available to report the error. Every read
+                # and mutation still validates the manifest before proceeding.
+                print(f"Hass-Cleaner quarantine recovery error: {exc}", flush=True)
 
     def execute(
         self,
@@ -70,6 +78,8 @@ class QuarantineManager:
                 confirmation=confirmation,
                 requested_by=requested_by,
             )
+        except OSError as exc:
+            raise QuarantineError(f"Quarantine storage operation failed: {exc}") from exc
         finally:
             self._lock.release()
 
@@ -196,6 +206,7 @@ class QuarantineManager:
     def restore(self, operation_id: str, file_id: str, *, confirmation: str, requested_by: str) -> dict[str, Any]:
         if confirmation not in {"HERSTEL", "RESTORE"}:
             raise QuarantineError("Typ HERSTEL of RESTORE om terugplaatsen te bevestigen")
+        self._reconcile_incomplete_operations()
         operation = self._find_operation(operation_id)
         record = next((item for item in operation.get("files", []) if item.get("id") == file_id), None)
         if record is None or record.get("status") != "quarantined":
@@ -208,7 +219,12 @@ class QuarantineManager:
         if source.is_symlink() or not source.is_file() or _sha256(source) != record.get("sha256"):
             raise QuarantineError("Herstel is gestopt: checksum van het quarantainebestand klopt niet")
         target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(target.name + ".hass-cleaner-restore")
+        temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.hass-cleaner-restore")
+        record.update({
+            "status": "restoring", "restore_temporary": temporary.name,
+            "restored_at": datetime.now(timezone.utc).isoformat(), "restored_by": requested_by,
+        })
+        self._replace_operation(operation)
         with source.open("rb") as input_file, temporary.open("xb") as output_file:
             shutil.copyfileobj(input_file, output_file, 1024 * 1024)
             output_file.flush()
@@ -216,13 +232,19 @@ class QuarantineManager:
         if _sha256(temporary) != record["sha256"]:
             temporary.unlink(missing_ok=True)
             raise QuarantineError("Hersteltest is mislukt; bronbestand blijft in quarantaine")
-        temporary.replace(target)
-        os.chmod(target, int(record.get("mode", 0o644)))
+        os.chmod(temporary, int(record.get("mode", 0o644)))
         restored_mtime = datetime.fromisoformat(str(record["modified_at"]).replace("Z", "+00:00")).timestamp()
-        os.utime(target, (restored_mtime, restored_mtime))
-        source.unlink()
-        record.update({"status": "restored", "restored_at": datetime.now(timezone.utc).isoformat(), "restored_by": requested_by})
+        os.utime(temporary, (restored_mtime, restored_mtime))
+        if os.name != "nt":
+            with temporary.open("rb") as stream:
+                os.fsync(stream.fileno())
+        # A hard link publishes the complete file atomically and fails if a
+        # concurrent writer has created the target. Never fall back to replace.
+        os.link(temporary, target)
+        _sync_directory(target.parent)
+        record["status"] = "restored"
         self._replace_operation(operation)
+        self._cleanup_restored(operation, record)
         return operation
 
     @_serialized
@@ -259,8 +281,11 @@ class QuarantineManager:
         source = self._contained_path(self._operation_files_root(operation_id), relative, "Ongeldig quarantainepad")
         if source.is_symlink() or not source.is_file() or _sha256(source) != record.get("sha256"):
             raise QuarantineError("Definitief verwijderen is gestopt: checksumcontrole mislukt")
+        record.update({"status": "purging", "deleted_at": datetime.now(timezone.utc).isoformat(), "deleted_by": requested_by})
+        self._replace_operation(operation)
         source.unlink()
-        record.update({"status": "deleted", "deleted_at": datetime.now(timezone.utc).isoformat(), "deleted_by": requested_by})
+        _sync_directory(source.parent)
+        record["status"] = "deleted"
         self._replace_operation(operation)
         return operation
 
@@ -270,8 +295,9 @@ class QuarantineManager:
 
     @_serialized
     def clear_completed_history(self) -> int:
+        self._reconcile_incomplete_operations()
         operations = self._load()
-        retained_statuses = {"quarantined", "copied", "recovery_required"}
+        retained_statuses = {"planned", "quarantined", "copied", "restoring", "purging", "recovery_required"}
         active = [
             item for item in operations
             if item.get("status") == "recovery_required"
@@ -323,11 +349,42 @@ class QuarantineManager:
     def _load(self) -> list[dict[str, Any]]:
         try:
             value = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-            return value if isinstance(value, list) else []
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
+        except FileNotFoundError as exc:
+            if self.root.exists() and any(path.is_dir() for path in self.root.iterdir()):
+                raise QuarantineError("Quarantine manifest is missing; existing recovery data has been preserved") from exc
             return []
+        except (OSError, ValueError) as exc:
+            raise QuarantineError("Quarantine manifest cannot be read; existing recovery data has been preserved") from exc
+        if not isinstance(value, list):
+            raise QuarantineError("Quarantine manifest has an invalid structure")
+        ids = set()
+        for operation in value:
+            if (not isinstance(operation, dict) or not isinstance(operation.get("id"), str)
+                    or not operation["id"].isalnum() or operation["id"] in ids
+                    or not isinstance(operation.get("files"), list)
+                    or not isinstance(operation.get("status"), str)):
+                raise QuarantineError("Quarantine manifest has an invalid operation")
+            ids.add(operation["id"])
+            file_ids = set()
+            file_paths = set()
+            for record in operation["files"]:
+                if (not isinstance(record, dict) or not isinstance(record.get("id"), str)
+                        or not record["id"].isalnum() or record["id"] in file_ids
+                        or not isinstance(record.get("status"), str)
+                        or not isinstance(record.get("relative_path"), str)
+                        or not isinstance(record.get("sha256"), str)
+                        or len(record["sha256"]) != 64
+                        or any(c not in "0123456789abcdef" for c in record["sha256"])
+                        or record.get("status") not in {"planned", "copied", "quarantined", "restoring", "restored", "purging", "deleted", "rolled_back", "recovery_required"}
+                        or record["relative_path"] in file_paths):
+                    raise QuarantineError("Quarantine manifest has an invalid file record")
+                self._validated_relative_path(record["relative_path"])
+                file_ids.add(record["id"])
+                file_paths.add(record["relative_path"])
+        return value
 
     def _save(self, operations: list[dict[str, Any]]) -> None:
+        self._load()  # Never replace a damaged journal with an empty/new one.
         self.root.mkdir(parents=True, exist_ok=True)
         temporary = self.manifest_path.with_suffix(".tmp")
         with temporary.open("w", encoding="utf-8") as stream:
@@ -350,6 +407,9 @@ class QuarantineManager:
         operations = self._load()
         changed = False
         for operation in operations:
+            for record in operation["files"]:
+                if record["status"] in {"restoring", "purging", "quarantined"}:
+                    changed = self._recover_file(operation, record) or changed
             if operation.get("status") not in {"preparing", "running", "partial", "failed", "recovery_required"}:
                 continue
             operation_id = str(operation.get("id", ""))
@@ -419,6 +479,58 @@ class QuarantineManager:
                 operation["status"] = "rolled_back"
         if changed:
             self._save(operations)
+        for operation in operations:
+            for record in operation["files"]:
+                if record["status"] == "restored" and record.get("restore_temporary"):
+                    self._cleanup_restored(operation, record)
+
+    def _restore_temporary(self, target: Path, record: dict[str, Any]) -> Path:
+        name = record.get("restore_temporary", "")
+        prefix = f".{target.name}."
+        suffix = ".hass-cleaner-restore"
+        if (not isinstance(name, str) or not name.startswith(prefix) or not name.endswith(suffix)
+                or len(name[len(prefix):-len(suffix)]) != 32
+                or any(c not in "0123456789abcdef" for c in name[len(prefix):-len(suffix)])):
+            raise QuarantineError("Invalid restore temporary path; recovery data preserved")
+        return target.with_name(name)
+
+    def _recover_file(self, operation: dict[str, Any], record: dict[str, Any]) -> bool:
+        relative = self._validated_relative_path(record["relative_path"])
+        source = self._contained_path(self._operation_files_root(operation["id"]), relative, "Invalid quarantine path")
+        target = self._contained_path(self.config_root, relative, "Invalid restore path")
+        status = record["status"]
+        if status == "quarantined" and (source.exists() or source.is_symlink()):
+            return False
+        if status == "purging":
+            # If unlink did not happen, let the user explicitly retry it.
+            record["status"] = "quarantined" if self._matches_regular_file(source, record["sha256"]) else (
+                "recovery_required" if source.exists() or source.is_symlink() else "deleted")
+        elif status == "restoring":
+            temporary = self._restore_temporary(target, record)
+            published = (not target.is_symlink() and not temporary.is_symlink()
+                         and target.is_file() and temporary.is_file() and target.samefile(temporary))
+            if published:
+                record["status"] = "restored"
+            elif self._matches_regular_file(source, record["sha256"]):
+                temporary.unlink(missing_ok=True)
+                record["status"] = "quarantined"
+                record.pop("restore_temporary", None)
+            else:
+                record["status"] = "recovery_required"
+        else:
+            # Recover older releases interrupted after deleting the quarantine
+            # copy but before recording a completed restore.
+            record["status"] = "restored" if self._matches_regular_file(target, record["sha256"]) else "recovery_required"
+        return True
+
+    def _cleanup_restored(self, operation: dict[str, Any], record: dict[str, Any]) -> None:
+        relative = self._validated_relative_path(record["relative_path"])
+        source = self._contained_path(self._operation_files_root(operation["id"]), relative, "Invalid quarantine path")
+        target = self._contained_path(self.config_root, relative, "Invalid restore path")
+        temporary = self._restore_temporary(target, record)
+        temporary.unlink(missing_ok=True)
+        source.unlink(missing_ok=True)
+        _sync_directory(source.parent)
 
     @staticmethod
     def _validated_relative_path(value: str) -> Path:
@@ -460,3 +572,13 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)

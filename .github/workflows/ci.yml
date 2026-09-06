@@ -24,4 +24,6 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: node --check web/assets/app.js
+      - run: node --check web/assets/i18n.js
+      - run: node web/tests/i18n.test.cjs
       - run: python -m compileall -q hass_cleaner tests

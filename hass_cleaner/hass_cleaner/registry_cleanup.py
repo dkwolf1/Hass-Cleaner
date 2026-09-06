@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .registry_audit import HomeAssistantApiError, WEBSOCKET_URL, _receive_json, _receive_result
+from .storage import atomic_write_json, StorageError
 
 
 class RegistryCleanupError(RuntimeError):
@@ -30,6 +31,7 @@ def execute_registry_commands(
     token: str | None = None,
     connect: Callable[..., Any] | None = None,
     url: str = WEBSOCKET_URL,
+    progress: Callable[[list[dict[str, str]], dict[str, str] | None], None] | None = None,
 ) -> list[dict[str, str]]:
     access_token = token or os.environ.get("SUPERVISOR_TOKEN")
     if not access_token:
@@ -53,11 +55,17 @@ def execute_registry_commands(
             raise RegistryCleanupError(authentication.get("message", "WebSocket-authenticatie geweigerd"))
         command_id = 1
         for entity_id in entities:
+            if progress:
+                progress(completed, {"type": "entity", "id": entity_id})
             connection.send(json.dumps({"id": command_id, "type": "config/entity_registry/remove", "entity_id": entity_id}))
             _receive_result(connection, command_id)
             completed.append({"type": "entity", "id": entity_id, "status": "removed"})
+            if progress:
+                progress(completed, None)
             command_id += 1
         for device in devices:
+            if progress:
+                progress(completed, {"type": "device", "id": device["device_id"], "config_entry_id": device["config_entry_id"]})
             connection.send(json.dumps({
                 "id": command_id,
                 "type": "config/device_registry/remove_config_entry",
@@ -66,6 +74,8 @@ def execute_registry_commands(
             }))
             _receive_result(connection, command_id)
             completed.append({"type": "device", "id": device["device_id"], "status": "config_entry_removed"})
+            if progress:
+                progress(completed, None)
             command_id += 1
     except Exception as exc:
         if isinstance(exc, RegistryExecutionError):
@@ -85,14 +95,27 @@ class RegistryCleanupManager:
     def __init__(self, data_root: Path, executor=execute_registry_commands):
         self.history_path = data_root / "registry-cleanup-history.json"
         self.executor = executor
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        try:
+            records = self.history()
+            interrupted = [record for record in records if record.get("status") == "running"]
+            for record in interrupted:
+                record.update(status="interrupted", error="Execution was interrupted; verify pending commands in Home Assistant before retrying.")
+            if interrupted:
+                self._save(records)
+        except RegistryCleanupError as exc:
+            print(f"Hass-Cleaner registry journal error: {exc}", flush=True)
 
     def history(self) -> list[dict[str, Any]]:
         try:
             value = json.loads(self.history_path.read_text(encoding="utf-8"))
-            return value if isinstance(value, list) else []
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
+        except FileNotFoundError:
             return []
+        except (OSError, ValueError) as exc:
+            raise RegistryCleanupError("Registry journal cannot be read; no changes were made to it") from exc
+        if not isinstance(value, list) or any(not isinstance(record, dict) or not record.get("id") for record in value):
+            raise RegistryCleanupError("Registry journal has an invalid structure")
+        return value
 
     def execute(self, scan, plan: dict[str, Any], *, backup_choice: str, backup_token: str,
                 backup_valid: bool, risk_acknowledged: bool, confirmation: str, requested_by: str) -> dict[str, Any]:
@@ -149,29 +172,48 @@ class RegistryCleanupManager:
             "completed": [],
         }
         try:
-            record["completed"] = self.executor(entities, devices)
-            record["status"] = "completed"
-        except RegistryExecutionError as exc:
-            record["completed"] = exc.completed
-            record["status"] = "partial" if exc.completed else "failed"
-            record["error"] = f"{type(exc).__name__}: {exc}"
-            raise RegistryCleanupError(str(exc)) from exc
-        except Exception as exc:
-            record["status"] = "failed"
-            record["error"] = f"{type(exc).__name__}: {exc}"
-            raise RegistryCleanupError(str(exc)) from exc
-        finally:
             history = self.history()
             history.insert(0, record)
-            self._save(history[:50])
+            # An unavailable journal must prevent the first external command.
+            self._save(history)
+
+            def progress(completed, pending):
+                record["completed"] = list(completed)
+                record["pending"] = pending
+                self._save(history)
+
+            try:
+                record["completed"] = self.executor(entities, devices, progress=progress)
+                record["pending"] = None
+                record["status"] = "completed"
+            except Exception as exc:
+                if isinstance(exc, RegistryExecutionError):
+                    record["completed"] = exc.completed
+                record["status"] = "partial" if record["completed"] else "failed"
+                record["outcome_uncertain"] = bool(record.get("pending"))
+                record["error"] = f"{type(exc).__name__}: {exc}"
+                self._save(history)
+                raise RegistryCleanupError(str(exc)) from exc
+            self._save(history)
+        finally:
             self._lock.release()
         return record
 
     def clear_history(self) -> None:
-        self.history_path.unlink(missing_ok=True)
+        if not self._lock.acquire(blocking=False):
+            raise RegistryCleanupError("Registry cleanup is running; history cannot be cleared yet")
+        try:
+            records = self.history()
+            # Keep unresolved external outcomes available for investigation.
+            self._save([record for record in records if record.get("status") in {"running", "interrupted"} or record.get("outcome_uncertain")])
+        finally:
+            self._lock.release()
 
     def _save(self, history: list[dict[str, Any]]) -> None:
-        self.history_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.history_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(self.history_path)
+        self.history()
+        unresolved = [record for record in history if record.get("status") in {"running", "interrupted"} or record.get("outcome_uncertain")]
+        resolved = [record for record in history if record not in unresolved]
+        try:
+            atomic_write_json(self.history_path, unresolved + resolved[:50])
+        except StorageError as exc:
+            raise RegistryCleanupError("Registry journal could not be saved; execution stopped") from exc

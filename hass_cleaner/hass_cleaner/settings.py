@@ -4,7 +4,7 @@ import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .storage import atomic_write_json, read_json_object
+from .storage import atomic_write_json, read_json_object, json_file_lock
 
 
 @dataclass(frozen=True)
@@ -66,20 +66,34 @@ def save_local_settings(data_root: Path, settings: Settings) -> None:
     """
     data_root.mkdir(parents=True, exist_ok=True)
     path = data_root / "ui-settings.json"
-    atomic_write_json(path, asdict(settings))
+    with json_file_lock(path):
+        atomic_write_json(path, {**asdict(settings.validated()), "_supervisor_snapshot": asdict(load_settings(data_root))})
 
 
 def load_effective_settings(data_root: Path) -> Settings:
     override = data_root / "ui-settings.json"
-    if override.exists():
+    with json_file_lock(override):
+        base = load_settings(data_root)
+        if not override.exists():
+            return base
         try:
             values = read_json_object(override)
-            # Ignore the removed legacy option so old installations migrate safely.
             values.pop("deletion_mode", None)
-            return Settings(**values).validated()
+            snapshot = values.pop("_supervisor_snapshot", None)
+            current = asdict(base)
+            if isinstance(snapshot, dict):
+                # Only changed Supervisor fields supersede UI choices. Persist
+                # the new baseline so subsequent UI changes can win again.
+                values.update({key: value for key, value in current.items() if snapshot.get(key) != value})
+            elif _options_path(data_root).exists() and _options_path(data_root).stat().st_mtime_ns > override.stat().st_mtime_ns:
+                values = current
+            effective = Settings(**values).validated()
+            stored = {**asdict(effective), "_supervisor_snapshot": current}
+            if snapshot != current or values != asdict(effective):
+                atomic_write_json(override, stored)
+            return effective
         except (TypeError, ValueError):
-            pass
-    return load_settings(data_root)
+            return base
 
 
 def environment() -> tuple[str, int, Path, Path]:

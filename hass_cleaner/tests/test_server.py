@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import io
 import tempfile
 import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
+from contextlib import redirect_stdout
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -58,12 +60,68 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(payload["file_execution_enabled"])
         self.assertFalse(payload["registry_execution_enabled"])
 
+    def test_health_check_is_silent_but_other_requests_are_logged(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.request("/health")
+            self.request("/api/status")
+
+        access_log = output.getvalue()
+        self.assertNotIn('GET /health HTTP/1.1', access_log)
+        self.assertIn('GET /api/status HTTP/1.1', access_log)
+
+    def test_damaged_quarantine_manifest_returns_visible_error(self) -> None:
+        path = self.server.state.quarantine_manager.manifest_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{broken", encoding="utf-8")
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request("/api/quarantine")
+        self.assertEqual(503, raised.exception.code)
+        self.assertIn("manifest", json.loads(raised.exception.read())["error"])
+        self.assertEqual("{broken", path.read_text(encoding="utf-8"))
+        self.assertEqual(200, self.request("/health")[0])
+
+    def test_markdown_download_language_can_be_changed_after_scan(self) -> None:
+        from hass_cleaner.scanner import scan_tree
+        from hass_cleaner.reporting import write_report_files
+        from hass_cleaner.settings import Settings
+        scan = scan_tree(Path(self.config_temp.name), Settings())
+        write_report_files(scan, Settings(), self.server.state.report_root)
+        for language, title in [("en", "audit report"), ("nl", "Hass-Cleaner")]:
+            with urllib.request.urlopen(f"{self.base}/api/reports/{scan.id}.md?language={language}") as response:
+                report = response.read().decode("utf-8")
+                self.assertIn(title, report)
+                if language == "nl":
+                    self.assertIn("bestandsinventaris", report)
+                else:
+                    self.assertIn("complete file inventory", report)
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(f"{self.base}/api/reports/{scan.id}.md?language=invalid")
+        self.assertEqual(400, raised.exception.code)
+
+    def test_history_clear_conflicts_with_registry_execution(self) -> None:
+        acquired, release = threading.Event(), threading.Event()
+        def running():
+            with self.server.state.registry_cleanup_manager._lock:
+                acquired.set()
+                release.wait(5)
+        worker = threading.Thread(target=running)
+        worker.start()
+        self.assertTrue(acquired.wait(2))
+        try:
+            with self.assertRaises(urllib.error.HTTPError) as raised:
+                self.request("/api/history/clear", "POST", {"confirmation": "CLEAR HISTORY"})
+            self.assertEqual(409, raised.exception.code)
+        finally:
+            release.set()
+            worker.join(2)
+
     def test_frontend_cache_policy_separates_shell_and_versioned_assets(self) -> None:
         with urllib.request.urlopen(f"{self.base}/", timeout=5) as response:
             html = response.read().decode("utf-8")
             self.assertEqual("no-cache", response.headers["Cache-Control"])
-            self.assertIn("assets/app.js?v=1.0.1", html)
-        with urllib.request.urlopen(f"{self.base}/assets/app.js?v=1.0.1", timeout=5) as response:
+            self.assertIn("assets/app.js?v=1.0.2", html)
+        with urllib.request.urlopen(f"{self.base}/assets/app.js?v=1.0.2", timeout=5) as response:
             response.read()
             self.assertEqual("public, max-age=31536000, immutable", response.headers["Cache-Control"])
 
@@ -141,7 +199,7 @@ class ServerTests(unittest.TestCase):
         plan_id = payload["plan"]["id"]
         with urllib.request.urlopen(f"{self.base}/api/plans/{plan_id}.md", timeout=5) as response:
             markdown = response.read().decode("utf-8")
-        self.assertIn("impact- en herstelplan", markdown)
+            self.assertIn("cleanup preparation", markdown)
         self.server.state.backup_manager._save([{
             "token": "verified-plan", "status": "completed", "requested_at": datetime.now(timezone.utc).isoformat()
         }])

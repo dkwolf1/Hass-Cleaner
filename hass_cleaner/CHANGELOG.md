@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2 — 2026-09-06
+
+- Apply changed Supervisor configuration fields without discarding unrelated UI choices; migrate the obsolete deletion_mode option at startup.
+- Reject history clearing during active work and prevent new scans during clearing; include the entity comparison snapshot in a clean start.
+- Reject malformed, non-object and oversized request bodies without changing settings; return structured operation errors and bound request-read time.
+- Share Python-cache classification between scanning and quarantine validation, including reviewed bytecode without source files.
+- Bound retained in-memory scans and avoid serializing the full registry for summary requests; preserve registry error details.
+- Correct dynamic English text and accessibility labels, support language-specific Markdown downloads and document configuration precedence in English first.
+- Restore files without overwriting targets created concurrently by integrations.
+- Journal restore and purge intent and recover interrupted operations on startup, retaining recovery copies until completion is recorded.
+- Persist registry cleanup intent and per-command progress; stop on journal errors and always release the operation lock. Interrupted outcomes remain visible for review.
+- Preserve unreadable or damaged quarantine manifests and report errors instead of treating existing recovery data as empty.
+
 ## 1.0.1 — 2026-08-26
 
 - Quarantaine en registeropschoning crashbestendiger en volledig geaudit gemaakt.
