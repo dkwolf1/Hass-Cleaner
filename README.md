@@ -4,11 +4,11 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, informed user choice and recovery come before reclaimed space.
 
-> **Release status:** version 1.0.2 is the current maintenance release for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
+> **Release status:** version 1.1.0 is published for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision. The HACS installation changes in this checkout are not yet released.
 
 ## English
 
-**Development preview: 1.1.0.** This checkout adds [reference checks and native Repairs](docs/reference-checks.md) through an optional, separately installed **Hass-Cleaner Companion** integration. This is not a published release or a claim of complete reference coverage. Live Home Assistant acceptance testing is still required.
+**Companion preview in 1.1.0.** [Reference checks and native Repairs](docs/reference-checks.md) use an optional, separately installed **Hass-Cleaner Companion** integration. Publication is not a claim of complete reference coverage. Live Home Assistant acceptance testing is still required.
 
 > [!WARNING]
 > **Test version — handle with care.** Hass-Cleaner can modify files, Home Assistant registry objects and Recorder data. Review every selection and preferably create a full Home Assistant backup first. Test on a non-critical installation where possible. Use is at your own risk; quarantine and recovery safeguards reduce risk, but cannot guarantee that every integration or user configuration remains unaffected.
@@ -81,6 +81,12 @@ For version-specific changes, see [CHANGELOG.md](hass_cleaner/CHANGELOG.md). For
 5. Run a scan first and review the report before preparing an action.
 
 GitHub Actions builds the version in `hass_cleaner/config.yaml` for `amd64` and `aarch64`. After the container is published, Home Assistant can install or update that version through this repository. The companion is a separate integration, not part of the app container.
+
+### Companion installation through HACS
+
+With HACS configured and Home Assistant 2026.9.0 or newer, add `https://github.com/dkwolf1/Hass-Cleaner` under **HACS → menu (⋮) → Custom repositories**, type **Integration**. Download **Hass-Cleaner Companion**, restart Home Assistant Core, then add it under **Settings → Devices & services**. Use the same release version as the app.
+
+HACS updates the companion; the App Store updates the app. The ZIP remains available for manual installation. See [installation and migration instructions](docs/reference-checks.md#installation), including the publication prerequisite for this new HACS route. This repository is not in the default HACS catalog.
 
 ### Local development and tests
 
@@ -173,7 +179,7 @@ Versiegebonden wijzigingen staan in [CHANGELOG.md](hass_cleaner/CHANGELOG.md). G
 4. Start de App en open de webinterface.
 5. Voer eerst een scan uit en beoordeel het rapport voordat je een actie voorbereidt.
 
-GitHub Actions bouwt de versie uit `hass_cleaner/config.yaml` voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant die versie installeren of bijwerken. De ontwikkelversie 1.1.0 bevat [referentiecontrole en Reparaties](docs/reference-checks.md#nederlands-kort) via een apart te installeren companion-integratie. Praktijktests zijn nog nodig; de companion zit niet in de app-container.
+GitHub Actions bouwt de versie uit `hass_cleaner/config.yaml` voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant die versie installeren of bijwerken. Versie 1.1.0 bevat [referentiecontrole en Reparaties](docs/reference-checks.md#nederlands-kort) via een aparte companion-integratie. Na publicatie van de HACS-ondersteuning kun je die via HACS installeren: voeg deze GitHub-repository toe als aangepaste repository, type **Integratie**. De ZIP blijft een alternatief. Praktijktests zijn nog nodig; de companion zit niet in de app-container.
 
 ### Lokaal ontwikkelen en testen
 

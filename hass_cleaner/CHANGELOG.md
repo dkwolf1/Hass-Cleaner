@@ -1,6 +1,11 @@
 # Changelog
 
-## 1.1.0 — Unreleased
+## 1.1.1
+
+- Add HACS custom-repository metadata for the optional companion (Home Assistant 2026.9.0 minimum), with English and Dutch installation and migration guidance.
+- Include the existing app icon as companion branding in source and manual ZIP installations.
+
+## 1.1.0
 
 - Extend reference checks to scene/group membership, supported helper config entries, YAML helper/template definitions (including packages), energy preferences, statistics dashboard cards and explicit Recorder entity filters.
 - Verify statistic IDs independently of entity existence; retain valid historical/external statistics and report unknown verification when Recorder cannot be read.
