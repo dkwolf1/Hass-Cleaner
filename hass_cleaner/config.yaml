@@ -1,5 +1,5 @@
 name: Hass-Cleaner
-version: "1.0.2"
+version: "1.1.0"
 slug: hass_cleaner
 description: Storage audit and controlled cleanup for Home Assistant OS
 url: https://github.com/dkwolf1/Hass-Cleaner

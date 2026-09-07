@@ -84,7 +84,7 @@ class ReportingTests(unittest.TestCase):
 
             self.assertEqual({"json", "csv", "md"}, set(paths))
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
-            self.assertEqual(11, payload["schema_version"])
+            self.assertEqual(12, payload["schema_version"])
             self.assertNotIn("ultra-private-report-value", paths["json"].read_text(encoding="utf-8"))
             self.assertTrue(payload["audit_only"])
             self.assertTrue(payload["execution_locked"])
@@ -157,9 +157,9 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(9, html.count('aria-labelledby="'))
         self.assertIn("initializeTabAccessibility", javascript)
         self.assertIn('event.key === "ArrowRight"', javascript)
-        self.assertIn('assets/styles.css?v=1.0.2', html)
-        self.assertIn('assets/i18n.js?v=1.0.2', html)
-        self.assertIn('assets/app.js?v=1.0.2', html)
+        from hass_cleaner import __version__
+        for asset in ('styles.css', 'i18n.js', 'app.js'):
+            self.assertIn(f'assets/{asset}?v={__version__}', html)
         self.assertIn("Persistently unavailable", translations)
         self.assertIn("Local entity choice saved", translations)
 

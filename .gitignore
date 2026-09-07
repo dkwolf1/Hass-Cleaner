@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-reference-tests/
+dist/
 venv/
 .mypy_cache/
 .ruff_cache/

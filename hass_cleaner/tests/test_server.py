@@ -60,6 +60,25 @@ class ServerTests(unittest.TestCase):
         self.assertFalse(payload["file_execution_enabled"])
         self.assertFalse(payload["registry_execution_enabled"])
 
+    def test_reference_endpoint_is_paginated_and_filters_without_mutation(self):
+        from hass_cleaner.scanner import ScanResult
+        from hass_cleaner.registry_audit import RegistryAudit
+        from unittest.mock import patch
+        ref = {"source_id": "automation.test", "source_kind": "automation", "source_name": "Test",
+               "target_type": "entity", "target_id": "light.missing", "location": "$.entity_id", "missing": True}
+        scan = ScanResult(id="referencetest", started_at="now", registry_audit=RegistryAudit(status="completed", references={
+            "status": "completed", "sources": [], "summary": {}, "references": [ref, dict(ref, missing=False)]}))
+        with patch.object(self.server.state.scan_manager, "get", return_value=scan):
+            status, page = self.request("/api/scans/referencetest/references?limit=1")
+            self.assertEqual(200, status)
+            self.assertEqual(2, page["total"])
+            self.assertEqual({"automation": 1}, page["source_counts"])
+            self.assertEqual(1, len(page["items"]))
+            self.assertTrue(page["has_more"])
+            self.assertEqual(1, self.request("/api/scans/referencetest/references?status=missing")[1]["total"])
+            self.assertEqual(0, self.request("/api/scans/referencetest/references?q=absent")[1]["total"])
+        self.assertEqual(2, len(scan.registry_audit.references["references"]))
+
     def test_health_check_is_silent_but_other_requests_are_logged(self) -> None:
         output = io.StringIO()
         with redirect_stdout(output):
@@ -120,8 +139,9 @@ class ServerTests(unittest.TestCase):
         with urllib.request.urlopen(f"{self.base}/", timeout=5) as response:
             html = response.read().decode("utf-8")
             self.assertEqual("no-cache", response.headers["Cache-Control"])
-            self.assertIn("assets/app.js?v=1.0.2", html)
-        with urllib.request.urlopen(f"{self.base}/assets/app.js?v=1.0.2", timeout=5) as response:
+            from hass_cleaner import __version__
+            self.assertIn(f"assets/app.js?v={__version__}", html)
+        with urllib.request.urlopen(f"{self.base}/assets/app.js?v={__version__}", timeout=5) as response:
             response.read()
             self.assertEqual("public, max-age=31536000, immutable", response.headers["Cache-Control"])
 

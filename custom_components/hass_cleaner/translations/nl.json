@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hass-Cleaner Companion",
+        "description": "Controleer automatiseringen, scripts, dashboards, scènes, groepen, ondersteunde helpers, templates en energie-/statistiekconfiguratie iedere vijf minuten. Ontbrekende statische verwijzingen verschijnen in Reparaties. Configuratie wordt niet gewijzigd; alleen eigen reparatiemeldingen worden beheerd."
+      }
+    },
+    "abort": {
+      "already_configured": "Hass-Cleaner Companion is al ingesteld."
+    }
+  },
+  "issues": {
+    "missing_references": {
+      "title": "Ontbrekende verwijzingen in {source}",
+      "description": "Hass-Cleaner vond {count} ontbrekende statische verwijzingen in {source}.\n\n{references}\n\nOpen de genoemde bron in Home Assistant of het betreffende YAML-configuratieonderdeel en controleer deze paden (lijstindexen beginnen bij 0). Corrigeer het doel of herstel de ontbrekende entiteit, het apparaat, de ruimte, actie of statistiek. Verwijder geen historische statistieken om deze melding te verhelpen. Herlaad YAML-wijzigingen indien nodig. De companion controleert binnen vijf minuten opnieuw.\n\nEr is niets automatisch gewijzigd. Dynamische templates, blueprints en aangepaste kaarten kunnen extra verwijzingen verbergen. Een bron met beperkte dekking kan zijn eerdere melding behouden. Je kunt bewuste verwijzingen in Reparaties negeren. Meer dan 30 bevindingen? De volledige lijst staat in de app en exports."
+    }
+  }
+}

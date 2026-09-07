@@ -53,6 +53,7 @@ class RegistryAudit:
     entity_workspace: dict[str, Any] = field(default_factory=dict)
     state_only_entities: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
+    references: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -64,6 +65,7 @@ class RegistryAudit:
             "entity_workspace": self.entity_workspace,
             "state_only_entities": self.state_only_entities,
             "error": self.error,
+            "references": self.references,
             "audit_only": True,
             "destructive_actions_available": False,
         }
@@ -78,7 +80,10 @@ def scan_home_assistant_registries() -> RegistryAudit:
         )
     try:
         snapshot = fetch_registry_snapshot(token)
-        return audit_registry_snapshot(snapshot)
+        audit = audit_registry_snapshot(snapshot)
+        from .references import fetch_references
+        audit.references = fetch_references(token)
+        return audit
     except Exception as exc:  # fail closed: a file audit may still complete
         return RegistryAudit(
             status="failed",

@@ -126,6 +126,9 @@ class PlanManager:
             })
 
         plan_id = uuid.uuid4().hex
+        from .references import selection_review
+        reference_review = selection_review(scan.registry_audit, planned_entity_ids,
+                                            (item["device_id"] for item in devices))
         plan: dict[str, Any] = {
             "schema_version": 3,
             "id": plan_id,
@@ -139,6 +142,7 @@ class PlanManager:
             "bundles": bundles,
             "devices": devices,
             "entities": entities,
+            "reference_review": reference_review,
             "summary": {
                 "file_count": len(files),
                 "bundle_count": len(bundles),
@@ -241,6 +245,8 @@ def _markdown(plan: dict[str, Any], language: str | None = None) -> str:
         )
     lines.extend(["", "## Algemeen herstel", ""])
     lines.extend(f"- {step}" for step in plan["global_recovery"])
+    from .references import markdown_lines
+    lines += markdown_lines(plan.get("reference_review", {}), "nl")
     lines.append("")
     return "\n".join(lines)
 

@@ -40,6 +40,101 @@ function englishInterface() {
   return window.HassCleanerI18n?.locale === "en";
 }
 
+function referenceText(en, nl) { return englishInterface() ? en : nl; }
+
+function referenceWarning() {
+  return referenceText("Scan snapshot only. Device and area targets indicate potential indirect use. Dynamic templates, blueprints and custom cards may hide dependencies. No references found does not mean removal is safe.", "Alleen een scanmomentopname. Apparaat- en ruimtedoelen tonen mogelijk indirect gebruik. Dynamische templates, blueprints en aangepaste kaarten kunnen verwijzingen verbergen. Geen verwijzingen gevonden betekent niet dat verwijderen veilig is.");
+}
+
+function referenceStatus(status) {
+  return ({completed: referenceText("Static check completed", "Statische controle voltooid"),
+    partial: referenceText("Partial coverage", "Gedeeltelijke dekking"),
+    starting: referenceText("Home Assistant is starting", "Home Assistant wordt gestart")})[status]
+    || referenceText("Reference checks unavailable — install or check Hass-Cleaner Companion, then scan again.", "Referentiecontrole niet beschikbaar — installeer of controleer Hass-Cleaner Companion en scan opnieuw.");
+}
+
+function referenceRows(items) {
+  return `<ul>${items.map(r => `<li><strong>${escapeHtml(r.source_name)}</strong> · <code>${escapeHtml(r.target_id)}</code> (${escapeHtml(r.target_type)})${r.verification === "unavailable" ? ` — ${referenceText("verification unavailable", "controle niet beschikbaar")}` : r.missing ? ` — ${referenceText("missing", "ontbreekt")}` : ""}<br><small>${escapeHtml(r.source_id)} · <code>${escapeHtml(r.location)}</code></small></li>`).join("")}</ul>`;
+}
+
+function referenceHeader(report) {
+  const date = report.checked_at ? new Date(report.checked_at).toLocaleString(interfaceLocale()) : "—";
+  return `<h3>${referenceText("Reference checks", "Referentiecontrole")}</h3><p>${escapeHtml(referenceStatus(report.status))} · ${escapeHtml(date)}</p><p>${referenceWarning()}</p>`;
+}
+
+function renderReferenceOverview() {
+  const panel = $("#reference-checks");
+  if (!panel) return;
+  const report = state.registryAudit?.references || {};
+  const summary = report.summary || {};
+  panel.innerHTML = `${referenceHeader(report)}<p>${summary.sources || 0} ${referenceText("sources", "bronnen")} · ${summary.references || 0} ${referenceText("references", "verwijzingen")} · ${summary.missing || 0} ${referenceText("missing targets", "ontbrekende doelen")} · ${summary.partial_sources || 0} ${referenceText("sources with limited coverage", "bronnen met beperkte dekking")}</p><p>${referenceText("Live issues: Home Assistant → Settings → System → Repairs. The companion checks every five minutes; run a new app scan to update this snapshot.", "Actuele meldingen: Home Assistant → Instellingen → Systeem → Reparaties. De companion controleert iedere vijf minuten; start een nieuwe appscan om deze momentopname bij te werken.")}</p><a href="https://github.com/dkwolf1/Hass-Cleaner/blob/main/docs/reference-checks.md" target="_blank" rel="noopener noreferrer">${referenceText("Companion setup and limitations", "Companion installeren en beperkingen")}</a>`;
+  if (state.scan && ["completed", "partial"].includes(report.status)) {
+    const details = document.createElement("details");
+    const summaryEl = document.createElement("summary");
+    summaryEl.textContent = referenceText("Show references and coverage", "Verwijzingen en dekking tonen");
+    const content = document.createElement("div");
+    details.append(summaryEl, content);
+    details.addEventListener("toggle", () => {
+      if (details.open && !content.dataset.loaded) {
+        content.dataset.loaded = "true";
+        loadReferencePanel(content, {status: "missing"}, 0, true);
+      }
+    });
+    panel.append(details);
+  }
+}
+
+async function loadReferencePanel(panel, filters = {}, offset = 0, overview = false) {
+  if (!panel || !state.scan) return;
+  const scanId = state.scan.id;
+  const ticket = String(Number(panel.dataset.request || 0) + 1);
+  panel.dataset.request = ticket;
+  panel.textContent = referenceText("Loading references…", "Verwijzingen ophalen…");
+  try {
+    const query = new URLSearchParams({...filters, offset, limit: 100});
+    const report = await api(`api/scans/${scanId}/references?${query}`);
+    if (!panel.isConnected || state.scan?.id !== scanId || panel.dataset.request !== ticket) return;
+    panel.innerHTML = `${referenceHeader(report)}<p>${report.total} ${referenceText("matching references", "bijbehorende verwijzingen")} · ${report.total ? offset + 1 : 0}–${offset + report.items.length}</p>${referenceRows(report.items)}`;
+    const sourceLabels = {automation: referenceText("automations", "automatiseringen"), script: referenceText("scripts", "scripts"), dashboard: referenceText("dashboards", "dashboards"), scene: referenceText("scenes", "scènes"), group: referenceText("groups", "groepen"), helper: referenceText("helpers", "helpers"), template: referenceText("template sources", "templatebronnen"), energy: referenceText("energy configurations", "energieconfiguraties"), statistics: referenceText("statistics configurations", "statistiekconfiguraties")};
+    const usage = document.createElement("p");
+    usage.textContent = Object.entries(report.source_counts || {}).sort().map(([kind, count]) => `${count} ${sourceLabels[kind] || kind}`).join(" · ");
+    panel.append(usage);
+    if (overview) {
+      const button = document.createElement("button");
+      button.className = "button button-ghost";
+      button.textContent = filters.status === "missing" ? referenceText("Show all references", "Alle verwijzingen tonen") : referenceText("Show missing targets", "Ontbrekende doelen tonen");
+      button.addEventListener("click", () => loadReferencePanel(panel, {status: filters.status === "missing" ? "all" : "missing"}, 0, true));
+      panel.append(button);
+      const coverage = document.createElement("details");
+      coverage.innerHTML = `<summary>${referenceText("Source coverage", "Dekking per bron")}</summary><ul>${(report.sources || []).map(s => `<li>${escapeHtml(s.name)} (${escapeHtml(s.kind)}) — ${escapeHtml(({checked: referenceText("checked", "gecontroleerd"), partial: referenceText("partial", "gedeeltelijk"), unavailable: referenceText("unavailable", "niet beschikbaar")})[s.status] || s.status)}</li>`).join("")}</ul>`;
+      panel.append(coverage);
+    }
+    for (const [enabled, next, label] of [[offset > 0, Math.max(0, offset - 100), referenceText("Previous", "Vorige")], [report.has_more, offset + 100, referenceText("Next", "Volgende")]]) {
+      if (!enabled) continue;
+      const button = document.createElement("button");
+      button.className = "button button-ghost";
+      button.textContent = label;
+      button.addEventListener("click", () => loadReferencePanel(panel, filters, next, overview));
+      panel.append(button);
+    }
+  } catch (error) {
+    if (panel.isConnected && panel.dataset.request === ticket) panel.textContent = referenceText("Reference check unavailable: ", "Referentiecontrole niet beschikbaar: ") + error.message;
+  }
+}
+
+function renderPlanReferences(review) {
+  const panel = $("#plan-references");
+  if (!panel) return;
+  panel.innerHTML = `${referenceHeader(review)}<p><strong>${review.count || 0} ${referenceText("references may be affected by this selection. Review these sources before proceeding.", "verwijzingen kunnen door deze selectie worden geraakt. Controleer deze bronnen voordat je doorgaat.")}</strong></p>${referenceRows((review.references || []).slice(0, 100))}${(review.count || 0) > 100 ? `<p>${referenceText("First 100 shown; all references are included in the cleanup JSON and Markdown downloads.", "Eerste 100 getoond; alle verwijzingen staan in de JSON- en Markdown-downloads van de opschoning.")}</p>` : ""}`;
+}
+
+window.addEventListener("hass-cleaner-language", () => {
+  renderReferenceOverview();
+  if (state.latestPlan) renderPlanReferences(state.latestPlan.plan?.reference_review || {});
+  if ($("#entity-references") && state.activeEntity) loadReferencePanel($("#entity-references"), {entity_id: state.activeEntity.entity_id});
+  if ($("#bundle-references") && state.activeBundle) loadReferencePanel($("#bundle-references"), {bundle_id: state.activeBundle.id});
+});
+
 function interfaceLocale() {
   return englishInterface() ? "en-GB" : "nl-NL";
 }
@@ -285,6 +380,7 @@ function finishScanSummary(scan, showCompletionToast = false) {
   renderMetrics(scan);
   renderRecipes();
   renderRegistryAudit();
+  renderReferenceOverview();
   const persistenceErrors = state.registryAudit?.entity_workspace?.persistence_errors || [];
   if (persistenceErrors.length) showToast(persistenceErrors[0], true);
   $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
@@ -706,6 +802,8 @@ async function openEntity(entityId) {
   const signals = Object.keys(item.connectivity_signals || {}).length ? escapeHtml(JSON.stringify(item.connectivity_signals)) : "Geen integratiespecifieke signalen";
   $("#entity-dialog-content").innerHTML = `<section class="advice-section"><h3>Beoordeling</h3><p>${escapeHtml(item.reason)}</p><p><strong>Nog nodig:</strong> ${escapeHtml(item.evidence_needed || "Controleer duur, herhaalde metingen en officiële relaties.")}</p><p>Lokale keuze: <strong>${escapeHtml(item.decision || "follow")}</strong>${item.decision_until ? ` tot ${escapeHtml(new Date(item.decision_until).toLocaleString(interfaceLocale()))}` : ""}</p></section><section class="advice-grid"><div><h3>Herkomst</h3><ul><li>Entityregister: ${item.registry_entry === false ? "geen item (runtime-only)" : "aanwezig"}</li><li>Integratie: ${escapeHtml(item.integration || "onbekend")}</li><li>Apparaat: ${escapeHtml(item.device_name || "niet gekoppeld")}</li><li>Ruimte: ${escapeHtml(item.area_name || "niet ingesteld")}</li><li>Uitgeschakeld door: ${escapeHtml(item.disabled_by || "niemand")}</li></ul></div><div><h3>Waarneming</h3><ul><li>Home Assistant-state: ${escapeHtml(item.raw_state ?? "geen")}</li><li>HA meldt sinds: ${escapeHtml(item.last_changed ? new Date(item.last_changed).toLocaleString(interfaceLocale()) : "onbekend")}</li><li>Hass-Cleaner meet sinds: ${escapeHtml(item.first_observed ? new Date(item.first_observed).toLocaleString(interfaceLocale()) : "eerste meting")}</li><li>Duurbron: ${item.duration_source === "home_assistant" ? "Home Assistant last_changed" : "opeenvolgende Hass-Cleaner-scans"}</li><li>Opeenvolgende metingen: ${item.observations || 0}</li><li>Signalen: ${signals}</li></ul></div></section><section class="advice-section" id="entity-related"><h3>Officiële relaties</h3><p>Relaties ophalen...</p></section>`;
   $("#entity-dialog").showModal();
+  $("#entity-dialog-content").insertAdjacentHTML("afterbegin", '<section class="advice-section" id="entity-references"></section>');
+  loadReferencePanel($("#entity-references"), {entity_id: entityId});
   try {
     const response = await api("api/related", { method: "POST", body: JSON.stringify({ item_type: "entity", item_id: entityId }) });
     const groups = Object.entries(response.related || {}).filter(([, ids]) => ids.length);
@@ -828,6 +926,8 @@ async function openBundle(bundleId) {
   const related = $("#bundle-related");
   related.innerHTML = renderLocalBundleDetails(bundle);
   $("#bundle-dialog").showModal();
+  $("#bundle-advice").insertAdjacentHTML("afterbegin", '<section class="advice-section" id="bundle-references"></section>');
+  loadReferencePanel($("#bundle-references"), {bundle_id: bundleId});
   if (!bundle.config_entry_id) return;
   related.insertAdjacentHTML("afterbegin", '<div class="related-loading">Officiële Home Assistant-relaties ophalen...</div>');
   try {
@@ -920,6 +1020,7 @@ function showPlan(response) {
     ? "Een back-up is sterk aanbevolen. Ieder bestand wordt vlak vóór verplaatsing opnieuw gecontroleerd."
     : "Entities en apparaten zijn registerobjecten. De gebruiker kan ze na advies, back-upkeuze en zware bevestiging verwijderen.";
   $("#plan-dialog").showModal();
+  renderPlanReferences(response.plan?.reference_review || {});
   showToast(response.message || "Opschoning voorbereid");
 }
 
