@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1
 
 - Add HACS custom-repository metadata for the optional companion (Home Assistant 2026.9.0 minimum), with English and Dutch installation and migration guidance.
 - Include the existing app icon as companion branding in source and manual ZIP installations.
