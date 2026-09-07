@@ -137,7 +137,7 @@ class CleanupHandler(BaseHTTPRequestHandler):
             scan_id = path.split("/")[3]
             scan = self.state.scan_manager.get(scan_id)
             self._json(_scan_summary(scan) if scan else {"error": "Scan niet gevonden"}, HTTPStatus.OK if scan else HTTPStatus.NOT_FOUND)
-        elif re.fullmatch(r"/api/scans/[a-zA-Z0-9]+/(entities|files|bundles)", path):
+        elif re.fullmatch(r"/api/scans/[a-zA-Z0-9]+/(entities|files|bundles|references)", path):
             parts = path.split("/")
             scan = self.state.scan_manager.get(parts[3])
             if scan is None:
@@ -569,6 +569,7 @@ def _scan_summary(scan) -> dict[str, object]:
                          [asdict(item) for item in islice((item for item in source.findings if item.severity != "review"), 250)]}
     workspace = audit.get("entity_workspace", {})
     payload["registry_audit"] = {
+        "references": {key: value for key, value in source.references.items() if key not in {"references", "sources"}},
         "status": audit.get("status"),
         "error": audit.get("error"),
         "summary": audit.get("summary", {}),
@@ -595,6 +596,27 @@ def _paged_scan_items(scan, kind: str, query: dict[str, list[str]]) -> dict[str,
         offset, limit = 0, 100
     search = query.get("q", [""])[0].strip().lower()
     status = query.get("status", ["all"])[0]
+    if kind == "references":
+        report = scan.registry_audit.references
+        items = report.get("references", [])
+        entity_id = query.get("entity_id", [""])[0]
+        bundle_id = query.get("bundle_id", [""])[0]
+        if entity_id or bundle_id:
+            from .references import selection_review
+            bundle = next((b for b in scan.registry_audit.bundles if b.id == bundle_id), None)
+            entity_ids = [entity_id] if entity_id else [e.get("entity_id", "") for e in bundle.entities] if bundle else []
+            device_ids = [d.get("device_id", "") for d in bundle.devices] if bundle else []
+            items = selection_review(scan.registry_audit, entity_ids, device_ids)["references"]
+        if status == "missing":
+            items = [r for r in items if r["missing"]]
+        if search:
+            items = [r for r in items if search in " ".join(r[k] for k in ("source_name", "target_id", "location")).lower()]
+        source_counts = {kind: len({r["source_id"] for r in items if r["source_kind"] == kind})
+                         for kind in {r["source_kind"] for r in items}}
+        return {"items": items[offset:offset + limit], "total": len(items), "offset": offset, "source_counts": source_counts,
+                "limit": limit, "has_more": offset + limit < len(items),
+                "status": report.get("status", "unavailable"), "checked_at": report.get("checked_at"),
+                "summary": report.get("summary", {}), "sources": report.get("sources", [])}
     if kind == "entities":
         all_items = list(scan.registry_audit.entity_workspace.get("items", []))
         items = all_items

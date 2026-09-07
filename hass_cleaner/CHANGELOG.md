@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0 — Unreleased
+
+- Extend reference checks to scene/group membership, supported helper config entries, YAML helper/template definitions (including packages), energy preferences, statistics dashboard cards and explicit Recorder entity filters.
+- Verify statistic IDs independently of entity existence; retain valid historical/external statistics and report unknown verification when Recorder cannot be read.
+- Display distinct matching source counts and unverified references; include statistic verification changes in pre-cleanup revalidation.
+
+- Add the optional Hass-Cleaner Companion integration for static reference checks in loaded automations, scripts and YAML/storage dashboards.
+- Create native Home Assistant Repairs for missing entity, entity-registry UUID, device, area and action targets. Recheck every five minutes and retain unresolved issues during incomplete checks.
+- Show source names, exact configuration paths, coverage limits and potential direct/device/area dependencies in the app and cleanup preparation.
+- Include references in JSON, CSV and English/Dutch Markdown exports (report schema 12).
+- Revalidate available reference evidence before registry cleanup; require a new review when dependencies or coverage change.
+- Provide English and Dutch companion setup/Repairs text and installation guidance. The companion must be installed separately; the app does not modify Home Assistant configuration to install it.
+- Version 1.1.0 requires live Home Assistant acceptance testing before publication.
+
 ## 1.0.2 — 2026-09-06
 
 - Apply changed Supervisor configuration fields without discarding unrelated UI choices; migrate the obsolete deletion_mode option at startup.

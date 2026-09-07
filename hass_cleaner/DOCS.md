@@ -4,6 +4,8 @@ Storage auditing and user-directed cleanup for Home Assistant OS. Handle with ca
 
 ## Getting started
 
+For optional automation/script/dashboard reference checks and native Repairs, install [Hass-Cleaner Companion](https://github.com/dkwolf1/Hass-Cleaner/blob/main/docs/reference-checks.md) separately. App 1.1.0 displays its scan snapshots; without it, the app explicitly reports that reference checks are unavailable. Existing cleanup features continue to work.
+
 1. Start the app, enable **Show in sidebar**, and open its interface.
 2. Run **New scan**. Scanning does not change your Home Assistant files or registries.
 3. Review **Scan results**, **Entities** and **Bundles**. Nothing is selected automatically.

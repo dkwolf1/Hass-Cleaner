@@ -172,6 +172,8 @@ class RegistryCleanupManager:
             "completed": [],
         }
         try:
+            from .references import validate_before_cleanup
+            validate_before_cleanup(scan, plan)
             history = self.history()
             history.insert(0, record)
             # An unavailable journal must prevent the first external command.

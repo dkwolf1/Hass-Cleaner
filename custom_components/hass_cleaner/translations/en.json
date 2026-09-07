@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Hass-Cleaner Companion",
+        "description": "Check automations, scripts, dashboards, scenes, groups, supported helpers, templates and energy/statistics configuration every five minutes. Missing static references appear in Repairs. Configuration is not changed; only this integration's repair issues are managed."
+      }
+    },
+    "abort": {
+      "already_configured": "Hass-Cleaner Companion is already configured."
+    }
+  },
+  "issues": {
+    "missing_references": {
+      "title": "Missing references in {source}",
+      "description": "Hass-Cleaner found {count} missing static references in {source}.\n\n{references}\n\nOpen the named source in Home Assistant or its YAML configuration section and review these paths (array indexes start at 0). Correct the target or restore the missing entity, device, area, action or statistic. Do not delete historical statistics to address this issue. Reload YAML changes where needed. The companion checks again within five minutes.\n\nNothing was changed automatically. Dynamic templates, blueprints and custom cards may hide additional dependencies. A partially checked source may retain its previous issue. Ignore intentional references using Repairs. For more than 30 findings, the complete list is available in the app and exports."
+    }
+  }
+}

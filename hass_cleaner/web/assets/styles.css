@@ -363,3 +363,13 @@ dialog::backdrop { background: rgba(5,6,8,.76); backdrop-filter: blur(4px); }
   .entity-filter-panel { grid-template-columns: 1fr; }
   .dialog-card { padding: 25px 18px; }
 }
+:is(#reference-checks, #entity-references, #bundle-references, #plan-references) ul {
+  max-height: 24rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding-inline: 1.5rem;
+}
+:is(#reference-checks, #entity-references, #bundle-references, #plan-references) li {
+  margin-block: .7rem;
+}
+#reference-checks { margin-block: 1rem; }

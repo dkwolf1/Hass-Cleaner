@@ -9,7 +9,7 @@ from .scanner import ScanResult
 from .settings import Settings
 
 
-REPORT_SCHEMA_VERSION = 11
+REPORT_SCHEMA_VERSION = 12
 REPORT_EXTENSIONS = {"json", "csv", "md"}
 
 
@@ -241,6 +241,15 @@ def _write_csv(scan: ScanResult, path: Path) -> None:
                     }, ensure_ascii=False),
                 ]
             )
+        for ref in scan.registry_audit.references.get("references", []):
+            unverified = ref.get("verification") == "unavailable"
+            row = ["reference", ref["source_id"], ref["location"], ref["target_type"], ref["target_id"],
+                   ref["source_name"], "unverified_reference" if unverified else "missing_reference" if ref["missing"] else "existing_reference",
+                   "review" if ref["missing"] or unverified else "info", "no", "review_source", 0,
+                   scan.registry_audit.references.get("checked_at", ""), "Static reference; coverage is limited",
+                   "static", "References may break after removal", "Review the source configuration", ""]
+            # Names and paths are user-controlled; prevent spreadsheet formula execution.
+            writer.writerow(["'" + value if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")) else value for value in row])
 
 
 def _markdown(report: dict[str, object], language: str | None = None) -> str:
@@ -381,6 +390,8 @@ def _markdown(report: dict[str, object], language: str | None = None) -> str:
             "",
         ]
     )
+    from .references import markdown_lines
+    lines += markdown_lines(report["scan"].get("registry_audit", {}).get("references", {}), "nl")
     return "\n".join(lines)
 
 

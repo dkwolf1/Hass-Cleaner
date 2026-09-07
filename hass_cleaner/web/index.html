@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>Hass-Cleaner</title>
-    <link rel="stylesheet" href="assets/styles.css?v=1.0.2">
+    <link rel="stylesheet" href="assets/styles.css?v=1.1.0">
   </head>
   <body>
     <div class="app-shell">
@@ -168,6 +168,7 @@
             <div class="notice-icon">i</div>
             <div><strong>Status is geen verwijderbewijs</strong><p>unavailable, unknown en problem zijn algemene Home Assistant-statussen. Hass-Cleaner geeft context en advies; jij bepaalt wat aan de opschoning wordt toegevoegd en accepteert het risico bij uitvoering.</p></div>
           </div>
+          <section class="panel advice-section" id="reference-checks" aria-live="polite"></section>
           <section class="entity-filter-panel panel" aria-label="Entiteitenfilters">
             <input type="search" id="entity-search" placeholder="Zoek entity, apparaat, integratie of ruimte" aria-label="Zoek entiteiten">
             <select id="entity-status-filter" aria-label="Filter op status">
@@ -380,6 +381,7 @@
         <div class="eyebrow">VOORBEREIDE OPSCHONING</div>
         <h2 id="plan-dialog-title">Impact- en hersteloverzicht gereed</h2>
         <p id="plan-dialog-summary"></p>
+        <section class="advice-section" id="plan-references"></section>
         <div class="notice notice-info"><div class="notice-icon">i</div><div><strong id="plan-execution-title">Veilige vervolgstap</strong><p id="plan-execution-note">De voorbereiding heeft nog niets gewijzigd.</p></div></div>
         <div class="dialog-actions"><button class="button button-ghost" data-close-dialog="plan-dialog">Sluiten</button><button class="button button-ghost plan-download" data-format="json">Technische gegevens downloaden</button><button class="button button-ghost plan-download" data-format="md">Leesbaar overzicht downloaden</button><button class="button button-primary" id="open-quarantine-execution">Bestanden naar quarantaine</button><button class="button button-danger" id="open-registry-execution">Registeropschoning uitvoeren</button></div>
       </div>
@@ -455,7 +457,7 @@
     </dialog>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="assets/i18n.js?v=1.0.2"></script>
-    <script src="assets/app.js?v=1.0.2"></script>
+    <script src="assets/i18n.js?v=1.1.0"></script>
+    <script src="assets/app.js?v=1.1.0"></script>
   </body>
 </html>

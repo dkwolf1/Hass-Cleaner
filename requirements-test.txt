@@ -1,0 +1,4 @@
+# App and companion unit/contract tests; Home Assistant supplies these in production.
+-r hass_cleaner/requirements.txt
+Jinja2==3.1.6
+voluptuous==0.15.2

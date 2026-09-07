@@ -92,6 +92,8 @@ def report_markdown(report):
               "- Restore files from quarantine. Existing target files are never overwritten.",
               "- Registry changes may break dashboards and automations; integrations may recreate objects. Recovery requires a Home Assistant backup.",
               "- Permanent file deletion requires an expired quarantine period and a separate confirmation.", ""]
+    from .references import markdown_lines
+    lines += markdown_lines(registry.get("references", {}))
     return "\n".join(lines)
 
 
@@ -118,4 +120,6 @@ def plan_markdown(plan):
               "- Use a complete Home Assistant backup for registry recovery. Creating and checking one is strongly recommended.",
               "- Personal content may be lost or unavailable after moving it. Quarantine does not prove that content is unused.",
               "- Protected system files remain excluded. Cancel if the consequences are unclear.", ""]
+    from .references import markdown_lines
+    lines += markdown_lines(plan.get("reference_review", {}))
     return "\n".join(lines)
