@@ -1,0 +1,6 @@
+{
+  "name": "Hass-Cleaner Companion",
+  "homeassistant": "2026.9.0",
+  "content_in_root": false,
+  "zip_release": false
+}

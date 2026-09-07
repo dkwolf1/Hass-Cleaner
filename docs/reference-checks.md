@@ -11,13 +11,28 @@ The companion never changes automations, scripts, dashboards, entities or device
 
 ## Installation
 
-1. Use the companion from the **same version** as the app. For this development preview, use the development branch rather than a previous release archive.
-2. Copy the repository's `custom_components/hass_cleaner` directory into your Home Assistant configuration directory, resulting in `/config/custom_components/hass_cleaner/manifest.json`. Do not copy it into the app container or nest an extra `hass_cleaner` directory.
-3. Restart **Home Assistant Core**, not just the app.
-4. Open **Settings → Devices & services → Add integration** and search for **Hass-Cleaner Companion**. Confirm the setup screen. There are no tokens to enter.
-5. Start/update Hass-Cleaner to the matching app version and run **New scan**. Open **Entities → Reference checks**.
+### HACS (recommended)
 
-The companion runtime adapter targets the Home Assistant 2026.9 APIs. Older versions have not been verified. It is not yet published in HACS. Installing/updating the app alone does not install/update the companion.
+Requires HACS to be installed and configured, and Home Assistant **2026.9.0 or newer**. This is a custom repository, not a listing in the default HACS catalog.
+
+1. Make a complete backup. Open **HACS → menu (⋮) → Custom repositories**.
+2. Add `https://github.com/dkwolf1/Hass-Cleaner` with type **Integration**.
+3. Find **Hass-Cleaner Companion** in HACS and download it. Choose a published release matching your app version; do not select older releases that predate the companion (before 1.1.0).
+4. Restart **Home Assistant Core**, not just the app.
+5. Open **Settings → Devices & services → Add integration** and search for **Hass-Cleaner Companion**. Confirm the setup screen. There are no tokens to enter.
+6. Start/update Hass-Cleaner to the matching app version and run **New scan**. Open **Entities → Reference checks**.
+
+HACS manages only `custom_components/hass_cleaner`, not the app container. Install companion updates through HACS and app updates through the App Store, then restart Core. HACS does not automatically configure the integration.
+
+**Already installed from ZIP?** Back up first, then download the same integration through HACS and restart Core. Keep the existing integration entry; do not remove/re-add it or create a second nested folder. HACS may replace local edits to the integration files.
+
+**Publishing note:** the HACS metadata must be merged to the default branch. Publish a new release containing these changes for the fully packaged installation route; existing release tags are not updated by a merge. Do not move an existing release tag. Installation through a real HACS instance still needs verification.
+
+### Manual installation (without HACS)
+
+Use a companion release matching the app. Copy `custom_components/hass_cleaner` into your Home Assistant configuration directory, resulting in `/config/custom_components/hass_cleaner/manifest.json`, or use the ZIP below. Restart Core and add the integration as described above. Do not copy it into the app container.
+
+The companion runtime adapter targets the Home Assistant 2026.9 APIs. Older versions have not been verified. Installing/updating the app alone does not install/update the companion.
 
 For a local installable ZIP, run `python tools/package_companion.py` from the repository root. Extract the ZIP into the Home Assistant configuration directory; it already contains the `custom_components/hass_cleaner` path. Review and back up any existing companion installation before replacing its files.
 
@@ -103,7 +118,8 @@ On a disposable Home Assistant 2026.9 instance:
 
 De zeven categorieën uit deel 1 zijn aangesloten, inclusief scènes, groepen, ondersteunde helpers, losse templates en energie/statistieken. Geldige historische/externe statistieken worden niet als verdwenen entiteit gemeld. Zonder Recorder is de statistiekcontrole expliciet onbekend. Niet alle aangepaste helpers of dynamische templates zijn interpreteerbaar; praktijktests blijven nodig voordat dit releaseklaar is.
 
-- Installeer naast de app de **Hass-Cleaner Companion** in `/config/custom_components/hass_cleaner`, herstart Home Assistant Core en voeg de integratie toe via **Instellingen → Apparaten & diensten**.
+- Met HACS en Home Assistant 2026.9.0 of nieuwer: voeg `https://github.com/dkwolf1/Hass-Cleaner` toe via **HACS → menu (⋮) → Aangepaste repositories**, type **Integratie**. Download **Hass-Cleaner Companion**, herstart Home Assistant Core en voeg de integratie toe via **Instellingen → Apparaten & diensten**. Kies dezelfde releaseversie als de app. De HACS-wijzigingen moeten eerst gepubliceerd zijn; de integratie staat niet in de standaardcatalogus.
+- De ZIP blijft een alternatief zonder HACS. Al handmatig geïnstalleerd? Maak een back-up, download via HACS en herstart Core; behoud de bestaande integratie. Werk voortaan de companion via HACS bij en de app via de App Store.
 - Start een nieuwe appscan. Onder **Entiteiten → Referentiecontrole** staan bronnen, doelen, exacte configuratiepaden en beperkte dekking.
 - Meldingen staan bij **Instellingen → Systeem → Reparaties**. Corrigeer zelf de configuratie; de companion controleert iedere vijf minuten. Er wordt niets automatisch hersteld of verwijderd.
 - App en companion zijn afzonderlijke onderdelen en moeten afzonderlijk worden bijgewerkt. Versie 1.1.0 is nog een ontwikkelversie; praktijktests zijn nodig.
