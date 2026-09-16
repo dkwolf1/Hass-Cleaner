@@ -86,7 +86,7 @@ class RecoveryJournalTests(unittest.TestCase):
         restarted = QuarantineManager(config, data)
         record = restarted.list()[0]["files"][0]
         self.assertEqual("restored", record["status"])
-        self.assertFalse((restarted.root / operation["id"] / "files" / record["relative_path"]).exists())
+        self.assertFalse((restarted._operation_files_root(operation["id"]) / record["relative_path"]).exists())
         self.assertFalse(list(source.parent.glob("*.hass-cleaner-restore")))
 
     def test_restore_intent_failure_keeps_source_in_quarantine(self):
@@ -125,7 +125,7 @@ class RecoveryJournalTests(unittest.TestCase):
                 with self.assertRaises(QuarantineError):
                     restarted._insert_operation(operation)
                 self.assertEqual(contents, manager.manifest_path.read_text(encoding="utf-8"))
-                self.assertTrue((manager.root / operation["id"]).exists())
+                self.assertTrue((config / ".hass-cleaner-quarantine" / operation["id"]).exists())
 
     def test_unreadable_manifest_is_not_empty(self):
         _, _, _, manager, _ = self.fixture()

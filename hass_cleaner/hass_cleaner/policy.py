@@ -49,6 +49,8 @@ def classify(root: Path, path: Path, mode: int, modified: float, *, min_temp_age
         return Classification("symlink", RISK_PROTECTED, "Symbolische links worden nooit gevolgd", "none")
     if not stat.S_ISREG(mode):
         return None
+    if ".hass-cleaner-quarantine" in parts:
+        return Classification("quarantine_storage", RISK_PROTECTED, "Quarantine recovery data is protected", "none")
     if ".storage" in parts:
         return Classification("home_assistant_storage", RISK_PROTECTED, ".storage is absoluut beschermd", "none")
     if len(parts) == 1 and name in CORE_FILES:

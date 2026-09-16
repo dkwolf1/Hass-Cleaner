@@ -30,6 +30,45 @@ def source(config, kind="automation", source_id="automation.test"):
 
 
 class ReferenceTests(unittest.TestCase):
+    def test_bridge_distinguishes_transport_and_command_failures(self):
+        from websocket import WebSocketTimeoutException
+        for code, reason in [('unauthorized', 'permission_denied'), ('unknown_command', 'companion_missing'), ('not_loaded', 'companion_not_loaded')]:
+            connection = FakeConnection([{'type': 'auth_ok'}, {'id': 1, 'type': 'result', 'success': False, 'error': {'code': code, 'message': 'SECRET'}}])
+            with self.assertLogs('hass_cleaner.references', 'WARNING') as logs:
+                result = fetch_references('SECRET TOKEN', connect=lambda *a, **k: connection)
+            self.assertEqual(reason, result['reason'])
+            self.assertNotIn('SECRET', str(logs.output) + str(result))
+        for error, reason in [(WebSocketTimeoutException('SECRET'), 'timeout'), (OSError('SECRET'), 'connection_failed')]:
+            def fail(*args, **kwargs):
+                raise error
+            self.assertEqual(reason, fetch_references('test', connect=fail)['reason'])
+
+    def test_dashboard_non_scalar_type_keeps_references(self):
+        for card_type in (["custom"], {"nested": True}):
+            report = analyzer.analyze([source({"type": card_type, "entity": "sensor.a"}, kind="dashboard")], {})
+            self.assertEqual("partial", report["status"])
+            self.assertEqual("sensor.a", report["references"][0]["target_id"])
+
+    def test_failed_source_does_not_break_other_sources(self):
+        class BrokenValue:
+            @property
+            def template(self):
+                raise TypeError("SECRET CONFIGURATION")
+        report = analyzer.analyze([source({"entity_id": "sensor.a", "bad": BrokenValue()}),
+                                   {"id": "script.ok", "kind": "script", "name": "OK", "config": {"entity_id": "sensor.b"}}], {})
+        self.assertEqual("unavailable", report["sources"][0]["status"])
+        self.assertEqual(["sensor.b"], [r["target_id"] for r in report["references"]])
+        self.assertNotIn("SECRET", str(report))
+
+    def test_bridge_preserves_safe_failure_diagnostics(self):
+        report = {"schema_version": 1, "status": "unavailable", "sources": [], "references": [], "summary": {},
+                  "reason": "check_failed", "stage": "sources", "error": "SECRET"}
+        connection = FakeConnection([{"type": "auth_ok"}, {"type": "result", "id": 1, "success": True, "result": report}])
+        result = fetch_references("test", connect=lambda *a, **k: connection)
+        self.assertEqual("sources", result["stage"])
+        self.assertEqual("check_failed", result["reason"])
+        self.assertNotIn("SECRET", str(result))
+
     def test_cleanup_rechecks_unchanged_changed_and_unavailable_references(self):
         snapshot = {"entities": [{"entity_id": "light.a"}]}
         audit = audit_registry_snapshot(snapshot)

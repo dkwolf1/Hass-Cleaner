@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import traceback
 from datetime import timedelta
 
 import voluptuous as vol
@@ -84,21 +85,29 @@ class ReferenceMonitor:
                 self.report = {"schema_version": 1, "status": "starting", "summary": {}, "sources": [], "references": []}
                 return
             try:
+                stage = "sources"
                 sources = await collect_sources(hass)
+                stage = "registries"
                 known = {"entity": set(er.async_get(hass).entities) | set(hass.states.async_entity_ids()),
                          "entity_aliases": {e.id: e.entity_id for e in er.async_get(hass).entities.values()},
                          "device": set(dr.async_get(hass).devices), "area": set(ar.async_get(hass).areas),
                          "action": {f"{domain}.{service}" for domain, services in hass.services.async_services().items() for service in services}}
+                stage = "statistics"
                 known["statistic"] = await statistic_ids(hass)
+                stage = "analysis"
                 report = await hass.async_add_executor_job(analyze, sources, known)
                 if self.closed:
                     return
+                stage = "repairs"
                 self.reconcile(report)
                 self.report = report
             except Exception as exc:
                 if not self.report or self.report.get("status") != "unavailable":
-                    _LOGGER.warning("Reference check could not complete (%s)", type(exc).__name__)
+                    # Code locations only: no exception text, source lines or locals.
+                    locations = " -> ".join(f"{frame.name}:{frame.lineno}" for frame in traceback.extract_tb(exc.__traceback__))
+                    _LOGGER.warning("Reference check failed: stage=%s type=%s locations=%s", stage, type(exc).__name__, locations)
                 self.report = {"schema_version": 1, "status": "unavailable", "summary": {}, "sources": [], "references": [],
+                               "reason": "check_failed", "stage": stage,
                                "error": "Reference check failed; previous repair issues have been retained"}
 
     @callback

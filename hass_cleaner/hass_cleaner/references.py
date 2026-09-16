@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+from websocket import WebSocketTimeoutException, WebSocketConnectionClosedException
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def unavailable(reason="companion_unavailable"):
@@ -11,7 +15,7 @@ def unavailable(reason="companion_unavailable"):
 
 
 def fetch_references(token, *, connect=None):
-    from .registry_audit import WEBSOCKET_URL, _receive_json, _receive_result
+    from .registry_audit import WEBSOCKET_URL, _receive_json, _receive_result, HomeAssistantApiError
     connection = None
     try:
         if connect is None:
@@ -44,18 +48,31 @@ def fetch_references(token, *, connect=None):
                     or not all(isinstance(item.get(key), str) for key in
                                ("source_id", "source_kind", "source_name", "target_id", "location"))):
                 return unavailable("invalid_report")
-        return {key: value for key, value in report.items() if key in {
+        result = {key: value for key, value in report.items() if key in {
             "schema_version", "status", "checked_at", "sources", "references", "summary", "limitations"}}
+        if report.get("reason") == "check_failed":
+            result["reason"] = "check_failed"
+        if report.get("stage") in ("sources", "registries", "statistics", "analysis", "repairs"):
+            result["stage"] = report["stage"]
+        return result
+    except (TimeoutError, WebSocketTimeoutException):
+        reason = "timeout"
+    except HomeAssistantApiError as exc:
+        reason = {"unauthorized": "permission_denied", "unknown_command": "companion_missing",
+                  "not_loaded": "companion_not_loaded"}.get(exc.code if isinstance(exc.code, str) else "", "protocol_error")
+    except (OSError, WebSocketConnectionClosedException):
+        reason = "connection_failed"
     except Exception:
-        # Missing companion, permission refusal and connectivity failures never
-        # masquerade as a successful check or break the normal registry scan.
-        return unavailable()
+        reason = "unexpected_error"
     finally:
         if connection is not None:
             try:
                 connection.close()
             except Exception:
                 pass
+    # Fixed diagnostic codes only: never log token, server error text or URLs.
+    _LOGGER.warning("Reference bridge unavailable: %s", reason)
+    return unavailable(reason)
 
 
 def selection_review(audit, entity_ids=(), device_ids=()):

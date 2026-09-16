@@ -616,7 +616,8 @@ def _paged_scan_items(scan, kind: str, query: dict[str, list[str]]) -> dict[str,
         return {"items": items[offset:offset + limit], "total": len(items), "offset": offset, "source_counts": source_counts,
                 "limit": limit, "has_more": offset + limit < len(items),
                 "status": report.get("status", "unavailable"), "checked_at": report.get("checked_at"),
-                "summary": report.get("summary", {}), "sources": report.get("sources", [])}
+                "summary": report.get("summary", {}), "sources": report.get("sources", []),
+                "reason": report.get("reason"), "stage": report.get("stage")}
     if kind == "entities":
         all_items = list(scan.registry_audit.entity_workspace.get("items", []))
         items = all_items

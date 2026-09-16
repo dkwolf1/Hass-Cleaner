@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.2 — Unreleased
+
+- Use atomic, same-filesystem quarantine moves in protected configuration storage instead of copy/delete; retain compatibility with existing app-storage quarantine and preserve concurrent writes for recovery.
+- Refresh the visible paginated list after a completed scan.
+- Distinguish reference-bridge timeouts, connection failures, permission refusals and missing companion commands without exposing server error text.
+- Align release documentation and complete the reviewed English entity-detail translations.
+
+- Fetch entity results when switching from the empty attention view to temporary signals.
+- Handle non-scalar dashboard type fields and isolate unexpected source-analysis failures; failed sources remain explicitly unavailable and retain their Repairs.
+- Report companion failure stages in the app and log code locations without exception messages or configuration values.
+- Fill visible English translation gaps in group actions, bundle review and entity details.
+- Live verification is still required: the reported TypeError did not include a traceback, so the reproduced dashboard defect is not yet confirmed as the cause on the affected installation.
+
 ## 1.1.1
 
 - Add HACS custom-repository metadata for the optional companion (Home Assistant 2026.9.0 minimum), with English and Dutch installation and migration guidance.
