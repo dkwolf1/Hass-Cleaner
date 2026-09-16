@@ -96,6 +96,8 @@ def scan_tree(root: Path, settings: Settings, scan_id: str | None = None) -> Sca
                 except (OSError, PermissionError, FileNotFoundError):
                     continue
                 if entry.is_dir(follow_symlinks=False):
+                    if entry.name == ".hass-cleaner-quarantine":
+                        continue
                     stack.append(path)
                     continue
                 result.visited_files += 1

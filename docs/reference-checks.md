@@ -1,6 +1,6 @@
 # Reference checks and Home Assistant Repairs
 
-Development preview for Hass-Cleaner 1.1.0. Keep a complete backup and test on a non-critical installation first. This feature does not provide Spook feature parity or prove that anything is safe to delete.
+Reference checks were introduced in 1.1.0; HACS support shipped in 1.1.1. This checkout prepares the unreleased 1.1.2 fixes. Keep a complete backup and test on a non-critical installation first. This feature does not provide Spook feature parity or prove that anything is safe to delete.
 
 ## Two components
 
@@ -26,7 +26,7 @@ HACS manages only `custom_components/hass_cleaner`, not the app container. Insta
 
 **Already installed from ZIP?** Back up first, then download the same integration through HACS and restart Core. Keep the existing integration entry; do not remove/re-add it or create a second nested folder. HACS may replace local edits to the integration files.
 
-**Publishing note:** the HACS metadata must be merged to the default branch. Publish a new release containing these changes for the fully packaged installation route; existing release tags are not updated by a merge. Do not move an existing release tag. Installation through a real HACS instance still needs verification.
+**Publishing note:** HACS support is available from release 1.1.1. Future changes need a new release; existing tags are not updated by a merge. Do not move an existing release tag. Validate each update in a real Home Assistant installation.
 
 ### Manual installation (without HACS)
 
@@ -118,9 +118,9 @@ On a disposable Home Assistant 2026.9 instance:
 
 De zeven categorieën uit deel 1 zijn aangesloten, inclusief scènes, groepen, ondersteunde helpers, losse templates en energie/statistieken. Geldige historische/externe statistieken worden niet als verdwenen entiteit gemeld. Zonder Recorder is de statistiekcontrole expliciet onbekend. Niet alle aangepaste helpers of dynamische templates zijn interpreteerbaar; praktijktests blijven nodig voordat dit releaseklaar is.
 
-- Met HACS en Home Assistant 2026.9.0 of nieuwer: voeg `https://github.com/dkwolf1/Hass-Cleaner` toe via **HACS → menu (⋮) → Aangepaste repositories**, type **Integratie**. Download **Hass-Cleaner Companion**, herstart Home Assistant Core en voeg de integratie toe via **Instellingen → Apparaten & diensten**. Kies dezelfde releaseversie als de app. De HACS-wijzigingen moeten eerst gepubliceerd zijn; de integratie staat niet in de standaardcatalogus.
+- Met HACS en Home Assistant 2026.9.0 of nieuwer: voeg `https://github.com/dkwolf1/Hass-Cleaner` toe via **HACS → menu (⋮) → Aangepaste repositories**, type **Integratie**. Download **Hass-Cleaner Companion**, herstart Home Assistant Core en voeg de integratie toe via **Instellingen → Apparaten & diensten**. Kies dezelfde releaseversie als de app. HACS-ondersteuning is beschikbaar vanaf 1.1.1; de integratie staat niet in de standaardcatalogus.
 - De ZIP blijft een alternatief zonder HACS. Al handmatig geïnstalleerd? Maak een back-up, download via HACS en herstart Core; behoud de bestaande integratie. Werk voortaan de companion via HACS bij en de app via de App Store.
 - Start een nieuwe appscan. Onder **Entiteiten → Referentiecontrole** staan bronnen, doelen, exacte configuratiepaden en beperkte dekking.
 - Meldingen staan bij **Instellingen → Systeem → Reparaties**. Corrigeer zelf de configuratie; de companion controleert iedere vijf minuten. Er wordt niets automatisch hersteld of verwijderd.
-- App en companion zijn afzonderlijke onderdelen en moeten afzonderlijk worden bijgewerkt. Versie 1.1.0 is nog een ontwikkelversie; praktijktests zijn nodig.
+- App en companion zijn afzonderlijke onderdelen en moeten afzonderlijk worden bijgewerkt. 1.1.1 is gepubliceerd; deze checkout bereidt 1.1.2 voor. Praktijktests blijven nodig.
 - Geen verwijzingen gevonden betekent **niet** veilig verwijderen. Templates, blueprints, aangepaste kaarten en onleesbare bronnen kunnen gebruik verbergen. Maak een volledige back-up en controleer de gevolgen.

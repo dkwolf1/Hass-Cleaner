@@ -117,7 +117,11 @@ class CompanionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertLogs(self.companion._LOGGER, "WARNING") as logs:
                 await self.monitor.refresh()
             self.assertNotIn("SECRET", str(logs.output))
+            self.assertIn("stage=sources", str(logs.output))
+            self.assertIn("locations=", str(logs.output))
         self.assertEqual("unavailable", self.monitor.report["status"])
+        self.assertEqual("sources", self.monitor.report["stage"])
+        self.assertEqual("check_failed", self.monitor.report["reason"])
         self.assertEqual(1, len(self.issues))
 
     async def test_refresh_runs_analyzer_off_event_loop(self):

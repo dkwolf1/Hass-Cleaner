@@ -1,6 +1,8 @@
 # Hass-Cleaner Roadmap
 
-[Nederlands](#nederlands) · [English](#english)
+[English](#english) · [Nederlands](#nederlands)
+
+Current published release: **1.1.1**, including reference checks, Repairs and HACS support. This checkout prepares **1.1.2**: quarantine concurrency protection, reference diagnostics, list refresh fixes and documentation/translation corrections. All releases remain intended for controlled early testing, not a guarantee of safety. See [the changelog](hass_cleaner/CHANGELOG.md).
 
 ## Nederlands
 
@@ -18,12 +20,15 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 | 0.9.0 | Afgerond | Supervisor-back-upverificatie, hersteltest, bewaartermijn en expliciete verwijdering na verval. |
 | 0.9.1 | Afgerond | Toegestane back-upcontrole, hergebruik van back-upbewijs, bewuste optionele back-upkeuze en selecteerbare entitybeoordeling. |
 | 1.0.0 | Uitgebracht | Gebruikersgestuurde cleanup, registeruitvoering, persoonlijke inhoud, schone start en behoud van harde systeembescherming. |
-| 1.0.1 | Voorbereid | Technische hardening: crashbestendige uitvoering, paginering, atomaire opslag, toegankelijkheid en betrouwbaar frontendcachebeleid. |
-| 1.0.2 | Voorbereid | Herstel- en registerjournals, veilige configuratiesynchronisatie, begrensd scangeheugen, robuuste verzoekvalidatie en verbeterde tweetalige exports. |
+| 1.0.1 | Uitgebracht | Technische hardening: crashbestendige uitvoering, paginering, atomaire opslag, toegankelijkheid en betrouwbaar frontendcachebeleid. |
+| 1.0.2 | Uitgebracht | Herstel- en registerjournals, veilige configuratiesynchronisatie, begrensd scangeheugen, robuuste verzoekvalidatie en verbeterde tweetalige exports. |
+| 1.1.0 | Uitgebracht | Companion met referentiecontrole en native Reparaties. |
+| 1.1.1 | Uitgebracht | HACS-installatie en instructies. |
+| 1.1.2 | Voorbereid | Atomaire quarantaine, diagnostiek, lijstverversing en documentatie/vertalingen. |
 
 ### Praktijkcontrole voor vroege testers
 
-- 1.0.2 installeren of bijwerken via de echte GitHub/GHCR-workflow.
+- De nieuwe release installeren of bijwerken via de echte GitHub/GHCR- en HACS-workflow.
 - Volledige back-up starten en voltooiing op Home Assistant OS verifiëren.
 - Zowel een veilige als een bewust gekozen reviewkandidaat naar quarantaine verplaatsen.
 - Hersteltest uitvoeren en hetzelfde bestand werkelijk terugplaatsen.
@@ -35,7 +40,7 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 - Minimaal enkele gebruikerstests uitvoeren met verschillende integraties en opslagprofielen.
 - Bekende problemen documenteren en alle releaseblokkerende fouten oplossen.
 
-### 1.0.0 — Eerste stabiele versie
+### 1.0.0 — Eerste publieke testversie
 
 - Gepubliceerd voor gecontroleerde vroege tests; meld onverwacht gedrag met het leesbare en technische scanrapport.
 - Stabiel quarantaine- en herstelcontract.
@@ -49,7 +54,7 @@ Veiligheid gaat vóór extra opruimwinst. Een release gaat pas door wanneer risi
 - Betere opslagtrends en geschatte winst per integratie.
 - Optionele meldingen voor verlopen quarantaine en langdurige entityproblemen.
 - Uitbreiding naar extra talen via losse vertaalbestanden.
-- Entityverwijdering uitsluitend onderzoeken als Home Assistant daarvoor een officiële, controleerbare en herstelbare API biedt.
+- Registerverwijdering blijft een bewuste keuze; herstel vereist een Home Assistant-back-up.
 
 ---
 
@@ -69,12 +74,15 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 | 0.9.0 | Completed | Supervisor backup verification, restore testing, retention and explicit post-expiry deletion. |
 | 0.9.1 | Completed | Permitted backup verification, reusable evidence, an explicit optional backup choice and selectable entity reviews. |
 | 1.0.0 | Released | User-directed cleanup, registry execution, personal content, clean-start controls and hard core-system protection. |
-| 1.0.1 | Prepared | Technical hardening: crash-safe execution, pagination, atomic storage, accessibility and reliable frontend caching. |
-| 1.0.2 | Prepared | Recovery and registry journals, safe configuration synchronization, bounded scan memory, robust request validation and improved bilingual exports. |
+| 1.0.1 | Released | Technical hardening: crash-safe execution, pagination, atomic storage, accessibility and reliable frontend caching. |
+| 1.0.2 | Released | Recovery and registry journals, safe configuration synchronization, bounded scan memory, robust request validation and improved bilingual exports. |
+| 1.1.0 | Released | Companion reference checks and native Repairs. |
+| 1.1.1 | Released | HACS installation support and instructions. |
+| 1.1.2 | Prepared | Atomic quarantine, diagnostics, list refresh and documentation/translations. |
 
 ### Practical checks for early testers
 
-- Install or update 1.0.2 through the real GitHub/GHCR workflow.
+- Install or update the new release through the real GitHub/GHCR and HACS workflows.
 - Start a full backup and verify completion on Home Assistant OS.
 - Move both a safe file and an explicitly accepted review candidate into quarantine.
 - Run the restore test and restore that file to its original location.
@@ -86,7 +94,7 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 - Run user tests across several integrations and storage profiles.
 - Document known issues and resolve every release-blocking defect.
 
-### 1.0.0 — First stable release
+### 1.0.0 — First public test release
 
 - Released for controlled early testing; report unexpected behaviour with the readable and technical scan reports.
 - Stable quarantine and recovery contract.
@@ -100,4 +108,4 @@ Safety takes priority over reclaimed space. A release proceeds only when risky s
 - Better storage trends and estimated savings per integration.
 - Optional notifications for expired quarantine and persistent entity problems.
 - Additional languages through separate translation files.
-- Consider entity deletion only if Home Assistant provides an official, verifiable and recoverable API.
+- Keep registry deletion user-directed; recovery requires a Home Assistant backup.

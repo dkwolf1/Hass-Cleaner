@@ -4,6 +4,8 @@ Storage auditing and user-directed cleanup for Home Assistant OS. Handle with ca
 
 ## Getting started
 
+Published release: **1.1.1**. This checkout prepares **1.1.2**. In 1.1.2, new quarantine files stay in the configuration directory under `.hass-cleaner-quarantine`, outside subsequent scans. Atomic moves preserve the original file; cross-filesystem moves are rejected. Existing app-storage quarantine remains supported. Back up both configuration and app data (which holds the manifest). Quarantine itself does not reclaim space. Do not remove the hidden folder manually; stop active writers before moving files. A changed checksum requires manual investigation, not forced deletion.
+
 For optional automation/script/dashboard reference checks and native Repairs, install [Hass-Cleaner Companion](https://github.com/dkwolf1/Hass-Cleaner/blob/main/docs/reference-checks.md) separately. App 1.1.0 displays its scan snapshots; without it, the app explicitly reports that reference checks are unavailable. Existing cleanup features continue to work.
 
 1. Start the app, enable **Show in sidebar**, and open its interface.

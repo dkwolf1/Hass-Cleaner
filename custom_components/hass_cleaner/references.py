@@ -87,7 +87,10 @@ def analyze(sources, known):
                 record["status"] = "partial"
                 return
             if isinstance(value, dict):
-                statistic_context = statistic_context or (record["kind"] == "dashboard" and value.get("type") in {"statistic", "statistics-graph"})
+                card_type = value.get("type")
+                if record["kind"] == "dashboard" and card_type is not None and not isinstance(card_type, str):
+                    record["status"] = "partial"
+                statistic_context = statistic_context or (record["kind"] == "dashboard" and isinstance(card_type, str) and card_type in {"statistic", "statistics-graph"})
                 if key == "entities" and record["kind"] == "scene":
                     for entity_id in value:
                         add("entity", entity_id, f"{location}[{entity_id}]")
@@ -140,8 +143,14 @@ def analyze(sources, known):
         if source.get("error") or not isinstance(source.get("config"), dict):
             record.update(status="unavailable", error=str(source.get("error") or "Configuration is unavailable"))
         else:
-            walk(source["config"])
-            if record["dynamic"] or record["custom_cards"]:
+            start = len(references)
+            try:
+                walk(source["config"])
+            except Exception:
+                # Never expose config values or resolve issues for failed sources.
+                del references[start:]
+                record.update(status="unavailable", error="Source analysis failed")
+            if record["status"] != "unavailable" and (record["dynamic"] or record["custom_cards"]):
                 record["status"] = "partial"
         coverage.append(record)
     references.sort(key=lambda r: (r["source_id"], r["location"], r["target_id"]))

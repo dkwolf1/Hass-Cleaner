@@ -2,6 +2,21 @@
   "use strict";
 
   const english = {
+    "Home Assistant meldt langdurig unavailable; controleer eerst apparaat, integratie en afhankelijkheden.": "Home Assistant reports persistent unavailability; check the device, integration and dependencies first.",
+    "Home Assistant heeft langdurig geen bruikbare waarde; oorzaak en gebruik moeten worden onderzocht.": "Home Assistant has had no usable value for an extended period; investigate the cause and usage.",
+    "Home Assistant meldt langdurig problem; onderzoek oorzaak, gebruik en herstel voordat verwijdering wordt overwogen.": "Home Assistant reports a persistent problem; investigate the cause, usage and recovery before considering removal.",
+    "De ingeschakelde registerentity heeft momenteel geen state.": "The enabled registry entity currently has no state.",
+    "De entity bevat een ontbrekende registerverwijzing.": "The entity contains a missing registry reference.",
+    "De entity is bewust door een gebruiker uitgeschakeld.": "The entity was intentionally disabled by a user.",
+    "De integratie levert deze entity standaard uitgeschakeld; dit is normaal gedrag.": "The integration disables this entity by default; this is normal behaviour.",
+    "Nieuwe entities zijn via de configuratie-entry uitgeschakeld.": "New entities are disabled through the configuration entry.",
+    "Een integratiespecifiek connectiviteitssignaal is negatief; dit is alleen een aanwijzing.": "An integration-specific connectivity signal is negative; this is only an indication.",
+    "Geen algemeen Home Assistant-statusprobleem vastgesteld.": "No general Home Assistant state problem detected.",
+    "Duurbron: opeenvolgende Hass-Cleaner-scans": "Duration source: consecutive Hass-Cleaner scans",
+    "Groep selecteren": "Select group", "Groep wissen": "Clear group", "Bundel beoordelen": "Review bundle", "Meerdere integraties": "Multiple integrations",
+    "Home Assistant meldt unavailable; nog niet lang genoeg waargenomen.": "Home Assistant reports unavailable; not yet observed long enough.",
+    "Home Assistant heeft momenteel geen bruikbare waarde; dit is nog geen verwijderbewijs.": "Home Assistant currently has no usable value; this is not evidence that removal is safe.",
+    "Home Assistant meldt problem; controleer eerst of dit voor dit entiteitstype een normale domeinstatus is.": "Home Assistant reports problem; first check whether this is a normal state for this entity type.",
     "Verbinden...": "Connecting...", "Niet verbonden": "Not connected", "Home Assistant verbonden": "Connected to Home Assistant", "Lokale ontwikkelmodus": "Local development mode",
     "Nieuwe scan": "New scan", "Overzicht": "Overview", "Scanresultaten": "Scan results", "Entiteiten": "Entities", "Bundels": "Bundles", "Database": "Database", "Quarantaine": "Quarantine", "Historie": "History", "Instellingen": "Settings",
     "Veilige scheiding actief": "Safety boundaries active", "Scans wijzigen niets. Daarna kiest de gebruiker zelf: niet-beschermde bestanden kunnen naar herstelbare quarantaine en geselecteerde registerobjecten kunnen na waarschuwing worden verwijderd. Een back-up wordt sterk aanbevolen.": "Scans do not change anything. You decide what happens next: non-protected files can enter recoverable quarantine and selected registry objects can be removed after a warning. A backup is strongly recommended.",
@@ -154,6 +169,19 @@
   });
 
   const patterns = [
+    [/^Nog (\d+) dag\(en\) tot (\d+) dagen, of nog (\d+) meting\(en\) met minimaal (\d+) dagen tussen eerste en laatste meting\.$/, "$1 more days to reach $2 days, or $3 more observations with at least $4 days between the first and last observation."],
+    [/^Entityregister: aanwezig$/, "Entity registry: present"],
+    [/^Entityregister: geen item \(runtime-only\)$/, "Entity registry: no entry (runtime-only)"],
+    [/^Integratie: (.+)$/, "Integration: $1"], [/^Apparaat: (.+)$/, "Device: $1"], [/^Ruimte: (.+)$/, "Area: $1"],
+    [/^Uitgeschakeld door: niemand$/, "Disabled by: nobody"],
+    [/^Uitgeschakeld door: (.+)$/, "Disabled by: $1"],
+    [/^Home Assistant-state: (.+)$/, "Home Assistant state: $1"],
+    [/^HA meldt sinds: (.+)$/, "HA reports since: $1"],
+    [/^Hass-Cleaner meet sinds: (.+)$/, "Hass-Cleaner observes since: $1"],
+    [/^Duurbron: Home Assistant last_changed$/, "Duration source: Home Assistant last_changed"],
+    [/^Opeenvolgende metingen: (\d+)$/, "Consecutive observations: $1"],
+    [/^Signalen: Geen integratiespecifieke signalen$/, "Signals: No integration-specific signals"],
+    [/^(.+) · Tijdelijk onbeschikbaar · (\d+) uur gevolgd$/, "$1 · Temporarily unavailable · $2 hours monitored"],
     [/^(\d+) entiteiten · (\d+) actie nodig · (\d+) tijdelijk · maximaal (.+) \/ (\d+) meting\(en\)$/, (match, total, attention, temporary, duration, observations) => `${total} entities · ${attention} need attention · ${temporary} temporary · up to ${translated(duration)} / ${observations} observations`],
     [/^(\d+) meting\(en\) · (.+)$/, (match, count, status) => `${count} observations · ${translated(status)}`],
     [/^Back-up voltooid en geverifieerd(.*)$/, "Backup completed and verified$1"],

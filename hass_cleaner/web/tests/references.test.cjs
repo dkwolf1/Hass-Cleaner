@@ -26,6 +26,35 @@ assert.match(context.referenceWarning(), /betekent niet/);
 assert.match(context.referenceStatus('partial'), /Gedeeltelijke/);
 context.window.HassCleanerI18n.locale = 'en';
 
+assert.match(context.referenceHeader({status: 'unavailable', reason: 'check_failed', stage: 'analysis'}), /analysing references/);
+assert.ok(!context.referenceHeader({status: 'unavailable', reason: 'check_failed', stage: '<SECRET>'}).includes('SECRET'));
+// Run the actual empty-state click handler: changing the filter must fetch data.
+const start = app.indexOf('$("#entity-show-watch").addEventListener');
+const handler = app.slice(start, app.indexOf('\n      });', start) + 10);
+let click, loads = 0;
+const fields = {'#entity-status-filter': {value: 'attention'}, '#entity-group-filter': {value: 'none'},
+  '#entity-show-watch': {addEventListener: (event, fn) => { click = fn; }}};
+vm.runInNewContext(handler, {$: key => fields[key], loadEntitiesPage: reset => { assert.equal(reset, true); loads++; },
+  renderEntities: () => { throw new Error('Must fetch instead of rendering stale data'); }});
+click();
+assert.equal(loads, 1);
+assert.equal(fields['#entity-status-filter'].value, 'watch');
+
+// Finishing a scan refreshes only the currently visible paginated list.
+const finish = app.slice(app.indexOf('function finishScanSummary('), app.indexOf('\nfunction renderMetrics('));
+for (const tab of ['entities', 'registry', 'results', 'overview']) {
+  const calls = [];
+  const node = {classList: {add(){}, remove(){}}, dataset: {tab}};
+  const scope = {state: {}, $: () => node, $$: () => [], showToast(){}, renderMetrics(){},
+    renderRecipes(){}, renderRegistryAudit(){}, renderReferenceOverview(){}, loadScanHistory(){},
+    loadEntitiesPage: reset => calls.push(['entities', reset]), loadBundlesPage: reset => calls.push(['registry', reset]),
+    loadFilesPage: reset => calls.push(['results', reset])};
+  vm.runInNewContext(finish, scope);
+  scope.finishScanSummary({id: 'new', status: 'completed', registry_audit: {entity_workspace: {summary: {}}}});
+  assert.deepEqual(calls, tab === 'overview' ? [] : [[tab, true]]);
+}
+assert.match(context.referenceHeader({status: 'unavailable', reason: 'timeout'}), /timed out/);
+
 (async () => {
   vm.runInNewContext('state.scan = {id: "first"}', context);
   let requested;

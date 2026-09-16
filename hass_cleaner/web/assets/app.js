@@ -59,7 +59,23 @@ function referenceRows(items) {
 
 function referenceHeader(report) {
   const date = report.checked_at ? new Date(report.checked_at).toLocaleString(interfaceLocale()) : "—";
-  return `<h3>${referenceText("Reference checks", "Referentiecontrole")}</h3><p>${escapeHtml(referenceStatus(report.status))} · ${escapeHtml(date)}</p><p>${referenceWarning()}</p>`;
+  const stages = {sources: referenceText("reading sources", "bronnen lezen"), registries: referenceText("reading registries", "registers lezen"), statistics: referenceText("reading statistics", "statistieken lezen"), analysis: referenceText("analysing references", "verwijzingen analyseren"), repairs: referenceText("updating Repairs", "Reparaties bijwerken")};
+  const reasons = {
+    check_failed: referenceText("Companion check failed. See Home Assistant logs.", "Companion-controle mislukt. Bekijk de Home Assistant-logboeken."),
+    timeout: referenceText("Companion request timed out. Check Core logs and scan again.", "Companion-verzoek verlopen. Controleer de Core-logboeken en scan opnieuw."),
+    permission_denied: referenceText("Home Assistant refused access to the companion.", "Home Assistant weigert toegang tot de companion."),
+    companion_missing: referenceText("Companion command is unavailable. Install the companion and restart Core.", "Companion-commando ontbreekt. Installeer de companion en herstart Core."),
+    companion_not_loaded: referenceText("Add the companion under Devices & services first.", "Voeg de companion eerst toe bij Apparaten & diensten."),
+    connection_failed: referenceText("Connection to Home Assistant failed.", "Verbinding met Home Assistant mislukt."),
+    authentication_failed: referenceText("Home Assistant authentication failed.", "Home Assistant-authenticatie mislukt."),
+    protocol_error: referenceText("Unexpected Home Assistant response. Check app and companion versions.", "Onverwacht Home Assistant-antwoord. Controleer de app- en companionversies."),
+    invalid_report: referenceText("Invalid companion report. Check app and companion versions.", "Ongeldig companionrapport. Controleer de app- en companionversies."),
+    unsupported_report: referenceText("Unsupported companion report version.", "Niet-ondersteunde companionrapportversie."),
+    unexpected_error: referenceText("Unexpected reference connection error. Check the app logs.", "Onverwachte fout in de referentieverbinding. Controleer het applogboek.")
+  };
+  const diagnosis = reasons[report.reason] || "";
+  const detail = diagnosis ? `<p>${escapeHtml(diagnosis)}${stages[report.stage] ? ` (${escapeHtml(stages[report.stage])})` : ""}</p>` : "";
+  return `<h3>${referenceText("Reference checks", "Referentiecontrole")}</h3><p>${escapeHtml(referenceStatus(report.status))} · ${escapeHtml(date)}</p>${detail}<p>${referenceWarning()}</p>`;
 }
 
 function renderReferenceOverview() {
@@ -385,6 +401,10 @@ function finishScanSummary(scan, showCompletionToast = false) {
   if (persistenceErrors.length) showToast(persistenceErrors[0], true);
   $("#select-all-safe").disabled = !(state.guidance?.safe_recipes || []).length;
   loadScanHistory();
+  const activeTab = $(".tab.active")?.dataset.tab;
+  if (activeTab === "entities") loadEntitiesPage(true);
+  if (activeTab === "registry") loadBundlesPage(true);
+  if (activeTab === "results") loadFilesPage(true);
   if (showCompletionToast) showToast("Veilige scan voltooid");
 }
 
@@ -729,7 +749,7 @@ function renderEntities() {
       $("#entity-show-watch").addEventListener("click", () => {
         $("#entity-status-filter").value = "watch";
         $("#entity-group-filter").value = "integration";
-        renderEntities();
+        loadEntitiesPage(true);
       });
     } else {
       list.innerHTML = '<div class="table-empty panel">Geen entiteiten binnen deze filters.</div>';

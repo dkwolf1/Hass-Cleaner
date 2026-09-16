@@ -25,6 +25,13 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../assets/i18n.js'), 'u
 const i18n = context.window.HassCleanerI18n;
 i18n.setPreference('auto');
 assert.equal(i18n.locale, 'en');
+assert.equal(i18n.text('Duurbron: opeenvolgende Hass-Cleaner-scans'), 'Duration source: consecutive Hass-Cleaner scans');
+assert.equal(i18n.text('Uitgeschakeld door: integration'), 'Disabled by: integration');
+assert.match(i18n.text('Home Assistant meldt langdurig unavailable; controleer eerst apparaat, integratie en afhankelijkheden.'), /^Home Assistant reports/);
+assert.equal(i18n.text('Groep selecteren'), 'Select group');
+assert.equal(i18n.text('Bundel beoordelen'), 'Review bundle');
+assert.equal(i18n.text('Meerdere integraties'), 'Multiple integrations');
+assert.equal(i18n.text('Entityregister: aanwezig'), 'Entity registry: present');
 assert.equal(dynamic.nodeValue, 'New scan');
 assert.equal(label.getAttribute('aria-label'), 'Filter by state');
 assert.equal(source.nodeValue, 'Nieuwe scan');

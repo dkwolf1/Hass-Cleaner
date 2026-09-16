@@ -7,6 +7,7 @@ import time
 import unittest
 import hashlib
 import json
+from unittest.mock import patch
 from dataclasses import replace
 from datetime import datetime, timezone
 from datetime import timedelta
@@ -19,6 +20,63 @@ from hass_cleaner.settings import Settings
 
 
 class QuarantineTests(unittest.TestCase):
+    def test_late_writer_keeps_original_inode_and_data(self):
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            rename = os.rename
+            moved = []
+            def late_writer(src, dst):
+                Path(src).write_bytes(b'late concurrent content')
+                rename(src, dst)
+                moved.append(Path(dst))
+                Path(src).write_bytes(b'recreated source')
+            with patch('hass_cleaner.quarantine.os.rename', side_effect=late_writer):
+                with self.assertRaises(QuarantineError):
+                    manager.execute(scan, Settings(), plan=plan, backup_token='ok', backup_valid=True,
+                                    backup_choice='verified', risk_acknowledged=False,
+                                    confirmation='QUARANTINE', requested_by='test')
+            self.assertEqual(b'late concurrent content', moved[0].read_bytes())
+            self.assertEqual(b'recreated source', source.read_bytes())
+            restarted = QuarantineManager(Path(config_folder), Path(data_folder))
+            self.assertEqual('recovery_required', restarted.list()[0]['files'][0]['status'])
+            self.assertEqual(0, restarted.clear_completed_history())
+
+    def test_cross_filesystem_error_has_no_copy_fallback(self):
+        import errno
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            with patch('hass_cleaner.quarantine.os.rename', side_effect=OSError(errno.EXDEV, 'cross-device')):
+                with self.assertRaises(QuarantineError):
+                    manager.execute(scan, Settings(), plan=plan, backup_token='ok', backup_valid=True,
+                                    backup_choice='verified', risk_acknowledged=False,
+                                    confirmation='QUARANTINE', requested_by='test')
+            self.assertEqual(b'safe generated cache', source.read_bytes())
+
+    def test_atomic_move_recovery_preserves_recreated_source(self):
+        from hass_cleaner.scanner import scan_tree
+        with tempfile.TemporaryDirectory() as config_folder, tempfile.TemporaryDirectory() as data_folder:
+            source, scan, plan = self._fixture(Path(config_folder))
+            manager = QuarantineManager(Path(config_folder), Path(data_folder))
+            save = manager._replace_operation
+            def interrupted_commit(operation):
+                if operation['files'][0]['status'] == 'quarantined':
+                    source.write_bytes(b'new file')
+                    raise KeyboardInterrupt()
+                save(operation)
+            with patch.object(manager, '_replace_operation', side_effect=interrupted_commit):
+                with self.assertRaises(KeyboardInterrupt):
+                    manager.execute(scan, Settings(), plan=plan, backup_token='ok', backup_valid=True,
+                                    backup_choice='verified', risk_acknowledged=False,
+                                    confirmation='QUARANTINE', requested_by='test')
+            restarted = QuarantineManager(Path(config_folder), Path(data_folder))
+            op = restarted.list()[0]
+            self.assertEqual('quarantined', op['files'][0]['status'])
+            self.assertEqual(b'new file', source.read_bytes())
+            self.assertTrue(restarted.test_restore(op['id'], 'file1')['passed'])
+            self.assertFalse(any('.hass-cleaner-quarantine' in item.path for item in scan_tree(Path(config_folder), Settings()).items))
+
     def _fixture(self, config: Path) -> tuple[Path, ScanResult, dict]:
         source = config / "custom_components" / "demo" / "__pycache__" / "demo.cpython-313.pyc"
         source.parent.mkdir(parents=True)

@@ -4,7 +4,7 @@
 
 Hass-Cleaner is a Home Assistant App for inspecting storage, stale entities and registry relationships before anything is cleaned up. Safety, informed user choice and recovery come before reclaimed space.
 
-> **Release status:** version 1.1.0 is published for controlled early use. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision. The HACS installation changes in this checkout are not yet released.
+> **Release status:** version 1.1.1 is published for controlled early use, including HACS installation support. This checkout prepares **1.1.2**, not yet published. Hass-Cleaner provides facts, advice, backup options and recovery guidance; the user makes the final cleanup decision.
 
 ## English
 
@@ -86,7 +86,13 @@ GitHub Actions builds the version in `hass_cleaner/config.yaml` for `amd64` and 
 
 With HACS configured and Home Assistant 2026.9.0 or newer, add `https://github.com/dkwolf1/Hass-Cleaner` under **HACS → menu (⋮) → Custom repositories**, type **Integration**. Download **Hass-Cleaner Companion**, restart Home Assistant Core, then add it under **Settings → Devices & services**. Use the same release version as the app.
 
-HACS updates the companion; the App Store updates the app. The ZIP remains available for manual installation. See [installation and migration instructions](docs/reference-checks.md#installation), including the publication prerequisite for this new HACS route. This repository is not in the default HACS catalog.
+HACS updates the companion; the App Store updates the app. The ZIP remains available for manual installation. See [installation and migration instructions](docs/reference-checks.md#installation). This repository is not in the default HACS catalog.
+
+### Quarantine storage in 1.1.2
+
+New operations atomically move files into `/homeassistant/.hass-cleaner-quarantine` (the Home Assistant configuration directory), retaining the original file rather than copying and unlinking it. This folder is excluded from scans. Cross-filesystem moves are rejected without a copy/delete fallback. Existing quarantine in app storage remains supported.
+
+Keep both the configuration folder and the app data in your backups: the recovery manifest stays in the app data. Do not manually remove the hidden quarantine folder. Moving files on the same filesystem does not free disk space; permanent deletion after expiry does. Stop active writers before cleanup; a later write may invalidate the stored checksum, requiring manual recovery instead of automatic restore.
 
 ### Local development and tests
 
@@ -179,7 +185,9 @@ Versiegebonden wijzigingen staan in [CHANGELOG.md](hass_cleaner/CHANGELOG.md). G
 4. Start de App en open de webinterface.
 5. Voer eerst een scan uit en beoordeel het rapport voordat je een actie voorbereidt.
 
-GitHub Actions bouwt de versie uit `hass_cleaner/config.yaml` voor `amd64` en `aarch64`. Na publicatie van de container kan Home Assistant die versie installeren of bijwerken. Versie 1.1.0 bevat [referentiecontrole en Reparaties](docs/reference-checks.md#nederlands-kort) via een aparte companion-integratie. Na publicatie van de HACS-ondersteuning kun je die via HACS installeren: voeg deze GitHub-repository toe als aangepaste repository, type **Integratie**. De ZIP blijft een alternatief. Praktijktests zijn nog nodig; de companion zit niet in de app-container.
+GitHub Actions bouwt de versie uit `hass_cleaner/config.yaml` voor `amd64` en `aarch64`. Gepubliceerd: **1.1.1** met HACS-ondersteuning. Deze checkout bereidt **1.1.2** voor. Installeer de aparte [companion](docs/reference-checks.md#nederlands-kort) via HACS door deze repository toe te voegen als type **Integratie**. De ZIP blijft een alternatief; de companion zit niet in de app-container.
+
+Vanaf 1.1.2 worden nieuwe quarantainebestanden atomair naar `.hass-cleaner-quarantine` in de Home Assistant-configuratiemap verplaatst. Bestaande quarantaine blijft ondersteund. Bewaar zowel de configuratiemap als appdata in je back-up; verwijder de verborgen map niet handmatig. Verplaatsen maakt nog geen schijfruimte vrij. Verplaatsingen tussen bestandssystemen worden geblokkeerd. Stop actieve schrijvers vooraf; latere wijzigingen kunnen de checksum ongeldig maken en handmatig herstel vereisen.
 
 ### Lokaal ontwikkelen en testen
 

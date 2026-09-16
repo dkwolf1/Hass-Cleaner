@@ -13,7 +13,9 @@ WEBSOCKET_URL = "ws://supervisor/core/websocket"
 
 
 class HomeAssistantApiError(RuntimeError):
-    pass
+    def __init__(self, message, *, code=None):
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -532,7 +534,8 @@ def _receive_result(connection: Any, command_id: int) -> dict[str, Any]:
         if response.get("type") != "result" or not response.get("success"):
             error = response.get("error")
             message = error.get("message") if isinstance(error, dict) else None
-            raise HomeAssistantApiError(message or f"WebSocket-commando {command_id} mislukte")
+            raise HomeAssistantApiError(message or f"WebSocket-commando {command_id} mislukte",
+                                       code=error.get("code") if isinstance(error, dict) else None)
         return response
 
 

@@ -115,7 +115,9 @@ class QuarantineManager:
 
         scan_map = {item.id: item for item in scan.items}
         operation_id = uuid.uuid4().hex
-        operation_root = self.root / operation_id / "files"
+        # Keep the original inode: copying and then unlinking can lose writes
+        # made by another process between those two operations.
+        operation_root = self._contained_path(self.config_root, Path(".hass-cleaner-quarantine") / operation_id / "files", "Invalid quarantine storage path")
         prepared: list[tuple[Path, Path, dict[str, Any]]] = []
         now = datetime.now(timezone.utc)
 
@@ -133,6 +135,8 @@ class QuarantineManager:
                 raise QuarantineError(f"Bestand is sinds de scan verdwenen: {item.path}") from exc
             if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
                 raise QuarantineError(f"Bestandstype is sinds de scan gewijzigd: {item.path}")
+            if metadata.st_dev != self.config_root.stat().st_dev:
+                raise QuarantineError("Atomic quarantine across filesystems is not supported; no files were moved")
             expected_mtime = datetime.fromisoformat(item.modified_at.replace("Z", "+00:00")).timestamp()
             if metadata.st_size != item.size_bytes or abs(metadata.st_mtime - expected_mtime) >= 1:
                 raise QuarantineError(f"Bestand is sinds de scan gewijzigd: {item.path}")
@@ -168,25 +172,24 @@ class QuarantineManager:
             operation_id, scan.id, backup_token or backup_choice, requested_by, now,
             settings, records, "preparing", backup_choice,
         )
+        operation["storage"] = "config"
         # The complete intent is durable before the first source file is touched.
         self._insert_operation(operation)
         try:
             for source, destination, record in prepared:
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                temporary = destination.with_name(destination.name + ".copying")
-                with source.open("rb") as input_file, temporary.open("xb") as output_file:
-                    shutil.copyfileobj(input_file, output_file, 1024 * 1024)
-                    output_file.flush()
-                    os.fsync(output_file.fileno())
-                source_hash = _sha256(source)
-                if _sha256(temporary) != source_hash:
-                    temporary.unlink(missing_ok=True)
-                    raise QuarantineError(f"Checksumcontrole mislukt voor {record['original_path']}")
-                temporary.replace(destination)
-                record.update({"sha256": source_hash, "status": "copied"})
-                operation["status"] = "running"
-                self._replace_operation(operation)
-                source.unlink()
+                if destination.exists() or destination.is_symlink():
+                    raise QuarantineError("Quarantine destination already exists")
+                if not self._matches_regular_file(source, record["sha256"]):
+                    raise QuarantineError("File changed during quarantine; scan again")
+                # No copy/unlink fallback (including EXDEV). A late writer
+                # retains the same inode in quarantine instead of losing data.
+                os.rename(source, destination)
+                _sync_directory(source.parent)
+                _sync_directory(destination.parent)
+                if not self._matches_regular_file(destination, record["sha256"]):
+                    record["status"] = "recovery_required"
+                    raise QuarantineError("File changed during quarantine; moved data has been preserved for recovery")
                 record["status"] = "quarantined"
                 self._replace_operation(operation)
         except Exception as exc:
@@ -304,11 +307,12 @@ class QuarantineManager:
             or any(file.get("status") in retained_statuses for file in item.get("files", []))
         ]
         removed = len(operations) - len(active)
+        roots = {item["id"]: self._operation_files_root(item["id"]).parent for item in operations}
         self._save(active)
         for operation in operations:
             if operation not in active:
                 try:
-                    operation_root = self._operation_root(str(operation.get("id", "")))
+                    operation_root = roots[operation["id"]]
                 except QuarantineError:
                     continue
                 shutil.rmtree(operation_root, ignore_errors=True)
@@ -350,7 +354,9 @@ class QuarantineManager:
         try:
             value = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
-            if self.root.exists() and any(path.is_dir() for path in self.root.iterdir()):
+            local = self.config_root / ".hass-cleaner-quarantine"
+            if ((self.root.exists() and any(path.is_dir() for path in self.root.iterdir()))
+                    or (local.exists() and any(local.iterdir()))):
                 raise QuarantineError("Quarantine manifest is missing; existing recovery data has been preserved") from exc
             return []
         except (OSError, ValueError) as exc:
@@ -364,6 +370,8 @@ class QuarantineManager:
                     or not isinstance(operation.get("files"), list)
                     or not isinstance(operation.get("status"), str)):
                 raise QuarantineError("Quarantine manifest has an invalid operation")
+            if operation.get("storage") not in (None, "config"):
+                raise QuarantineError("Unknown quarantine storage; recovery data preserved")
             ids.add(operation["id"])
             file_ids = set()
             file_paths = set()
@@ -451,7 +459,11 @@ class QuarantineManager:
                     changed = True
                     continue
                 source_present = source.exists() or source.is_symlink()
-                if destination_ok and not source_present:
+                if operation.get("storage") == "config" and (destination.exists() or destination.is_symlink()):
+                    # The original name may already have been recreated. Never
+                    # delete either file when recovering an atomic move.
+                    record["status"] = "quarantined" if destination_ok else "recovery_required"
+                elif destination_ok and not source_present:
                     record["status"] = "quarantined"
                 elif source_ok:
                     if destination_ok:
@@ -563,6 +575,9 @@ class QuarantineManager:
         return self._contained_path(self.root, Path(operation_id), "Ongeldig quarantaine-ID")
 
     def _operation_files_root(self, operation_id: str) -> Path:
+        operation = self._find_operation(operation_id)
+        if operation.get("storage") == "config":
+            return self._contained_path(self.config_root, Path(".hass-cleaner-quarantine") / operation_id / "files", "Invalid quarantine path")
         return self._contained_path(self._operation_root(operation_id), Path("files"), "Ongeldig quarantainepad")
 
 
